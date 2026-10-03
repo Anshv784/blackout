@@ -259,7 +259,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
         </div>
       </div>
       <div className="controls-help">
-        <span>WASD move</span>
+        <span>W toward mouse · S back · A/D strafe</span>
         <span>MOUSE aim</span>
         <span>CLICK fire</span>
         <span>R reload</span>

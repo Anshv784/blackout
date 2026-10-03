@@ -446,8 +446,14 @@ function InputController({ session }: { session: Session }) {
       if (ray.ray.intersectPlane(plane, hit)) aim = radToAngle(Math.atan2(hit.z - p.y / 256, hit.x - p.x / 256));
     }
     const k = controls.keys;
-    let dx = (k.has("d") || k.has("arrowright") ? 1 : 0) - (k.has("a") || k.has("arrowleft") ? 1 : 0);
-    let dy = (k.has("s") || k.has("arrowdown") ? 1 : 0) - (k.has("w") || k.has("arrowup") ? 1 : 0);
+    // aim-relative: W walks toward the mouse, S backs off, A/D strafe around it
+    const fwd = (k.has("w") || k.has("arrowup") ? 1 : 0) - (k.has("s") || k.has("arrowdown") ? 1 : 0);
+    const side = (k.has("d") || k.has("arrowright") ? 1 : 0) - (k.has("a") || k.has("arrowleft") ? 1 : 0);
+    const ar = angleToRad(aim);
+    const fx = Math.cos(ar);
+    const fy = Math.sin(ar);
+    let dx = fx * fwd - fy * side;
+    let dy = fy * fwd + fx * side;
     if (controls.touchMove) {
       dx = controls.touchMove[0];
       dy = controls.touchMove[1];
