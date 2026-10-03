@@ -89,7 +89,7 @@ export function Hud({ session }: { session: Session }) {
         </div>
       )}
       {controls.view === "chase" && me.alive && (room.status === ST_LIVE || room.status === ST_COUNTDOWN) ? (
-        controls.locked ? <div className="reticle" /> : <div className="lock-hint">MOVE THE MOUSE TO TURN · click to lock · C switches view</div>
+        controls.locked ? <div className="reticle" /> : <div className="lock-hint">MOVE THE MOUSE TO TURN · click to lock · V switches view</div>
       ) : null}
       <CameraSettings />
       {outside && room.status === ST_LIVE && me.alive ? <div className="zone-warn">OUTSIDE THE ZONE — GET TO THE CIRCLE</div> : null}
@@ -227,7 +227,7 @@ function CameraSettings() {
             bump((x) => x + 1);
           }}
         >
-          {controls.view === "chase" ? "VIEW: BEHIND" : "VIEW: TOP"} <i>C</i>
+          {controls.view === "chase" ? "VIEW: BEHIND" : "VIEW: TOP"} <i>V</i>
         </button>
         <button onClick={() => setOpen(!open)}>⚙</button>
         <SoundToggle className="inline" />
@@ -243,7 +243,7 @@ function CameraSettings() {
           ) : (
             slider("Zoom", "topZoom", 7, 28, 0.5)
           )}
-          <small>Mouse wheel zooms · Q/E turn · V sound</small>
+          <small>Mouse wheel zooms · Q/E turn · M sound</small>
         </div>
       )}
     </div>
