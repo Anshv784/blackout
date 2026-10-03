@@ -8,7 +8,7 @@ import { Arena } from "./Arena";
 import { Avatar, SEAT_COLORS, aimToRotY } from "./Avatar";
 import type { Session } from "../game/session";
 import { ST_COUNTDOWN, ST_LIVE, ST_ENDED } from "../chain/layout";
-import { controls } from "../game/controls";
+import { controls, wheelZoom } from "../game/controls";
 import { radToAngle, angleToRad } from "../game/sim";
 import { audio } from "../game/audio";
 
@@ -365,23 +365,36 @@ function Fx({ session }: { session: Session }) {
 function CameraRig({ session }: { session: Session }) {
   const { camera } = useThree();
   const look = useRef(new THREE.Vector3(16, 0, 16));
+  const pos = useRef(new THREE.Vector3(16, 30, 30));
   useFrame((_, dt) => {
     const p = session.myPos();
     const r = session.room;
-    let tx = 16;
-    let tz = 16;
-    let height = 30;
-    let back = 14;
-    if (p && r && (r.status === ST_LIVE || r.status === ST_COUNTDOWN)) {
-      // camera stays centred on you: no aim lead, so the cursor never drags the view
-      tx = p.x / 256;
-      tz = p.y / 256;
-      height = 13.5;
-      back = 5.2;
+    const playing = p && r && (r.status === ST_LIVE || r.status === ST_COUNTDOWN) && session.view?.me.alive;
+    let wantLook: THREE.Vector3;
+    let wantPos: THREE.Vector3;
+    if (playing && controls.view === "chase" && !controls.touchMove && controls.touchAim === null) {
+      // over-the-shoulder: behind you along your aim, looking ahead into the beam
+      const a = angleToRad(session.input.aim);
+      const px = p!.x / 256;
+      const pz = p!.y / 256;
+      const d = controls.chaseDist;
+      wantLook = new THREE.Vector3(px + Math.cos(a) * 3.2, 0.6, pz + Math.sin(a) * 3.2);
+      wantPos = new THREE.Vector3(px - Math.cos(a) * d, controls.chaseHeight, pz - Math.sin(a) * d);
+      const k = 1 - Math.pow(0.000002, dt);
+      pos.current.lerp(wantPos, k);
+      look.current.lerp(wantLook, k);
+    } else {
+      const tx = p && playing ? p.x / 256 : p ? p.x / 256 : 16;
+      const tz = p && playing ? p.y / 256 : p ? p.y / 256 : 16;
+      const height = playing ? controls.topZoom : 30;
+      const back = playing ? controls.topZoom * 0.38 : 14;
+      wantLook = new THREE.Vector3(tx, 0, tz);
+      wantPos = new THREE.Vector3(tx, height, tz + back);
+      const k = 1 - Math.pow(0.00002, dt);
+      pos.current.lerp(wantPos, k);
+      look.current.lerp(wantLook, k);
     }
-    const k = 1 - Math.pow(0.00001, dt);
-    look.current.lerp(new THREE.Vector3(tx, 0, tz), k);
-    camera.position.lerp(new THREE.Vector3(look.current.x, height, look.current.z + back), k);
+    camera.position.copy(pos.current);
     camera.lookAt(look.current);
   });
   return null;
@@ -413,6 +426,10 @@ function InputController({ session }: { session: Session }) {
     const el = gl.domElement;
     const move = (e: PointerEvent) => {
       if (e.pointerType === "touch") return;
+      if (controls.view === "chase" && document.pointerLockElement === el) {
+        controls.chaseAim = (controls.chaseAim + Math.round(e.movementX * controls.sens) + 65536) % 65536;
+        return;
+      }
       const r = el.getBoundingClientRect();
       mouse.current.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
       controls.mouseActive = true;
@@ -420,6 +437,11 @@ function InputController({ session }: { session: Session }) {
     const down = (e: PointerEvent) => {
       audio.unlock();
       if (e.pointerType === "touch") return;
+      if (controls.view === "chase" && document.pointerLockElement !== el) {
+        controls.chaseAim = session.input.aim;
+        el.requestPointerLock?.();
+        return; // the locking click doesn't fire
+      }
       if (e.button === 0) {
         controls.fire = true;
         controls.fireUntil = performance.now() + 160;
@@ -428,6 +450,13 @@ function InputController({ session }: { session: Session }) {
     const up = (e: PointerEvent) => {
       if (e.button === 0) controls.fire = false;
     };
+    const lockChange = () => (controls.locked = document.pointerLockElement === el);
+    const wheel = (e: WheelEvent) => {
+      e.preventDefault();
+      wheelZoom(e.deltaY);
+    };
+    el.addEventListener("wheel", wheel, { passive: false });
+    document.addEventListener("pointerlockchange", lockChange);
     el.addEventListener("pointermove", move);
     el.addEventListener("pointerdown", down);
     window.addEventListener("pointerup", up);
@@ -435,13 +464,16 @@ function InputController({ session }: { session: Session }) {
       el.removeEventListener("pointermove", move);
       el.removeEventListener("pointerdown", down);
       window.removeEventListener("pointerup", up);
+      document.removeEventListener("pointerlockchange", lockChange);
+      el.removeEventListener("wheel", wheel);
     };
-  }, [gl]);
+  }, [gl, session]);
   useFrame(() => {
     const p = session.myPos();
     let aim = session.input.aim;
     if (controls.touchAim !== null) aim = controls.touchAim;
-    else if (p && controls.mouseActive) {
+    else if (controls.view === "chase" && controls.locked) aim = controls.chaseAim;
+    else if (p && controls.mouseActive && controls.view === "top") {
       ray.setFromCamera(mouse.current, camera);
       if (ray.ray.intersectPlane(plane, hit)) aim = radToAngle(Math.atan2(hit.z - p.y / 256, hit.x - p.x / 256));
     }

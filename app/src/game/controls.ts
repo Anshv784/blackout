@@ -10,7 +10,53 @@ export const controls = {
   fireUntil: 0, // a click always fires for >= 3 server ticks
   reloadUntil: 0,
   fps: 0,
+  view: ((typeof localStorage !== "undefined" && localStorage.getItem("bo-view")) || "chase") as "chase" | "top",
+  chaseAim: 0, // yaw in chase view, driven by mouse movement under pointer lock
+  locked: false,
+  // player-tunable camera (persisted)
+  chaseDist: num("bo-chase-dist", 6.5),
+  chaseHeight: num("bo-chase-height", 4.5),
+  topZoom: num("bo-top-zoom", 14),
+  sens: num("bo-sens", 36),
 };
+
+function num(key: string, d: number) {
+  try {
+    const v = Number(localStorage.getItem(key));
+    return Number.isFinite(v) && v > 0 ? v : d;
+  } catch {
+    return d;
+  }
+}
+
+export function setSetting(k: "chaseDist" | "chaseHeight" | "topZoom" | "sens", v: number) {
+  controls[k] = v;
+  const keys = { chaseDist: "bo-chase-dist", chaseHeight: "bo-chase-height", topZoom: "bo-top-zoom", sens: "bo-sens" };
+  try {
+    localStorage.setItem(keys[k], String(v));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Mouse wheel zooms whichever camera you're using. */
+export function wheelZoom(deltaY: number) {
+  const f = Math.exp(deltaY * 0.001);
+  if (controls.view === "chase") {
+    setSetting("chaseDist", Math.min(14, Math.max(2.5, controls.chaseDist * f)));
+    setSetting("chaseHeight", Math.min(10, Math.max(1.8, controls.chaseHeight * f)));
+  } else setSetting("topZoom", Math.min(28, Math.max(7, controls.topZoom * f)));
+}
+
+export function toggleView() {
+  controls.view = controls.view === "chase" ? "top" : "chase";
+  try {
+    localStorage.setItem("bo-view", controls.view);
+  } catch {
+    /* ignore */
+  }
+  if (controls.view === "top" && document.pointerLockElement) document.exitPointerLock();
+}
 
 let installed = false;
 export function installKeyboard() {
@@ -21,6 +67,7 @@ export function installKeyboard() {
     if ((e.target as HTMLElement)?.tagName === "INPUT") return;
     const k = norm(e.key);
     controls.keys.add(k);
+    if (k === "v") toggleView();
     if (k === "r") {
       controls.reload = true;
       controls.reloadUntil = performance.now() + 200;

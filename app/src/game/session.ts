@@ -65,6 +65,7 @@ export class Session {
 
   // prediction
   pred = { x: 0, y: 0 };
+  private predPrev = { x: 0, y: 0 };
   predValid = false;
   private predAcc = 0;
   private lastFrame = performance.now();
@@ -275,6 +276,7 @@ export class Session {
     if (v.me.alive && (v.status === ST_LIVE || v.status === ST_COUNTDOWN)) {
       if (!this.predValid) {
         this.pred = { x: v.me.x, y: v.me.y };
+        this.predPrev = { ...this.pred };
         this.predValid = true;
       } else {
         const lagTicks = Math.min(6, Math.max(1, Math.round(this.rtt / 2 / 50)));
@@ -285,10 +287,17 @@ export class Session {
         const ey = ty - this.pred.y;
         const e2 = ex * ex + ey * ey;
         // trust your own prediction; only nudge when we've clearly drifted, snap if way off
-        if (e2 > (2 * UNIT) ** 2) this.pred = { x: v.me.x, y: v.me.y };
-        else if (e2 > (0.45 * UNIT) ** 2) {
-          this.pred.x += ex * 0.06;
-          this.pred.y += ey * 0.06;
+        if (e2 > (2 * UNIT) ** 2) {
+          this.pred = { x: v.me.x, y: v.me.y };
+          this.predPrev = { ...this.pred };
+        } else if (e2 > (0.45 * UNIT) ** 2) {
+          // shift both ends of the interpolation so the correction never pops
+          const cx = ex * 0.05;
+          const cy = ey * 0.05;
+          this.pred.x += cx;
+          this.pred.y += cy;
+          this.predPrev.x += cx;
+          this.predPrev.y += cy;
         }
       }
     }
@@ -358,6 +367,7 @@ export class Session {
       this.predAcc += dt;
       while (this.predAcc >= 50) {
         this.predAcc -= 50;
+        this.predPrev = { ...this.pred };
         const [vx, vy] = inputVelocity(this.input.dx, this.input.dy);
         moveBody(this.pred, vx, vy);
       }
@@ -507,7 +517,10 @@ export class Session {
   myPos(): { x: number; y: number } | null {
     const v = this.view;
     if (!v) return null;
-    if (this.predValid && v.me.alive) return this.pred;
+    if (this.predValid && v.me.alive) {
+      const k = Math.min(1, this.predAcc / 50);
+      return { x: this.predPrev.x + (this.pred.x - this.predPrev.x) * k, y: this.predPrev.y + (this.pred.y - this.predPrev.y) * k };
+    }
     return { x: v.me.x, y: v.me.y };
   }
 }

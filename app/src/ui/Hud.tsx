@@ -5,6 +5,7 @@ import { ST_COUNTDOWN, ST_ENDED, ST_LIVE, ST_STARTING, WEAPON_NAME } from "../ch
 import { angleToRad } from "../game/sim";
 import { MAP_ROWS } from "../game/gen";
 import { SEAT_COLORS } from "../scene/Avatar";
+import { controls, toggleView, setSetting } from "../game/controls";
 
 const MAX_MAG = [10, 30, 5];
 const PING_GLYPH = ["", "👣", "💥", "✦", "⟳"];
@@ -86,6 +87,10 @@ export function Hud({ session }: { session: Session }) {
           </a>
         </div>
       )}
+      {controls.view === "chase" && me.alive && (room.status === ST_LIVE || room.status === ST_COUNTDOWN) ? (
+        controls.locked ? <div className="reticle" /> : <div className="lock-hint">CLICK TO LOOK AROUND · V to switch view</div>
+      ) : null}
+      <CameraSettings />
       {outside && room.status === ST_LIVE && me.alive ? <div className="zone-warn">OUTSIDE THE ZONE — GET TO THE CIRCLE</div> : null}
 
       {/* sound pings around the screen edge */}
@@ -191,4 +196,54 @@ function Minimap({ session }: { session: Session }) {
     return () => cancelAnimationFrame(raf);
   }, [session]);
   return <canvas className="minimap" ref={ref} width={160} height={160} />;
+}
+
+function CameraSettings() {
+  const [open, setOpen] = useState(false);
+  const [, bump] = useState(0);
+  const slider = (label: string, k: "chaseDist" | "chaseHeight" | "topZoom" | "sens", min: number, max: number, step: number) => (
+    <label className="cam-row">
+      <span>{label}</span>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={controls[k]}
+        onChange={(e) => {
+          setSetting(k, Number(e.target.value));
+          bump((x) => x + 1);
+        }}
+      />
+    </label>
+  );
+  return (
+    <div className="cam" onPointerDown={(e) => e.stopPropagation()}>
+      <div className="cam-buttons">
+        <button
+          onClick={() => {
+            toggleView();
+            bump((x) => x + 1);
+          }}
+        >
+          {controls.view === "chase" ? "VIEW: BEHIND" : "VIEW: TOP"} <i>V</i>
+        </button>
+        <button onClick={() => setOpen(!open)}>⚙</button>
+      </div>
+      {open && (
+        <div className="cam-panel">
+          {controls.view === "chase" ? (
+            <>
+              {slider("Distance", "chaseDist", 2.5, 14, 0.1)}
+              {slider("Height", "chaseHeight", 1.8, 10, 0.1)}
+              {slider("Mouse speed", "sens", 8, 120, 1)}
+            </>
+          ) : (
+            slider("Zoom", "topZoom", 7, 28, 0.5)
+          )}
+          <small>Mouse wheel zooms too</small>
+        </div>
+      )}
+    </div>
+  );
 }

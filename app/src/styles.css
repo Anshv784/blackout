@@ -1133,3 +1133,19 @@ button {
 @media (max-width:640px){.stick{width:104px;height:104px}.knob{left:27px;top:27px}.hud-bottom-left{bottom:auto;top:112px;width:44vw}.hud-bottom-right{bottom:auto;top:118px}.chain{display:none}.feed{top:250px}}
 
 .checks .ok{color:var(--green);font-weight:700}.checks .bad{color:var(--red);font-weight:700}
+
+.reticle{position:absolute;left:50%;top:44%;width:22px;height:22px;transform:translate(-50%,-50%);border:2px solid rgba(255,241,208,.85);border-radius:50%;box-shadow:0 0 10px rgba(255,209,102,.5)}
+.reticle::after{content:"";position:absolute;left:50%;top:50%;width:3px;height:3px;background:#fff;border-radius:50%;transform:translate(-50%,-50%)}
+.lock-hint{position:absolute;left:50%;top:58%;transform:translateX(-50%);font-weight:700;letter-spacing:.12em;color:var(--gold);text-shadow:0 2px 12px #000;animation:pulse 1.6s infinite}
+.view-toggle{position:absolute;right:16px;top:168px;pointer-events:auto;background:rgba(10,12,20,.8);border:1px solid var(--line);color:var(--dim);font-family:var(--mono);font-size:11px;padding:6px 10px;border-radius:8px;cursor:pointer}
+@media (pointer:coarse){.view-toggle,.lock-hint,.reticle{display:none}}
+
+.cam{position:absolute;right:16px;top:168px;pointer-events:auto;display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.cam-buttons{display:flex;gap:6px}
+.cam-buttons button{background:rgba(10,12,20,.85);border:1px solid var(--line);color:var(--fg);font-family:var(--mono);font-size:11px;padding:6px 10px;border-radius:8px;cursor:pointer}
+.cam-buttons i{color:var(--gold);font-style:normal;margin-left:4px}
+.cam-panel{background:rgba(10,12,20,.92);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;width:220px}
+.cam-row{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--dim);letter-spacing:.08em}
+.cam-row input{accent-color:var(--gold)}
+.cam-panel small{color:var(--dim);font-size:10px}
+@media (pointer:coarse){.cam{top:auto;bottom:250px}}
