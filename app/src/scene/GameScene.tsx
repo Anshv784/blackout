@@ -9,7 +9,7 @@ import { Avatar, SEAT_COLORS, aimToRotY } from "./Avatar";
 import type { Session } from "../game/session";
 import { ST_COUNTDOWN, ST_LIVE, ST_ENDED } from "../chain/layout";
 import { controls, wheelZoom } from "../game/controls";
-import { radToAngle, angleToRad } from "../game/sim";
+import { radToAngle, angleToRad, isWall } from "../game/sim";
 import { audio } from "../game/audio";
 
 const CONE_RAD = (7000 / 65536) * Math.PI * 2; // half-angle used on chain
@@ -71,7 +71,8 @@ function MyPlayer({ session }: { session: Session }) {
     if (spot.current) {
       spot.current.intensity = alive ? (flare ? 0 : 55) : 0;
     }
-    beam.uniforms.uStrength.value = alive && !flare ? 0.07 : 0;
+    // the light shaft reads well from above but becomes a giant dome from behind
+    beam.uniforms.uStrength.value = alive && !flare && controls.view === "top" ? 0.07 : 0;
     // local muzzle flash on fire (server is authoritative for the bullet)
     const now = performance.now();
     const firing = (session.input.buttons & 1) === 1 && alive && v.me.reload === 0 && v.me.mag > 0 && session.room?.status === ST_LIVE;
@@ -377,9 +378,22 @@ function CameraRig({ session }: { session: Session }) {
       const a = angleToRad(session.input.aim);
       const px = p!.x / 256;
       const pz = p!.y / 256;
-      const d = controls.chaseDist;
+      let d = controls.chaseDist;
+      // don't let a wall sit between the camera and you: walk back from the player and stop before it
+      const steps = Math.ceil(d / 0.15);
+      for (let i = 1; i <= steps; i++) {
+        const t = (i / steps) * d;
+        const sx = px - Math.cos(a) * t;
+        const sz = pz - Math.sin(a) * t;
+        const sy = 1.1 + (controls.chaseHeight - 1.1) * (t / d);
+        if (sy < 2.05 && isWall(Math.floor(sx), Math.floor(sz))) {
+          d = Math.max(1.2, t - 0.35);
+          break;
+        }
+      }
+      const h = 1.1 + (controls.chaseHeight - 1.1) * (d / controls.chaseDist);
       wantLook = new THREE.Vector3(px + Math.cos(a) * 3.2, 0.6, pz + Math.sin(a) * 3.2);
-      wantPos = new THREE.Vector3(px - Math.cos(a) * d, controls.chaseHeight, pz - Math.sin(a) * d);
+      wantPos = new THREE.Vector3(px - Math.cos(a) * d, Math.max(h, 2.2), pz - Math.sin(a) * d);
       const k = 1 - Math.pow(0.000002, dt);
       pos.current.lerp(wantPos, k);
       look.current.lerp(wantLook, k);
