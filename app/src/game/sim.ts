@@ -4,7 +4,7 @@ import { WALLS, MAP_W, MAP_H, SIN_TABLE } from "./gen";
 
 export const UNIT = 256;
 export const PLAYER_R = 90;
-export const SPEED = 45;
+export const SPEED = 56;
 export const TPS = 20;
 export const COUNTDOWN_TICKS = 60;
 export const VISION_R = 10 * UNIT;

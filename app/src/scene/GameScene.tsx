@@ -373,13 +373,13 @@ function CameraRig({ session }: { session: Session }) {
     let height = 30;
     let back = 14;
     if (p && r && (r.status === ST_LIVE || r.status === ST_COUNTDOWN)) {
-      const a = angleToRad(session.input.aim);
-      tx = p.x / 256 + Math.cos(a) * 1.4;
-      tz = p.y / 256 + Math.sin(a) * 1.4;
+      // camera stays centred on you: no aim lead, so the cursor never drags the view
+      tx = p.x / 256;
+      tz = p.y / 256;
       height = 13.5;
       back = 5.2;
     }
-    const k = 1 - Math.pow(0.0015, dt);
+    const k = 1 - Math.pow(0.00001, dt);
     look.current.lerp(new THREE.Vector3(tx, 0, tz), k);
     camera.position.lerp(new THREE.Vector3(look.current.x, height, look.current.z + back), k);
     camera.lookAt(look.current);

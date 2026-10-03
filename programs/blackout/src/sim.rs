@@ -5,7 +5,7 @@ use crate::state::*;
 
 pub const UNIT: i32 = 256; // fixed-point units per tile
 pub const PLAYER_R: i32 = 90;
-pub const SPEED: i32 = 45; // units per tick (~3.5 tiles/s at 20 tps)
+pub const SPEED: i32 = 56; // units per tick (~4.4 tiles/s at 20 tps)
 pub const COUNTDOWN_TICKS: u32 = 60;
 pub const MATCH_TICKS: u32 = 2700; // hard cap after go
 pub const VISION_R: i32 = 10 * UNIT;

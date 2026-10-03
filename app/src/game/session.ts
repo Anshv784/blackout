@@ -283,10 +283,12 @@ export class Session {
         const ty = v.me.y + (v.status === ST_LIVE ? vy * lagTicks : 0);
         const ex = tx - this.pred.x;
         const ey = ty - this.pred.y;
-        if (ex * ex + ey * ey > (1.6 * UNIT) ** 2) this.pred = { x: v.me.x, y: v.me.y };
-        else {
-          this.pred.x += ex * 0.12;
-          this.pred.y += ey * 0.12;
+        const e2 = ex * ex + ey * ey;
+        // trust your own prediction; only nudge when we've clearly drifted, snap if way off
+        if (e2 > (2 * UNIT) ** 2) this.pred = { x: v.me.x, y: v.me.y };
+        else if (e2 > (0.45 * UNIT) ** 2) {
+          this.pred.x += ex * 0.06;
+          this.pred.y += ey * 0.06;
         }
       }
     }
@@ -378,7 +380,7 @@ export class Session {
     const changed = i.dx !== s.dx || i.dy !== s.dy || i.buttons !== s.buttons;
     const aimChanged = aimDelta > 450;
     const since = now - this.lastSendAt;
-    if ((changed && since >= 45) || (aimChanged && since >= 70) || since >= 600) {
+    if (changed || (aimChanged && since >= 60) || since >= 500) {
       this.lastSendAt = now;
       this.sent = { ...i };
       const seq = ++this.seq;
