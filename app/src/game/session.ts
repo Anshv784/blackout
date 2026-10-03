@@ -380,7 +380,7 @@ export class Session {
     const changed = i.dx !== s.dx || i.dy !== s.dy || i.buttons !== s.buttons;
     const aimChanged = aimDelta > 450;
     const since = now - this.lastSendAt;
-    if (changed || (aimChanged && since >= 60) || since >= 500) {
+    if ((changed && since >= 40) || (aimChanged && since >= 60) || since >= 500) {
       this.lastSendAt = now;
       this.sent = { ...i };
       const seq = ++this.seq;
