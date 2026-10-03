@@ -55,8 +55,11 @@ Board     [board]             base layer                             global lead
 - after `finish`, the World and Recorder become readable by anyone, the seed and zone plan are verifiable
 - the room is committed to Solana and the `settle` Magic Action updates the leaderboard
 - `reset` re-seals the World
+- `scripts/e2e_stake.ts`: two funded players buy tickets on Solana, play a staked match, and the winner's wallet receives the 0.02 SOL pot from the `settle` Magic Action
 
-The simulation is deterministic integer math (`programs/blackout/src/sim.rs`) mirrored bit-for-bit in TypeScript (`app/src/game/sim.ts`) for client-side prediction; `cargo test` plays 40 full 8-bot matches to check every one ends with valid placements.
+After every match the reveal screen **re-derives spawns, loot rolls and every zone centre from the VRF seed in your browser** (`app/src/game/verify.ts`) and checks them against the unsealed World, so anyone can confirm the match wasn't rigged.
+
+The simulation is deterministic integer math (`programs/blackout/src/sim.rs`) mirrored bit-for-bit in TypeScript (`app/src/game/sim.ts`) for client-side prediction — `scripts/mirror.ts` checks 2,000 random movement steps produce identical positions in both. `cargo test` plays 40 full 8-bot matches to check every one ends with valid placements.
 
 ## Run it
 
