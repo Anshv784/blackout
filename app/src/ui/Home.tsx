@@ -5,6 +5,7 @@ import { STATUS_NAME, ST_LOBBY, type Room } from "../chain/layout";
 import { go } from "../App";
 import { useStore } from "../game/store";
 import { audio } from "../game/audio";
+import { SoundToggle } from "./SoundToggle";
 
 const humans = (r: Room) => r.players.filter((p, i) => r.isBot[i] === 0 && p.toBase58() !== "11111111111111111111111111111111").length;
 
@@ -66,6 +67,7 @@ export function Home() {
 
   return (
     <div className="home">
+      <SoundToggle className="corner" />
       <div className="hero" ref={hero}>
         <div className="hero-dark" />
         <div className="hero-inner">

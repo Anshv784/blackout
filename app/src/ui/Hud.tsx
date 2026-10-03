@@ -6,6 +6,7 @@ import { angleToRad } from "../game/sim";
 import { MAP_ROWS } from "../game/gen";
 import { SEAT_COLORS } from "../scene/Avatar";
 import { controls, toggleView, setSetting } from "../game/controls";
+import { SoundToggle } from "./SoundToggle";
 
 const MAX_MAG = [10, 30, 5];
 const PING_GLYPH = ["", "👣", "💥", "✦", "⟳"];
@@ -229,6 +230,7 @@ function CameraSettings() {
           {controls.view === "chase" ? "VIEW: BEHIND" : "VIEW: TOP"} <i>V</i>
         </button>
         <button onClick={() => setOpen(!open)}>⚙</button>
+        <SoundToggle className="inline" />
       </div>
       {open && (
         <div className="cam-panel">
@@ -241,7 +243,7 @@ function CameraSettings() {
           ) : (
             slider("Zoom", "topZoom", 7, 28, 0.5)
           )}
-          <small>Mouse wheel zooms too</small>
+          <small>Mouse wheel zooms · Q/E turn · M sound</small>
         </div>
       )}
     </div>

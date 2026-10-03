@@ -19,6 +19,7 @@ import {
 } from "../chain/layout";
 import { inputVelocity, moveBody, UNIT } from "./sim";
 import { audio } from "./audio";
+import { controls } from "./controls";
 
 export interface Sample {
   t: number; // local ms when received
@@ -280,6 +281,8 @@ export class Session {
     // prediction reconcile
     if (v.me.alive && (v.status === ST_LIVE || v.status === ST_COUNTDOWN)) {
       if (!this.predValid) {
+        controls.chaseAim = v.me.aim; // face the way you spawned
+        this.input.aim = v.me.aim;
         this.pred = { x: v.me.x, y: v.me.y };
         this.predPrev = { ...this.pred };
         this.predValid = true;

@@ -441,8 +441,10 @@ function InputController({ session }: { session: Session }) {
     const el = gl.domElement;
     const move = (e: PointerEvent) => {
       if (e.pointerType === "touch") return;
-      if (controls.view === "chase" && document.pointerLockElement === el) {
+      if (controls.view === "chase") {
+        // turning works with or without pointer lock: horizontal mouse movement = turn
         controls.chaseAim = (controls.chaseAim + Math.round(e.movementX * controls.sens) + 65536) % 65536;
+        controls.mouseActive = true;
         return;
       }
       const r = el.getBoundingClientRect();
@@ -486,8 +488,11 @@ function InputController({ session }: { session: Session }) {
   useFrame(() => {
     const p = session.myPos();
     let aim = session.input.aim;
+    // keyboard turning (Q/E) for the behind view
+    const turn = (controls.keys.has("e") ? 1 : 0) - (controls.keys.has("q") ? 1 : 0);
+    if (turn) controls.chaseAim = (controls.chaseAim + turn * 300 + 65536) % 65536;
     if (controls.touchAim !== null) aim = controls.touchAim;
-    else if (controls.view === "chase" && controls.locked) aim = controls.chaseAim;
+    else if (controls.view === "chase") aim = controls.chaseAim;
     else if (p && controls.mouseActive && controls.view === "top") {
       ray.setFromCamera(mouse.current, camera);
       if (ray.ray.intersectPlane(plane, hit)) aim = radToAngle(Math.atan2(hit.z - p.y / 256, hit.x - p.x / 256));

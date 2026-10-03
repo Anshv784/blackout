@@ -261,7 +261,10 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
         <span>W toward mouse · S back · A/D strafe</span>
         <span>MOUSE aim</span>
         <span>CLICK fire</span>
+        <span>Q/E turn</span>
         <span>R reload</span>
+        <span>V view</span>
+        <span>M sound</span>
         <span>walk over loot to grab it</span>
       </div>
     </div>

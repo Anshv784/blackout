@@ -8,7 +8,21 @@ class Audio {
   private dry: GainNode | null = null;
   private wet: GainNode | null = null;
   private verb: ConvolverNode | null = null;
-  muted = false;
+  muted = (() => {
+    try {
+      return localStorage.getItem("bo-muted") === "1";
+    } catch {
+      return false;
+    }
+  })();
+  private listeners = new Set<(m: boolean) => void>();
+  onMute(f: (m: boolean) => void) {
+    this.listeners.add(f);
+    return () => this.listeners.delete(f);
+  }
+  toggleMute() {
+    this.setMuted(!this.muted);
+  }
   private hum: { gain: GainNode } | null = null;
   private ambience: { gain: GainNode; stop: () => void } | null = null;
   private heart: { timer: number | null; bpm: number; level: number } = { timer: null, bpm: 0, level: 0 };
@@ -60,7 +74,13 @@ class Audio {
 
   setMuted(m: boolean) {
     this.muted = m;
-    if (this.master) this.master.gain.value = m ? 0 : 0.7;
+    if (this.master) this.master.gain.setTargetAtTime(m ? 0 : 0.7, this.ctx!.currentTime, 0.05);
+    try {
+      localStorage.setItem("bo-muted", m ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+    this.listeners.forEach((f) => f(m));
   }
 
   private noise(dur: number) {

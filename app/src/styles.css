@@ -1172,3 +1172,6 @@ button {
 .intro-skip{position:absolute;bottom:34px;right:28px;color:#666;font-family:var(--mono);font-size:12px;letter-spacing:.15em;cursor:pointer}
 .intro-start .intro-skip{position:static}
 .intro-note{position:absolute;bottom:80px;left:50%;transform:translateX(-50%);color:#6b5fa0;font-family:var(--mono);font-size:12px;text-align:center;max-width:520px;padding:0 16px;animation:fadein 3s ease-out}
+
+.sound-toggle{background:rgba(10,12,20,.85);border:1px solid var(--line);color:var(--fg);border-radius:8px;cursor:pointer;font-size:14px;padding:4px 9px;pointer-events:auto}
+.sound-toggle.corner{position:fixed;top:14px;right:16px;z-index:20;font-size:18px;padding:8px 12px}
