@@ -374,8 +374,14 @@ function CameraRig({ session }: { session: Session }) {
     let wantLook: THREE.Vector3;
     let wantPos: THREE.Vector3;
     if (playing && controls.view === "chase" && !controls.touchMove && controls.touchAim === null) {
-      // over-the-shoulder: behind you along your aim, looking ahead into the beam
-      const a = angleToRad(session.input.aim);
+      // over-the-shoulder. The camera heading follows your aim only when you point
+      // well off to the side, so you can aim freely across the screen.
+      const aimRad = angleToRad(session.input.aim);
+      let diff = aimRad - controls.camYaw;
+      diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+      const dead = 0.55;
+      if (Math.abs(diff) > dead) controls.camYaw += (diff - Math.sign(diff) * dead) * Math.min(1, dt * 3);
+      const a = controls.camYaw;
       const px = p!.x / 256;
       const pz = p!.y / 256;
       let d = controls.chaseDist;
@@ -441,7 +447,7 @@ function InputController({ session }: { session: Session }) {
     const el = gl.domElement;
     const move = (e: PointerEvent) => {
       if (e.pointerType === "touch") return;
-      if (controls.view === "chase") return; // turning is handled by the document mousemove below
+
       const r = el.getBoundingClientRect();
       mouse.current.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
       controls.mouseActive = true;
@@ -449,14 +455,7 @@ function InputController({ session }: { session: Session }) {
     const down = (e: PointerEvent) => {
       audio.unlock();
       if (e.pointerType === "touch") return;
-      if (controls.view === "chase" && document.pointerLockElement !== el) {
-        try {
-          (el.requestPointerLock as any)?.call(el)?.catch?.(() => {});
-        } catch {
-          /* lock refused — mouse still turns */
-        }
-        return; // the locking click doesn't fire
-      }
+
       if (e.button === 0) {
         controls.fire = true;
         controls.fireUntil = performance.now() + 160;
@@ -467,12 +466,7 @@ function InputController({ session }: { session: Session }) {
     };
     const lockChange = () => (controls.locked = document.pointerLockElement === el);
     // mousemove carries movementX in every browser, locked or not (Safari doesn't send pointermove under lock)
-    const turn = (e: MouseEvent) => {
-      if (controls.view !== "chase") return;
-      controls.chaseAim = (controls.chaseAim + Math.round(e.movementX * controls.sens) + 65536) % 65536;
-      controls.mouseActive = true;
-    };
-    document.addEventListener("mousemove", turn);
+
     const wheel = (e: WheelEvent) => {
       e.preventDefault();
       wheelZoom(e.deltaY);
@@ -487,21 +481,21 @@ function InputController({ session }: { session: Session }) {
       el.removeEventListener("pointerdown", down);
       window.removeEventListener("pointerup", up);
       document.removeEventListener("pointerlockchange", lockChange);
-      document.removeEventListener("mousemove", turn);
+
       el.removeEventListener("wheel", wheel);
     };
   }, [gl, session]);
   useFrame(() => {
     const p = session.myPos();
     let aim = session.input.aim;
-    // keyboard turning (Q/E) for the behind view
+    // Q/E swing the behind-view camera
     const turn = (controls.keys.has("e") ? 1 : 0) - (controls.keys.has("q") ? 1 : 0);
-    if (turn) controls.chaseAim = (controls.chaseAim + turn * 300 + 65536) % 65536;
+    if (turn) controls.camYaw += turn * 0.045;
     if (controls.touchAim !== null) aim = controls.touchAim;
-    else if (controls.view === "chase") aim = controls.chaseAim;
-    else if (p && controls.mouseActive && controls.view === "top") {
+    else if (p && controls.mouseActive) {
       ray.setFromCamera(mouse.current, camera);
-      if (ray.ray.intersectPlane(plane, hit)) aim = radToAngle(Math.atan2(hit.z - p.y / 256, hit.x - p.x / 256));
+      if (ray.ray.intersectPlane(plane, hit) && hit.distanceTo(ray.ray.origin) < 60) aim = radToAngle(Math.atan2(hit.z - p.y / 256, hit.x - p.x / 256));
+      else aim = radToAngle(Math.atan2(ray.ray.direction.z, ray.ray.direction.x)); // pointing at the sky: aim that way
     }
     const k = controls.keys;
     // aim-relative: W walks toward the mouse, S backs off, A/D strafe around it

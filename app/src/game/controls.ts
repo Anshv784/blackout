@@ -11,7 +11,8 @@ export const controls = {
   reloadUntil: 0,
   fps: 0,
   view: ((typeof localStorage !== "undefined" && localStorage.getItem("bo-view-v2")) || "chase") as "chase" | "top",
-  chaseAim: 0, // yaw in chase view, driven by mouse movement under pointer lock
+  chaseAim: 0, // unused (kept for compatibility)
+  camYaw: 0, // behind-view camera heading (radians), follows your aim
   locked: false,
   // player-tunable camera (persisted)
   chaseDist: num("bo-chase-dist-v2", 7.5),

@@ -281,7 +281,7 @@ export class Session {
     // prediction reconcile
     if (v.me.alive && (v.status === ST_LIVE || v.status === ST_COUNTDOWN)) {
       if (!this.predValid) {
-        controls.chaseAim = v.me.aim; // face the way you spawned
+        controls.camYaw = (v.me.aim / 65536) * Math.PI * 2; // camera starts behind your spawn facing
         this.input.aim = v.me.aim;
         this.pred = { x: v.me.x, y: v.me.y };
         this.predPrev = { ...this.pred };

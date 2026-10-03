@@ -88,9 +88,7 @@ export function Hud({ session }: { session: Session }) {
           </a>
         </div>
       )}
-      {controls.view === "chase" && me.alive && (room.status === ST_LIVE || room.status === ST_COUNTDOWN) ? (
-        controls.locked ? <div className="reticle" /> : <div className="lock-hint">MOVE THE MOUSE TO TURN · click to lock · V switches view</div>
-      ) : null}
+
       <CameraSettings />
       {outside && room.status === ST_LIVE && me.alive ? <div className="zone-warn">OUTSIDE THE ZONE — GET TO THE CIRCLE</div> : null}
 
