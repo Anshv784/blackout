@@ -1,5 +1,8 @@
 // Rooms are pre-created and delegated to the TEE by scripts/admin.ts.
-export const PUBLIC_ROOMS = [1, 2, 3, 4, 5];
+export const PUBLIC_ROOMS = [1, 2, 3, 4];
+/** Rooms "PLAY NOW" drops you into (solo vs bots if empty). */
+export const QUICK_ROOMS = [1, 2, 3, 4, 6, 7, 8, 9];
+export const STAKED_ROOMS = [5];
 /** Unlisted rooms handed out by "Play with friends" — share the link. */
 export const PRIVATE_POOL = [10, 11, 12, 13];
 

@@ -1,3 +1,4 @@
+import { TopBar } from "./TopBar";
 import { go } from "../App";
 
 const Box = ({ x, y, w, h, title, sub, tone }: { x: number; y: number; w: number; h: number; title: string; sub: string; tone: string }) => (
@@ -17,9 +18,7 @@ const Box = ({ x, y, w, h, title, sub, tone }: { x: number; y: number; w: number
 export function How() {
   return (
     <div className="page how">
-      <a className="back" onClick={() => go("/")}>
-        ← BLACKOUT
-      </a>
+      <TopBar active="how" />
       <h1>How BLACKOUT works</h1>
       <p className="lead">
         On a normal blockchain, fog of war is impossible: every account is public, so anyone can read where every player is standing. BLACKOUT runs the entire match

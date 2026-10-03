@@ -55,12 +55,21 @@ export function Reveal({ session }: { session: Session }) {
 
   // auto "lights on" at the highlight the first time through
   const fired = useRef(false);
+  const [card, setCard] = useState(false);
+  const [tab, setTab] = useState<"results" | "verify">("results");
   useEffect(() => {
     if (!fired.current && rec && t >= highlight - 2) {
       fired.current = true;
       toggleLights(true);
+      // the verdict lands a beat after the lights
+      setTimeout(() => setCard(true), 2600);
     }
   }, [t, highlight, rec]);
+  // no recording yet (very short match): still show the verdict
+  useEffect(() => {
+    const k = setTimeout(() => !fired.current && setCard(true), 9000);
+    return () => clearTimeout(k);
+  }, []);
 
   const makeClip = async () => {
     const canvas = document.querySelector<HTMLCanvasElement>(".reveal canvas");
@@ -156,6 +165,9 @@ export function Reveal({ session }: { session: Session }) {
   const winnerName = room.winner !== 255 ? room.names[room.winner] : "nobody";
   const seed = world ? Array.from(world.seed.slice(0, 16)).map((b) => b.toString(16).padStart(2, "0")).join("") : "";
   const myPlace = mySeat !== null ? room.place[mySeat] : 0;
+  const myDeath = mySeat !== null ? room.feed.slice(0, Math.min(16, room.feedHead)).find((f) => f.victim === mySeat) ?? null : null;
+  const survivedTicks = myDeath ? myDeath.tick - 60 : room.endTick - 60;
+  const mySurvived = `${Math.floor(Math.max(0, survivedTicks) / 20 / 60)}:${String(Math.floor((Math.max(0, survivedTicks) / 20) % 60)).padStart(2, "0")}`;
   const shareText =
     mySeat !== null
       ? myPlace === 1
@@ -175,6 +187,70 @@ export function Reveal({ session }: { session: Session }) {
         </div>
       )}
 
+      {card && (
+        <div className="verdict" onClick={() => setCard(false)}>
+          <div className="verdict-card" onClick={(e) => e.stopPropagation()}>
+            <div className="vc-kicker">NIGHT {room.matchNo} · ROOM {room.roomId.toString()}</div>
+            {mySeat === null ? (
+              <h1>{winnerName} survived the night</h1>
+            ) : room.winner === mySeat ? (
+              <h1 className="win">YOU SURVIVED THE NIGHT</h1>
+            ) : (
+              <h1>
+                #{myPlace} <span>of {order.length}</span>
+              </h1>
+            )}
+            {mySeat !== null && room.winner !== mySeat && myDeath && (
+              <p className="vc-killer">
+                {myDeath.killer === 255 ? (
+                  "the zone closed in on you"
+                ) : (
+                  <>
+                    killed by <b style={{ color: SEAT_COLORS[myDeath.killer] }}>{room.names[myDeath.killer]}</b>
+                  </>
+                )}
+              </p>
+            )}
+            <div className="vc-stats">
+              <div>
+                <b>{mySeat !== null ? room.kills[mySeat] : room.kills[room.winner] ?? 0}</b>
+                <span>kills</span>
+              </div>
+              <div>
+                <b>{mySurvived}</b>
+                <span>survived</span>
+              </div>
+              <div>
+                <b>{winnerName}</b>
+                <span>last one standing</span>
+              </div>
+            </div>
+            <div className="vc-actions">
+              <button className="btn primary huge" onClick={playAgain} disabled={busy}>
+                {busy ? "RESEALING THE YARD…" : "PLAY AGAIN"}
+              </button>
+              <div className="row">
+                <button className="btn" onClick={() => setCard(false)}>
+                  WATCH THE REPLAY
+                </button>
+                <button
+                  className="btn"
+                  onClick={() => {
+                    setCard(false);
+                    setTimeout(makeClip, 300);
+                  }}
+                >
+                  🎬 MAKE CLIP
+                </button>
+                <a className="btn x" target="_blank" rel="noreferrer" href={`https://x.com/intent/post?text=${encodeURIComponent(`${shareText}\n\nPlay: ${roomLink(room.roomId)}`)}`}>
+                  POST ON X
+                </a>
+              </div>
+            </div>
+            <small>The lights are on: every position from this match is now public and verifiable.</small>
+          </div>
+        </div>
+      )}
       <div className="reveal-top">
         <a className="back" onClick={() => go("/")}>
           ← BLACKOUT
@@ -247,6 +323,12 @@ export function Reveal({ session }: { session: Session }) {
       )}
 
       <div className="reveal-side">
+        <div className="tabs">
+          <button className={tab === "results" ? "on" : ""} onClick={() => setTab("results")}>RESULTS</button>
+          <button className={tab === "verify" ? "on" : ""} onClick={() => setTab("verify")}>VERIFY</button>
+        </div>
+        {tab === "results" ? (
+          <>
         <div className="panel">
           <label>RESULTS</label>
           {order.map((s) => (
@@ -283,6 +365,9 @@ export function Reveal({ session }: { session: Session }) {
             </button>
           </div>
         )}
+          </>
+        ) : (
+          <>
         <div className="panel verify">
           <label>VERIFY</label>
           <div>
@@ -312,6 +397,8 @@ export function Reveal({ session }: { session: Session }) {
             POST ON X
           </a>
         </div>
+          </>
+        )}
       </div>
       {room.players.every((p, i) => p.toBase58() === EMPTY || room.isBot[i]) && null}
     </div>

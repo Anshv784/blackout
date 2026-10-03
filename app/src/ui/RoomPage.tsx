@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { PublicKey } from "@solana/web3.js";
 import { Session } from "../game/session";
 import { useStore } from "../game/store";
-import { saveName, client } from "../game/identity";
+import { client } from "../game/identity";
 import { ST_LOBBY, ST_STARTING, ST_COUNTDOWN, ST_LIVE, ST_ENDED, ST_REVEALED, STATUS_NAME, type Room } from "../chain/layout";
 import { GameScene } from "../scene/GameScene";
 import { Hud } from "./Hud";
@@ -10,13 +10,18 @@ import { Reveal } from "./Reveal";
 import { TouchControls } from "./TouchControls";
 import { ChainPanel } from "./ChainPanel";
 import { Crosshair } from "./Crosshair";
-import { SEAT_COLORS } from "../scene/Avatar";
 import { roomLink } from "../config";
 import { go } from "../App";
 import { audio } from "../game/audio";
-import { connectWallet as connectWalletFn } from "../game/wallet";
+import { connectWallet } from "../game/wallet";
+import { TopBar } from "./TopBar";
+import type { SeatInfo } from "../scene/LobbyStage";
+
+const LobbyStage = lazy(() => import("../scene/LobbyStage").then((m) => ({ default: m.LobbyStage })));
+const Backdrop = lazy(() => import("../scene/Backdrop").then((m) => ({ default: m.Backdrop })));
 
 const EMPTY = "11111111111111111111111111111111";
+const flags = () => new URLSearchParams(window.location.hash.split("?")[1] ?? "");
 
 export function RoomPage({ roomId }: { roomId: bigint }) {
   const session = useMemo(() => new Session(roomId), [roomId]);
@@ -31,8 +36,8 @@ export function RoomPage({ roomId }: { roomId: bigint }) {
     return () => session.stop();
   }, [session]);
 
-  if (err) return <Center title="Can't reach the TEE" sub={err} />;
-  if (!room) return <Center title="Connecting to the Private Ephemeral Rollup…" sub="authenticating your session key with the TEE validator" spinner />;
+  if (err) return <Center title="The Warden isn't answering" sub={err} />;
+  if (!room) return <Center title="Opening the gate…" sub="authenticating with the Warden (MagicBlock TEE)" spinner />;
 
   const playing = mySeat !== null && [ST_STARTING, ST_COUNTDOWN, ST_LIVE, ST_ENDED].includes(room.status);
   if (room.status === ST_REVEALED) return <Reveal session={session} />;
@@ -53,11 +58,11 @@ export function RoomPage({ roomId }: { roomId: bigint }) {
 function Center({ title, sub, spinner }: { title: string; sub?: string; spinner?: boolean }) {
   return (
     <div className="center-screen">
-      {spinner && <div className="spinner" />}
+      {spinner && <div className="warden-loader" />}
       <h2>{title}</h2>
       {sub && <p>{sub}</p>}
       <a className="back" onClick={() => go("/")}>
-        ← back
+        ← back to the gate
       </a>
     </div>
   );
@@ -65,32 +70,43 @@ function Center({ title, sub, spinner }: { title: string; sub?: string; spinner?
 
 function Spectate({ room }: { room: Room }) {
   return (
-    <div className="center-screen spectate">
-      <div className="sealed-orb" />
-      <h2>Match in progress — sealed</h2>
-      <p>
-        {room.aliveCount} alive · tick {room.tick} · {STATUS_NAME[room.status]}
-      </p>
-      <p className="dim">
-        Spectators see nothing. Every position lives inside a TEE account with zero readers. When the last player falls, the World is flipped public and the replay
-        unlocks right here.
-      </p>
-      <a className="back" onClick={() => go("/")}>
-        ← back to rooms
-      </a>
+    <div className="gate">
+      <Suspense fallback={<div className="backdrop" />}>
+        <Backdrop focus="lobby" />
+      </Suspense>
+      <div className="gate-shade" />
+      <TopBar />
+      <div className="spectate-card">
+        <div className="kicker">
+          <span className="dot red" /> ROOM {room.roomId.toString()} · NIGHT {room.matchNo} · {STATUS_NAME[room.status]}
+        </div>
+        <h2>The match is sealed.</h2>
+        <p>
+          <b>{room.aliveCount}</b> still alive. Spectators see nothing — every position lives in a TEE account with zero readers. The moment the last one falls, the lights come
+          on and the full replay unlocks right here.
+        </p>
+        <div className="row">
+          <button className="btn" onClick={() => go("/")}>
+            BACK TO THE GATE
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
 
 function Lobby({ session, room }: { session: Session; room: Room }) {
   const name = useStore((s) => s.name);
-  const set = useStore((s) => s.set);
   const toast = useStore((s) => s.toast);
   const mySeat = useStore((s) => s.mySeat);
   const wallet = useStore((s) => s.wallet);
   const [busy, setBusy] = useState<string | null>(null);
   const [fill, setFill] = useState(6);
   const [copied, setCopied] = useState(false);
+  const quick = useRef(flags().get("quick") === "1");
+  const invite = flags().get("invite") === "1";
+  const autoDone = useRef(false);
+
   // mirror the on-chain host rule: a host who stopped heart-beating is replaced by the first live seat
   const nowSlot = Math.max(...room.lastSeen);
   const fresh = (i: number) => room.players[i].toBase58() !== EMPTY && room.isBot[i] === 0 && nowSlot - room.lastSeen[i] <= 4500;
@@ -98,8 +114,13 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
   const effectiveHost = hostIdx >= 0 && fresh(hostIdx) ? hostIdx : [0, 1, 2, 3, 4, 5, 6, 7].find(fresh) ?? -1;
   const canStart = mySeat !== null && effectiveHost === mySeat;
   const humans = room.players.filter((p, i) => room.isBot[i] === 0 && p.toBase58() !== EMPTY).length;
+  const staked = room.stake > 0n;
   const link = roomLink(room.roomId);
-  const lastWinner = room.matchNo > 0 && room.winner !== 255 ? room.names[room.winner] : null;
+
+  const seats: SeatInfo[] = Array.from({ length: 8 }, (_, i) => {
+    const taken = room.players[i].toBase58() !== EMPTY || room.isBot[i] === 1;
+    return { name: room.names[i], taken, bot: room.isBot[i] === 1, me: i === mySeat, host: taken && i === effectiveHost, away: taken && room.isBot[i] === 0 && !fresh(i) };
+  });
 
   const run = async (label: string, f: () => Promise<void>) => {
     audio.unlock();
@@ -113,161 +134,125 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
     }
   };
 
-  const connectWallet = async () => {
-    try {
-      await connectWalletFn();
-    } catch (e: any) {
-      toast(String(e?.message ?? e));
+  const take = (seat?: number) =>
+    run("join", async () => {
+      if (staked) {
+        const { provider } = await import("../game/wallet");
+        const sol = provider();
+        if (!sol) throw new Error("Staked rooms need a Solana wallet (Phantom) on devnet");
+        const pk = await connectWallet();
+        await session.buyTicket(sol);
+        await session.join(name || "GHOST", new PublicKey(pk), 0, seat);
+      } else await session.join(name || "GHOST", wallet ? new PublicKey(wallet) : null, 0, seat);
+    });
+
+  // PLAY NOW: sit down and, if nobody else is here, start straight away against bots
+  useEffect(() => {
+    if (!quick.current || autoDone.current || staked) return;
+    if (mySeat === null && !busy) {
+      autoDone.current = true;
+      take().then(() => (autoDone.current = false));
+      return;
     }
+    if (mySeat !== null && canStart && humans === 1 && !busy) {
+      autoDone.current = true;
+      quick.current = false;
+      run("start", () => session.startMatch(6));
+    }
+  }, [mySeat, canStart, humans, busy]);
+
+  const copy = () => {
+    navigator.clipboard?.writeText(link);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
   };
 
   return (
-    <div className="lobby">
-      <header className="lobby-head">
-        <a className="back" onClick={() => go("/")}>
-          ← BLACKOUT
-        </a>
-        <div className="lobby-title">
-          ROOM {room.roomId.toString()} <span className="badge st-0">LOBBY</span>
+    <div className="lobby2">
+      <Suspense fallback={<div className="backdrop" />}>
+        <LobbyStage seats={seats} onTake={(i) => mySeat === null && take(i)} />
+      </Suspense>
+      <TopBar />
+      <div className="lobby2-head">
+        <div className="kicker">
+          <span className="dot" /> {invite ? "PRIVATE ROOM" : `ROOM ${room.roomId}`} · NIGHT {room.matchNo + 1} {staked ? `· ${(Number(room.stake) / 1e9).toFixed(2)} SOL STAKE` : ""}
         </div>
-        <div className="lobby-sub">
-          match #{room.matchNo + 1} · {humans}/8 players
-          {room.stake > 0n ? ` · ${(Number(room.stake) / 1e9).toFixed(2)} SOL stake · pot ${(Number(room.pot) / 1e9).toFixed(2)} SOL` : ""}
-        </div>
-      </header>
+        <h2>{mySeat === null ? "Take a seat in the dark." : canStart ? "You're the host. Fill the Yard." : `Waiting for ${room.names[effectiveHost] || "the host"}…`}</h2>
+        {staked && <p className="sub">Pot {(Number(room.pot) / 1e9).toFixed(2)} SOL · winner is paid on Solana by a Magic Action the moment the match commits.</p>}
+        {quick.current && <p className="sub">Opening the gate for you…</p>}
+      </div>
 
-      <div className="lobby-body">
-        <div className="seats">
-          {Array.from({ length: 8 }, (_, i) => {
-            const empty = room.players[i].toBase58() === EMPTY && room.isBot[i] === 0;
-            const me = i === mySeat;
-            const host = !empty && i === effectiveHost;
-            const away = !empty && room.isBot[i] === 0 && !fresh(i);
-            return (
-              <div key={i} className={`seat ${empty ? "empty" : ""} ${me ? "me" : ""}`} style={{ ["--c" as any]: SEAT_COLORS[i] }}>
-                <div className="seat-dot" />
-                <div className="seat-name">{empty ? "open seat" : room.names[i] || "PLAYER"}{away ? <em className="away"> · away</em> : null}</div>
-                <div className="seat-tags">
-                  {me && <span>YOU</span>}
-                  {host && <span>HOST</span>}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="lobby-side">
-          {mySeat === null ? (
-            <div className="panel">
-              <label>CALLSIGN</label>
-              <input
-                value={name}
-                maxLength={12}
-                onChange={(e) => {
-                  saveName(e.target.value);
-                  set({ name: e.target.value.toUpperCase().replace(/[^A-Z0-9_\-]/g, "").slice(0, 12) });
-                }}
-              />
-              {room.stake > 0n ? (
-                <button
-                  className="btn primary big wide"
-                  disabled={!!busy}
-                  onClick={() =>
-                    run("join", async () => {
-                      const sol = (window as any).phantom?.solana ?? (window as any).solana;
-                      if (!sol) throw new Error("Staked rooms need a Solana wallet (Phantom) on devnet");
-                      const res = await sol.connect();
-                      set({ wallet: res.publicKey.toString() });
-                      await session.buyTicket(sol);
-                      await session.join(name || "GHOST", new PublicKey(res.publicKey.toString()));
-                    })
-                  }
-                >
-                  {busy === "join" ? "BUYING TICKET…" : `STAKE ${(Number(room.stake) / 1e9).toFixed(2)} SOL & SIT`}
-                </button>
-              ) : (
-                <button className="btn primary big wide" disabled={!!busy} onClick={() => run("join", () => session.join(name || "GHOST", wallet ? new PublicKey(wallet) : null))}>
-                  {busy === "join" ? "TAKING SEAT…" : "TAKE A SEAT"}
-                </button>
-              )}
-              {room.stake > 0n && <p className="hint">Devnet SOL. Winner takes the pot, paid on Solana by a Magic Action the moment the match commits.</p>}
-              <p className="hint">Your seat's view account is re-permissioned so only your session key can read it.</p>
-            </div>
-          ) : (
-            <div className="panel">
-              {canStart ? (
-                <>
-                  {room.stake > 0n ? <label>STAKED ROOM · HUMANS ONLY</label> : <label>FILL EMPTY SEATS WITH BOTS UP TO</label>}
-                  <div className="fill">
-                    {[2, 4, 6, 8].map((n) => (
-                      <button key={n} className={`chip ${fill === n ? "on" : ""}`} onClick={() => setFill(n)}>
-                        {n}
-                      </button>
-                    ))}
-                  </div>
-                  <button className="btn primary big wide" disabled={!!busy || Math.max(humans, fill) < 2} onClick={() => run("start", () => session.startMatch(fill))}>
-                    {busy === "start" ? "REQUESTING VRF…" : "START MATCH"}
-                  </button>
-                  <p className="hint">Bots run inside the TEE too — they only know what their own flashlight shows them.</p>
-                </>
-              ) : (
-                <div className="waiting">
-                  <div className="spinner small" /> Waiting for {room.names[effectiveHost] || "the host"} to start…
-                </div>
-              )}
-              <button className="btn ghost wide" disabled={!!busy} onClick={() => run("leave", () => session.leave())}>
-                LEAVE SEAT
-              </button>
-            </div>
-          )}
-
-          <div className="panel">
-            <label>INVITE</label>
-            <div className="share">
-              <input readOnly value={link} onFocus={(e) => e.target.select()} />
-              <button
-                className="btn"
-                onClick={() => {
-                  navigator.clipboard?.writeText(link);
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 1500);
-                }}
-              >
-                {copied ? "COPIED" : "COPY"}
-              </button>
-            </div>
+      <div className="dock">
+        <div className="dock-cell invite">
+          <label>INVITE</label>
+          <div className="row">
+            <code>{link.replace(/^https?:\/\//, "")}</code>
+            <button className="btn small" onClick={copy}>
+              {copied ? "COPIED" : "COPY"}
+            </button>
             <a
-              className="btn x wide"
+              className="btn small x"
               target="_blank"
               rel="noreferrer"
               href={`https://x.com/intent/post?text=${encodeURIComponent(`Drop into BLACKOUT with me — a battle royale where nobody can see you, not even the chain. 🔦\n\n${link}`)}`}
             >
-              POST INVITE ON X
+              POST
             </a>
           </div>
+        </div>
 
-          <div className="panel small">
-            <label>PAYOUT / LEADERBOARD WALLET</label>
-            {wallet ? <code>{wallet.slice(0, 6)}…{wallet.slice(-6)}</code> : <button className="btn ghost wide" onClick={connectWallet}>CONNECT WALLET (OPTIONAL)</button>}
-          </div>
-
-          {lastWinner && (
-            <div className="panel small">
-              <label>LAST MATCH</label>
-              <div>👑 {lastWinner}</div>
+        <div className="dock-cell main">
+          {mySeat === null ? (
+            <button className="btn primary huge" disabled={!!busy} onClick={() => take()}>
+              {busy === "join" ? (staked ? "BUYING TICKET…" : "SITTING DOWN…") : staked ? `STAKE ${(Number(room.stake) / 1e9).toFixed(2)} SOL & SIT` : "TAKE A SEAT"}
+            </button>
+          ) : canStart ? (
+            <button className="btn primary huge" disabled={!!busy || (staked ? humans < 2 : Math.max(humans, fill) < 2)} onClick={() => run("start", () => session.startMatch(staked ? 0 : fill))}>
+              {busy === "start" ? "WAKING THE WARDEN…" : staked && humans < 2 ? "NEED 2 STAKERS" : "START THE NIGHT"}
+            </button>
+          ) : (
+            <div className="waiting">
+              <div className="warden-loader small" /> the host starts the night
             </div>
+          )}
+          {mySeat !== null && (
+            <a className="dock-leave" onClick={() => run("leave", () => session.leave())}>
+              leave seat
+            </a>
+          )}
+        </div>
+
+        <div className="dock-cell bots">
+          {!staked ? (
+            <>
+              <label>FILL WITH BOTS TO</label>
+              <div className="stepper">
+                <button onClick={() => setFill(Math.max(2, fill - 1))} disabled={!canStart}>
+                  −
+                </button>
+                <b>{fill}</b>
+                <button onClick={() => setFill(Math.min(8, fill + 1))} disabled={!canStart}>
+                  +
+                </button>
+              </div>
+              <small>bots see only their own flashlight too</small>
+            </>
+          ) : (
+            <>
+              <label>STAKED ROOM</label>
+              <small>humans only · winner takes the pot</small>
+            </>
           )}
         </div>
       </div>
-      <div className="controls-help">
-        <span>W toward mouse · S back · A/D strafe</span>
-        <span>MOUSE aim</span>
-        <span>CLICK fire</span>
-        <span>Q/E turn</span>
+      <div className="keys-hint">
+        <span>click to aim</span>
+        <span>W A S D move</span>
+        <span>Q / E turn</span>
+        <span>click fire</span>
         <span>R reload</span>
         <span>V view</span>
         <span>M sound</span>
-        <span>walk over loot to grab it</span>
       </div>
     </div>
   );

@@ -1,155 +1,167 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { client } from "../game/identity";
-import { PUBLIC_ROOMS, PRIVATE_POOL } from "../config";
-import { STATUS_NAME, ST_LOBBY, type Room } from "../chain/layout";
+import { PUBLIC_ROOMS, PRIVATE_POOL, QUICK_ROOMS, STAKED_ROOMS } from "../config";
+import { ST_LOBBY, ST_LIVE, ST_COUNTDOWN, ST_STARTING, ST_REVEALED, ST_ENDED, type Room, type BoardEntry } from "../chain/layout";
 import { go } from "../App";
 import { useStore } from "../game/store";
 import { audio } from "../game/audio";
-import { SoundToggle } from "./SoundToggle";
+import { TopBar } from "./TopBar";
 
-const humans = (r: Room) => r.players.filter((p, i) => r.isBot[i] === 0 && p.toBase58() !== "11111111111111111111111111111111").length;
+const Backdrop = lazy(() => import("../scene/Backdrop").then((m) => ({ default: m.Backdrop })));
+
+const EMPTY = "11111111111111111111111111111111";
+export const humansIn = (r: Room) => r.players.filter((p, i) => r.isBot[i] === 0 && p.toBase58() !== EMPTY).length;
+
+function statusLine(r: Room) {
+  if (r.status === ST_LIVE) return `${r.aliveCount} alive · night ${r.matchNo}`;
+  if (r.status === ST_COUNTDOWN || r.status === ST_STARTING) return "dropping in…";
+  if (r.status === ST_ENDED || r.status === ST_REVEALED) return "lights on";
+  const h = humansIn(r);
+  return h ? `${h} waiting` : "empty";
+}
 
 export function Home() {
   const [rooms, setRooms] = useState<Record<number, Room | null>>({});
-  const [finding, setFinding] = useState(false);
-  const hero = useRef<HTMLDivElement>(null);
+  const [board, setBoard] = useState<BoardEntry[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
   const toast = useStore((s) => s.toast);
 
   useEffect(() => {
     let alive = true;
     const load = async () => {
       const out: Record<number, Room | null> = {};
-      await Promise.all(PUBLIC_ROOMS.map(async (id) => (out[id] = await client.fetchRoom(id).catch(() => null))));
+      await Promise.all([...PUBLIC_ROOMS, ...STAKED_ROOMS].map(async (id) => (out[id] = await client.fetchRoom(id).catch(() => null))));
       if (alive) setRooms(out);
     };
     load();
-    const t = setInterval(load, 2500);
+    client
+      .fetchBoard()
+      .then((b) => alive && b && setBoard([...b.entries].sort((a, c) => c.wins - a.wins || c.kills - a.kills).slice(0, 3)))
+      .catch(() => {});
+    const t = setInterval(load, 3000);
     return () => {
       alive = false;
       clearInterval(t);
     };
   }, []);
 
-  useEffect(() => {
-    const el = hero.current;
-    if (!el) return;
-    const move = (e: PointerEvent) => {
-      const r = el.getBoundingClientRect();
-      el.style.setProperty("--mx", `${e.clientX - r.left}px`);
-      el.style.setProperty("--my", `${e.clientY - r.top}px`);
-    };
-    window.addEventListener("pointermove", move);
-    return () => window.removeEventListener("pointermove", move);
-  }, []);
-
-  const playNow = () => {
+  /** One click: an empty room, auto-seat, start against bots. */
+  const quickPlay = async () => {
     audio.unlock();
-    const open = PUBLIC_ROOMS.map((id) => [id, rooms[id]] as const).filter(([, r]) => r && r.status === ST_LOBBY && r.readyMask && r.stake === 0n && humans(r) < 8);
-    open.sort((a, b) => humans(b[1]!) - humans(a[1]!));
-    go(`/r/${open[0]?.[0] ?? PUBLIC_ROOMS[0]}`);
+    setBusy("quick");
+    try {
+      const fresh = await Promise.all(QUICK_ROOMS.map(async (id) => [id, await client.fetchRoom(id).catch(() => null)] as const));
+      const empty = fresh.filter(([, r]) => r && r.status === ST_LOBBY && humansIn(r) === 0);
+      const pick = empty[Math.floor(Math.random() * empty.length)] ?? fresh.find(([, r]) => r && r.status === ST_LOBBY);
+      if (!pick) throw new Error("Every room is mid-match — try again in a minute");
+      go(`/r/${pick[0]}?quick=1`);
+    } catch (e: any) {
+      toast(e.message ?? String(e));
+    } finally {
+      setBusy(null);
+    }
   };
 
   const withFriends = async () => {
     audio.unlock();
-    setFinding(true);
+    setBusy("friends");
     try {
       const all = await Promise.all(PRIVATE_POOL.map(async (id) => [id, await client.fetchRoom(id).catch(() => null)] as const));
-      const free = all.filter(([, r]) => r && r.status === ST_LOBBY && humans(r) === 0);
+      const free = all.filter(([, r]) => r && r.status === ST_LOBBY && humansIn(r) === 0);
       const pick = free[Math.floor(Math.random() * free.length)] ?? all.find(([, r]) => r && r.status === ST_LOBBY);
       if (!pick) throw new Error("All private rooms are busy — try a public room");
-      go(`/r/${pick[0]}`);
+      go(`/r/${pick[0]}?invite=1`);
     } catch (e: any) {
       toast(e.message ?? String(e));
     } finally {
-      setFinding(false);
+      setBusy(null);
     }
   };
 
+  const live = Object.values(rooms).filter((r) => r && (r.status === ST_LIVE || r.status === ST_COUNTDOWN)).length;
+  const players = Object.values(rooms).reduce((n, r) => n + (r ? humansIn(r) : 0), 0);
+
   return (
-    <div className="home">
-      <SoundToggle className="corner" />
-      <div className="hero" ref={hero}>
-        <div className="hero-dark" />
-        <div className="hero-inner">
+    <div className="gate">
+      <Suspense fallback={<div className="backdrop" />}>
+        <Backdrop focus="gate" />
+      </Suspense>
+      <div className="gate-shade" />
+      <TopBar active="play" />
+
+      <main className="gate-main">
+        <section className="gate-hero">
           <div className="kicker">
-            <span className="dot" /> LIVE ON SOLANA DEVNET · MAGICBLOCK PRIVATE EPHEMERAL ROLLUP
+            <span className="dot" /> THE WARDEN IS WATCHING · {live} {live === 1 ? "match" : "matches"} in the dark · {players} survivors
           </div>
-          <h1 className="logo">BLACKOUT</h1>
-          <p className="tag-line">
-            A real-time battle royale where <b>nobody can see you</b>.
-            <br />
-            Not the other players. Not the RPC. <b>Not even the chain.</b>
+          <h1 className="gate-title">BLACKOUT</h1>
+          <p className="gate-tag">
+            A real-time battle royale where <b>nobody can see you</b> — not the other players, not the RPC, <b>not even the chain</b>.
           </p>
-          <div className="cta">
-            <button className="btn primary big" onClick={playNow}>
-              PLAY NOW
+          <div className="gate-cta">
+            <button className="btn primary huge" onClick={quickPlay} disabled={!!busy}>
+              {busy === "quick" ? "OPENING THE GATE…" : "PLAY NOW"}
+              <small>solo vs bots · drop in seconds · no wallet</small>
             </button>
-            <button className="btn big" onClick={withFriends} disabled={finding}>
-              {finding ? "FINDING ROOM…" : "PLAY WITH FRIENDS"}
-            </button>
-          </div>
-          <div className="sub-cta">No wallet. No gas. No sign-up. Open the link and you're in.</div>
-        </div>
-      </div>
-
-      <section className="pillars">
-        <div className="pillar">
-          <h3>Positions sealed in a TEE</h3>
-          <p>Every player, bullet and loot roll lives in one account inside an Intel TDX enclave with <b>zero readers</b>. Each player only receives what their flashlight hits.</p>
-        </div>
-        <div className="pillar">
-          <h3>20 ticks/second, no server</h3>
-          <p>A MagicBlock crank steps the simulation inside the Private Ephemeral Rollup every 50 ms. Inputs are gasless transactions from a session key in your browser.</p>
-        </div>
-        <div className="pillar">
-          <h3>VRF rolls everything</h3>
-          <p>Spawns, loot and every zone shrink come from MagicBlock VRF — and stay sealed until each circle is announced.</p>
-        </div>
-        <div className="pillar">
-          <h3>Then the lights come on</h3>
-          <p>At the final kill the World is flipped public, the replay unlocks, and a Magic Action settles the pot and leaderboard on Solana.</p>
-        </div>
-      </section>
-
-      <section className="rooms">
-        <div className="rooms-head">
-          <h2>Rooms</h2>
-          <div className="links">
-            <a onClick={() => (window as any).__replayIntro?.()}>Story</a>
-            <a onClick={() => go("/how")}>How it works</a>
-            <a onClick={() => go("/board")}>Leaderboard</a>
-          </div>
-        </div>
-        <div className="room-grid">
-          {PUBLIC_ROOMS.map((id) => {
-            const r = rooms[id];
-            return (
-              <button key={id} className="room-card" onClick={() => go(`/r/${id}`)}>
-                <div className="rc-top">
-                  <span className="rc-name">ROOM {id}</span>
-                  <span className={`badge st-${r?.status ?? "x"}`}>{r ? STATUS_NAME[r.status] : "…"}</span>
-                </div>
-                <div className="rc-seats">
-                  {Array.from({ length: 8 }, (_, i) => {
-                    const taken = r && (r.isBot[i] === 1 || r.players[i].toBase58() !== "11111111111111111111111111111111");
-                    return <i key={i} className={taken ? (r!.isBot[i] ? "bot" : "on") : ""} />;
-                  })}
-                </div>
-                <div className="rc-meta">
-                  {r ? `${humans(r)} players · match #${r.matchNo}` : "connecting to TEE…"}
-                  {r && r.stake > 0n ? <b className="stake"> · {(Number(r.stake) / 1e9).toFixed(2)} SOL STAKE</b> : null}
-                </div>
+            <div className="gate-alt">
+              <button className="btn" onClick={withFriends} disabled={!!busy}>
+                {busy === "friends" ? "FINDING A ROOM…" : "PLAY WITH FRIENDS"}
               </button>
-            );
-          })}
-        </div>
-      </section>
-      <footer className="foot">
-        Built for MagicBlock Solana Blitz v9 · <a onClick={() => go("/how")}>architecture</a> · program{" "}
-        <a href="https://explorer.solana.com/address/VWHcbCSH4kATcuPJgjZ6QC56W3NBQ53U6fxJNtGknh3?cluster=devnet" target="_blank" rel="noreferrer">
-          VWHc…knh3
-        </a>
-      </footer>
+              <button className="btn gold-outline" onClick={() => go(`/r/${STAKED_ROOMS[0]}`)}>
+                STAKED NIGHT · 0.01 SOL
+              </button>
+            </div>
+          </div>
+          <div className="gate-facts">
+            <span>🔒 positions sealed in a TEE</span>
+            <span>⚡ 20 ticks/s · no server</span>
+            <span>🎲 VRF-rolled loot &amp; zone</span>
+            <span>💡 lights-on replay</span>
+          </div>
+        </section>
+
+        <aside className="gate-side">
+          <div className="side-card">
+            <label>LIVE IN THE YARD</label>
+            {PUBLIC_ROOMS.map((id) => {
+              const r = rooms[id];
+              const st = r?.status ?? -1;
+              return (
+                <button key={id} className="room-row" onClick={() => go(`/r/${id}`)}>
+                  <span className={`pulse st-${st}`} />
+                  <span className="rr-name">Room {id}</span>
+                  <span className="rr-seats">
+                    {Array.from({ length: 8 }, (_, i) => {
+                      const on = r && (r.isBot[i] === 1 || r.players[i].toBase58() !== EMPTY);
+                      return <i key={i} className={on ? (r!.isBot[i] ? "bot" : "on") : ""} />;
+                    })}
+                  </span>
+                  <span className="rr-st">{r ? statusLine(r) : "waking…"}</span>
+                </button>
+              );
+            })}
+          </div>
+          {board.length > 0 && (
+            <div className="side-card">
+              <label>LAST ONES STANDING</label>
+              {board.map((e, i) => (
+                <div key={e.key.toBase58()} className="lb-row">
+                  <span className="lb-rank">{["I", "II", "III"][i]}</span>
+                  <code>
+                    {e.key.toBase58().slice(0, 4)}…{e.key.toBase58().slice(-4)}
+                  </code>
+                  <span>
+                    {e.wins}W · {e.kills}K
+                  </span>
+                </div>
+              ))}
+              <a className="side-link" onClick={() => go("/board")}>
+                full leaderboard →
+              </a>
+            </div>
+          )}
+        </aside>
+      </main>
     </div>
   );
 }

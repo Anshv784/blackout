@@ -44,6 +44,8 @@ export function Hud({ session }: { session: Session }) {
   const secs = Math.floor(t / 20);
   const hitAge = hit ? (performance.now() - hit.at) / 900 : 1;
   const myPos = session.myPos();
+  const death = room.feed.slice(0, Math.min(16, room.feedHead)).find((f) => f.victim === session.mySeat) ?? null;
+  const survived = Math.max(0, ((death ? death.tick : room.tick) - 60) / 20);
   const humansAlive = room.alive.filter((a, i) => a === 1 && room.isBot[i] === 0 && i !== session.mySeat).length;
   const outside = myPos && Math.hypot(myPos.x - room.zone.x, myPos.y - room.zone.y) > room.zone.r;
 
@@ -68,9 +70,22 @@ export function Hud({ session }: { session: Session }) {
         </div>
       )}
       {countdown && (
-        <div className="countdown" key={countdown}>
-          {countdown}
-          <small>NIGHT {room.matchNo} · THE YARD</small>
+        <div className="night-card">
+          <div className="nc-kicker">THE WARDEN IS WATCHING</div>
+          <h1>NIGHT {room.matchNo}</h1>
+          <div className="nc-roster">
+            {room.names.map((n, i) =>
+              n ? (
+                <span key={i} style={{ ["--c" as any]: SEAT_COLORS[i], animationDelay: `${i * 0.12}s` }} className={i === session.mySeat ? "me" : ""}>
+                  {n}
+                </span>
+              ) : null,
+            )}
+          </div>
+          <div className="nc-count" key={countdown}>
+            {countdown}
+          </div>
+          <small>find the dark · your gun gives you away</small>
         </div>
       )}
       {room.status === ST_ENDED && (
@@ -81,23 +96,37 @@ export function Hud({ session }: { session: Session }) {
       )}
       {room.status === ST_LIVE && !me.alive && (
         <div className="dead">
-          <h2>ELIMINATED</h2>
-          <p>#{view.place || "?"} of {room.nPlayers + room.nBots}</p>
+          <div className="dead-kicker">THE DARK TOOK YOU</div>
+          <h2>#{view.place || "?"}</h2>
+          <p className="killer">
+            {death ? (death.killer === 255 ? "lost outside the zone" : <>
+                killed by <b style={{ color: SEAT_COLORS[death.killer] }}>{room.names[death.killer]}</b> · {WEAPON_NAME[death.weapon] ?? "?"}
+              </>) : "eliminated"}
+          </p>
+          <div className="dead-stats">
+            <div>
+              <b>{fmt(survived)}</b>
+              <span>survived</span>
+            </div>
+            <div>
+              <b>{view.kills}</b>
+              <span>kills</span>
+            </div>
+            <div>
+              <b>{room.aliveCount}</b>
+              <span>still alive</span>
+            </div>
+          </div>
           <small>
             {humansAlive > 0
-              ? `${humansAlive} other player${humansAlive > 1 ? "s" : ""} still in the dark · ${room.aliveCount} alive. No ghosting — the dead see nothing. The lights come on when they fall.`
+              ? `${humansAlive} other player${humansAlive > 1 ? "s" : ""} still in the dark. No ghosting — the dead see nothing. The lights come on when they fall.`
               : "Turning the lights on…"}
           </small>
           <a className="btn ghost" style={{ pointerEvents: "auto", marginTop: 16 }} href="#/">
-            LEAVE TO ROOMS
+            LEAVE TO THE GATE
           </a>
         </div>
       )}
-
-      <CameraSettings />
-      {controls.view === "chase" && !controls.locked && me.alive && (room.status === ST_LIVE || room.status === ST_COUNTDOWN) ? (
-        <div className="lock-hint">CLICK TO AIM WITH THE MOUSE · Esc frees the cursor · V top view</div>
-      ) : null}
       {outside && room.status === ST_LIVE && me.alive ? <div className="zone-warn">OUTSIDE THE ZONE — GET TO THE CIRCLE</div> : null}
 
       {/* sound pings around the screen edge */}
@@ -149,6 +178,8 @@ export function Hud({ session }: { session: Session }) {
     </div>
   );
 }
+
+const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
 function Minimap({ session }: { session: Session }) {
   const ref = useRef<HTMLCanvasElement>(null);

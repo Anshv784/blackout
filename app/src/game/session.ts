@@ -478,14 +478,15 @@ export class Session {
   }
   ticketMatch = 0;
 
-  async join(name: string, wallet: PublicKey | null, code = 0) {
+  async join(name: string, wallet: PublicKey | null, code = 0, preferSeat?: number) {
     const r = this.room ?? (await client.fetchRoom(this.roomId));
     if (!r) throw new Error("Room not found");
     if (r.status !== ST_LOBBY) throw new Error("Match in progress — wait for the lobby");
     const free = [0, 1, 2, 3, 4, 5, 6, 7].filter((i) => r.players[i].toBase58() === DEFAULT_KEY && r.isBot[i] === 0);
     if (!free.length) throw new Error("Room is full");
     let lastErr: unknown = null;
-    for (const seat of free.slice(0, 3)) {
+    const order = preferSeat !== undefined && free.includes(preferSeat) ? [preferSeat, ...free.filter((x) => x !== preferSeat)] : free;
+    for (const seat of order.slice(0, 3)) {
       try {
         const ticket = r.stake > 0n ? ticketPda(this.roomId, r.matchNo + 1, client.publicKey) : undefined;
         await client.sendEr([client.joinIx(this.roomId, seat, name, wallet, code, ticket)]);

@@ -1,0 +1,90 @@
+import { useEffect, useRef, useState } from "react";
+import { useStore } from "../game/store";
+import { saveName } from "../game/identity";
+import { connectWallet } from "../game/wallet";
+import { SoundToggle } from "./SoundToggle";
+import { go } from "../App";
+
+export function Logo({ onClick }: { onClick?: () => void }) {
+  return (
+    <a className="logo-mark" onClick={onClick ?? (() => go("/"))}>
+      <svg viewBox="0 0 32 32" width="22" height="22" aria-hidden>
+        <circle cx="16" cy="16" r="14" fill="none" stroke="#a64dff" strokeWidth="1.5" opacity=".7" />
+        <circle cx="16" cy="16" r="5" fill="#ffe9b0" />
+      </svg>
+      <span>BLACKOUT</span>
+    </a>
+  );
+}
+
+function Callsign() {
+  const name = useStore((s) => s.name);
+  const set = useStore((s) => s.set);
+  const [edit, setEdit] = useState(false);
+  const inp = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (edit) inp.current?.focus();
+  }, [edit]);
+  return edit ? (
+    <input
+      ref={inp}
+      className="chip-input"
+      value={name}
+      maxLength={12}
+      onChange={(e) => {
+        const v = e.target.value.toUpperCase().replace(/[^A-Z0-9_\-]/g, "").slice(0, 12);
+        saveName(v);
+        set({ name: v });
+      }}
+      onBlur={() => setEdit(false)}
+      onKeyDown={(e) => e.key === "Enter" && setEdit(false)}
+    />
+  ) : (
+    <button className="chip-btn" onClick={() => setEdit(true)} title="Change your callsign">
+      <i className="dot" /> {name || "GHOST"} <em>✎</em>
+    </button>
+  );
+}
+
+function Wallet() {
+  const wallet = useStore((s) => s.wallet);
+  const toast = useStore((s) => s.toast);
+  return wallet ? (
+    <span className="chip-btn static" title="Wins and payouts go here">
+      ◎ {wallet.slice(0, 4)}…{wallet.slice(-4)}
+    </span>
+  ) : (
+    <button
+      className="chip-btn ghost"
+      onClick={() => connectWallet().catch((e) => toast(String(e?.message ?? e)))}
+      title="Optional: save your wins to the leaderboard"
+    >
+      ◎ connect
+    </button>
+  );
+}
+
+export function TopBar({ active }: { active?: "play" | "board" | "how" }) {
+  return (
+    <header className="topbar">
+      <Logo />
+      <nav>
+        <a className={active === "play" ? "on" : ""} onClick={() => go("/")}>
+          Play
+        </a>
+        <a className={active === "board" ? "on" : ""} onClick={() => go("/board")}>
+          Leaderboard
+        </a>
+        <a className={active === "how" ? "on" : ""} onClick={() => go("/how")}>
+          How it works
+        </a>
+        <a onClick={() => (window as any).__replayIntro?.()}>Story</a>
+      </nav>
+      <div className="topbar-right">
+        <Callsign />
+        <Wallet />
+        <SoundToggle />
+      </div>
+    </header>
+  );
+}

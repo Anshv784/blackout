@@ -175,7 +175,7 @@ function Others({ session }: { session: Session }) {
         <group key={s}>
           <group ref={(el) => (refs.current[s] = el)} visible={false}>
             <Avatar color={SEAT_COLORS[s]} />
-            <Html position={[0, 1.6, 0]} center zIndexRange={[10, 0]} style={{ pointerEvents: "none" }}>
+            <Html position={[0, 1.6, 0]} center zIndexRange={[4, 0]} style={{ pointerEvents: "none" }}>
               <div className="tag" ref={(el) => (labels.current[s] = el)} style={{ ["--c" as any]: SEAT_COLORS[s] }}>
                 <span>{room?.names[s] || `#${s}`}</span>
                 <i>
@@ -256,7 +256,7 @@ function LootCrates({ session }: { session: Session }) {
             <meshStandardMaterial emissiveIntensity={2.6} toneMapped={false} />
           </mesh>
           <pointLight intensity={1.6} distance={2.2} decay={1.6} color="#fff6d8" />
-          <Html position={[0, 0.55, 0]} center style={{ pointerEvents: "none" }}>
+          <Html position={[0, 0.55, 0]} center zIndexRange={[4, 0]} style={{ pointerEvents: "none" }}>
             <div className="loot-tag" ref={(el) => (labels.current[i] = el)} />
           </Html>
         </group>

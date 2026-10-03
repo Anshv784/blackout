@@ -1,3 +1,4 @@
+import { TopBar } from "./TopBar";
 import { useEffect, useState } from "react";
 import { client } from "../game/identity";
 import type { BoardEntry } from "../chain/layout";
@@ -13,9 +14,7 @@ export function Board() {
   const rows = [...(data?.entries ?? [])].sort((a, b) => b.wins - a.wins || b.kills - a.kills || a.bestPlace - b.bestPlace);
   return (
     <div className="page">
-      <a className="back" onClick={() => go("/")}>
-        ← BLACKOUT
-      </a>
+      <TopBar active="board" />
       <h1>Leaderboard</h1>
       <p className="dim">
         Lives on Solana, not in the rollup. After every match the room is committed back to the base layer and a <b>Magic Action</b> runs <code>settle</code> on Solana,
