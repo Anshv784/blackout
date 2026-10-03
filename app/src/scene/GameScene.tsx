@@ -441,12 +441,7 @@ function InputController({ session }: { session: Session }) {
     const el = gl.domElement;
     const move = (e: PointerEvent) => {
       if (e.pointerType === "touch") return;
-      if (controls.view === "chase") {
-        // turning works with or without pointer lock: horizontal mouse movement = turn
-        controls.chaseAim = (controls.chaseAim + Math.round(e.movementX * controls.sens) + 65536) % 65536;
-        controls.mouseActive = true;
-        return;
-      }
+      if (controls.view === "chase") return; // turning is handled by the document mousemove below
       const r = el.getBoundingClientRect();
       mouse.current.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
       controls.mouseActive = true;
@@ -455,8 +450,11 @@ function InputController({ session }: { session: Session }) {
       audio.unlock();
       if (e.pointerType === "touch") return;
       if (controls.view === "chase" && document.pointerLockElement !== el) {
-        controls.chaseAim = session.input.aim;
-        el.requestPointerLock?.();
+        try {
+          (el.requestPointerLock as any)?.call(el)?.catch?.(() => {});
+        } catch {
+          /* lock refused — mouse still turns */
+        }
         return; // the locking click doesn't fire
       }
       if (e.button === 0) {
@@ -468,6 +466,13 @@ function InputController({ session }: { session: Session }) {
       if (e.button === 0) controls.fire = false;
     };
     const lockChange = () => (controls.locked = document.pointerLockElement === el);
+    // mousemove carries movementX in every browser, locked or not (Safari doesn't send pointermove under lock)
+    const turn = (e: MouseEvent) => {
+      if (controls.view !== "chase") return;
+      controls.chaseAim = (controls.chaseAim + Math.round(e.movementX * controls.sens) + 65536) % 65536;
+      controls.mouseActive = true;
+    };
+    document.addEventListener("mousemove", turn);
     const wheel = (e: WheelEvent) => {
       e.preventDefault();
       wheelZoom(e.deltaY);
@@ -482,6 +487,7 @@ function InputController({ session }: { session: Session }) {
       el.removeEventListener("pointerdown", down);
       window.removeEventListener("pointerup", up);
       document.removeEventListener("pointerlockchange", lockChange);
+      document.removeEventListener("mousemove", turn);
       el.removeEventListener("wheel", wheel);
     };
   }, [gl, session]);

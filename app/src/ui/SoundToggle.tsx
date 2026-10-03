@@ -12,7 +12,7 @@ export function SoundToggle({ className = "" }: { className?: string }) {
   return (
     <button
       className={`sound-toggle ${className}`}
-      title={muted ? "Sound off (M)" : "Sound on (M)"}
+      title={muted ? "Sound off (V)" : "Sound on (V)"}
       onPointerDown={(e) => e.stopPropagation()}
       onClick={() => {
         audio.unlock();

@@ -67,8 +67,8 @@ export function installKeyboard() {
     if ((e.target as HTMLElement)?.tagName === "INPUT") return;
     const k = norm(e.key);
     controls.keys.add(k);
-    if (k === "v") toggleView();
-    if (k === "m") import("./audio").then(({ audio }) => audio.toggleMute());
+    if (k === "c") toggleView();
+    if (k === "v" || k === "m") import("./audio").then(({ audio }) => audio.toggleMute());
     if (k === "r") {
       controls.reload = true;
       controls.reloadUntil = performance.now() + 200;
