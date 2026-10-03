@@ -22,7 +22,23 @@ export const controls = {
   chaseHeight: num("bo-chase-height-v2", 5.5),
   topZoom: num("bo-top-zoom", 14),
   sens: num("bo-sens", 36),
+  laser: (() => {
+    try {
+      return localStorage.getItem("bo-laser") !== "0";
+    } catch {
+      return true;
+    }
+  })(),
 };
+
+export function setLaser(on: boolean) {
+  controls.laser = on;
+  try {
+    localStorage.setItem("bo-laser", on ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+}
 
 function num(key: string, d: number) {
   try {

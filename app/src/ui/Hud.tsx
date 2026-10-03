@@ -5,7 +5,7 @@ import { ST_COUNTDOWN, ST_ENDED, ST_LIVE, ST_STARTING, WEAPON_NAME } from "../ch
 import { angleToRad } from "../game/sim";
 import { MAP_ROWS } from "../game/gen";
 import { SEAT_COLORS } from "../scene/Avatar";
-import { controls, toggleView, setSetting } from "../game/controls";
+import { controls, toggleView, setSetting, setLaser } from "../game/controls";
 import { SoundToggle } from "./SoundToggle";
 
 const MAX_MAG = [10, 30, 5];
@@ -247,6 +247,18 @@ function CameraSettings() {
           ) : (
             slider("Zoom", "topZoom", 7, 28, 0.5)
           )}
+          <label className="cam-row check">
+            <span>Laser sight</span>
+            <button
+              className={`chip ${controls.laser ? "on" : ""}`}
+              onClick={() => {
+                setLaser(!controls.laser);
+                bump((x) => x + 1);
+              }}
+            >
+              {controls.laser ? "ON" : "OFF"}
+            </button>
+          </label>
           <small>Mouse wheel zooms · Q/E turn · M sound</small>
         </div>
       )}

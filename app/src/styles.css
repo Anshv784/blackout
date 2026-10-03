@@ -1192,3 +1192,5 @@ button {
 @media (pointer:coarse){.crosshair{display:none}}
 
 .lost-hint{position:absolute;left:50%;top:70%;transform:translateX(-50%);color:#8f97ab;font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;text-shadow:0 2px 10px #000;animation:fadein .3s}
+
+.cam-row.check{flex-direction:row;align-items:center;justify-content:space-between}

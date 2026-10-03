@@ -440,7 +440,7 @@ function LaserSight({ session }: { session: Session }) {
     const v = session.view;
     const live = p && v?.me.alive && (session.room?.status === ST_LIVE || session.room?.status === ST_COUNTDOWN);
     if (!line.current || !dot.current) return;
-    line.current.visible = dot.current.visible = !!live;
+    line.current.visible = dot.current.visible = !!live && controls.laser;
     if (!live) {
       controls.onTarget = false;
       return;
