@@ -557,7 +557,7 @@ button {
   touch-action: none;
 }
 .game canvas {
-  cursor: crosshair;
+  cursor: none;
 }
 .hud {
   position: absolute;
@@ -1175,3 +1175,18 @@ button {
 
 .sound-toggle{background:rgba(10,12,20,.85);border:1px solid var(--line);color:var(--fg);border-radius:8px;cursor:pointer;font-size:14px;padding:4px 9px;pointer-events:auto}
 .sound-toggle.corner{position:fixed;top:14px;right:16px;z-index:20;font-size:18px;padding:8px 12px}
+
+.crosshair{position:fixed;left:0;top:0;width:0;height:0;pointer-events:none;z-index:40}
+.crosshair i{position:absolute;background:#ffd166;box-shadow:0 0 6px rgba(255,209,102,.8);transition:background .08s,transform .08s}
+.crosshair .t,.crosshair .b{width:2px;height:9px;left:-1px}
+.crosshair .t{top:-15px}.crosshair .b{top:6px}
+.crosshair .l,.crosshair .r{height:2px;width:9px;top:-1px}
+.crosshair .l{left:-15px}.crosshair .r{left:6px}
+.crosshair b{position:absolute;left:-2px;top:-2px;width:4px;height:4px;border-radius:50%;background:#fff}
+.crosshair.hot i{background:#ff2e4d;box-shadow:0 0 10px #ff2e4d}
+.crosshair.hot .t{transform:translateY(4px)}.crosshair.hot .b{transform:translateY(-4px)}
+.crosshair.hot .l{transform:translateX(4px)}.crosshair.hot .r{transform:translateX(-4px)}
+.crosshair.hot b{background:#ff2e4d}
+.crosshair.firing .t{transform:translateY(-3px)}.crosshair.firing .b{transform:translateY(3px)}
+.crosshair.firing .l{transform:translateX(-3px)}.crosshair.firing .r{transform:translateX(3px)}
+@media (pointer:coarse){.crosshair{display:none}}

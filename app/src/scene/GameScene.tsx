@@ -422,6 +422,73 @@ function CameraRig({ session }: { session: Session }) {
 }
 
 /** Mouse/keyboard → session input. Touch joysticks write into `controls` directly. */
+/** Laser from the muzzle along your aim to the first wall; red when an enemy is on it. */
+function LaserSight({ session }: { session: Session }) {
+  const line = useRef<THREE.Mesh>(null);
+  const dot = useRef<THREE.Mesh>(null);
+  const mat = useMemo(() => new THREE.MeshBasicMaterial({ color: "#ffd166", transparent: true, opacity: 0.55, toneMapped: false, depthWrite: false }), []);
+  const dotMat = useMemo(() => new THREE.MeshBasicMaterial({ color: "#ffd166", transparent: true, opacity: 0.9, toneMapped: false }), []);
+  useFrame(() => {
+    const p = session.myPos();
+    const v = session.view;
+    const live = p && v?.me.alive && (session.room?.status === ST_LIVE || session.room?.status === ST_COUNTDOWN);
+    if (!line.current || !dot.current) return;
+    line.current.visible = dot.current.visible = !!live;
+    if (!live) {
+      controls.onTarget = false;
+      return;
+    }
+    const a = angleToRad(session.input.aim);
+    const dx = Math.cos(a);
+    const dz = Math.sin(a);
+    const x0 = p!.x / 256;
+    const z0 = p!.y / 256;
+    // march to the first wall (max 12 tiles)
+    let len = 12;
+    for (let t = 0.4; t < 12; t += 0.1) {
+      if (isWall(Math.floor(x0 + dx * t), Math.floor(z0 + dz * t))) {
+        len = t;
+        break;
+      }
+    }
+    // anyone visible on the line before the wall?
+    let target = false;
+    const now = performance.now();
+    for (const tr of session.tracks.values()) {
+      if (!tr.visible || tr.seat === session.mySeat) continue;
+      const sm = session.sampleTrack(tr, now);
+      if (!sm) continue;
+      const ex = sm.x / 256 - x0;
+      const ez = sm.y / 256 - z0;
+      const along = ex * dx + ez * dz;
+      if (along <= 0 || along > len) continue;
+      const perp = Math.abs(ex * dz - ez * dx);
+      if (perp < 0.42) target = true;
+    }
+    controls.onTarget = target;
+    const color = target ? "#ff2e4d" : "#ffd166";
+    mat.color.set(color);
+    dotMat.color.set(color);
+    mat.opacity = target ? 0.85 : 0.45;
+    const start = 0.55;
+    const L = Math.max(0.1, len - start);
+    line.current.position.set(x0 + dx * (start + L / 2), 0.68, z0 + dz * (start + L / 2));
+    line.current.rotation.set(0, -a, 0);
+    line.current.scale.set(L, 1, 1);
+    dot.current.position.set(x0 + dx * len, 0.68, z0 + dz * len);
+  });
+  return (
+    <>
+      <mesh ref={line} material={mat} visible={false}>
+        <boxGeometry args={[1, 0.018, 0.018]} />
+      </mesh>
+      <mesh ref={dot} material={dotMat} visible={false}>
+        <sphereGeometry args={[0.06, 12, 8]} />
+      </mesh>
+    </>
+  );
+}
+
 function FpsMeter() {
   const acc = useRef({ n: 0, t: performance.now() });
   useFrame(() => {
@@ -449,6 +516,8 @@ function InputController({ session }: { session: Session }) {
       if (e.pointerType === "touch") return;
 
       const r = el.getBoundingClientRect();
+      controls.cursorX = e.clientX;
+      controls.cursorY = e.clientY;
       mouse.current.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
       controls.mouseActive = true;
     };
@@ -580,6 +649,7 @@ export const GameScene = memo(function GameScene({ session }: { session: Session
       <CameraRig session={session} />
       <InputController session={session} />
       <FpsMeter />
+      <LaserSight session={session} />
       <Post session={session} />
     </Canvas>
   );

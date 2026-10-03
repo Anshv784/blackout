@@ -13,6 +13,9 @@ export const controls = {
   view: ((typeof localStorage !== "undefined" && localStorage.getItem("bo-view-v2")) || "chase") as "chase" | "top",
   chaseAim: 0, // unused (kept for compatibility)
   camYaw: 0, // behind-view camera heading (radians), follows your aim
+  onTarget: false, // an enemy is on your line of fire
+  cursorX: -100,
+  cursorY: -100,
   locked: false,
   // player-tunable camera (persisted)
   chaseDist: num("bo-chase-dist-v2", 7.5),

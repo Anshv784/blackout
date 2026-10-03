@@ -9,6 +9,7 @@ import { Hud } from "./Hud";
 import { Reveal } from "./Reveal";
 import { TouchControls } from "./TouchControls";
 import { ChainPanel } from "./ChainPanel";
+import { Crosshair } from "./Crosshair";
 import { SEAT_COLORS } from "../scene/Avatar";
 import { roomLink } from "../config";
 import { go } from "../App";
@@ -42,6 +43,7 @@ export function RoomPage({ roomId }: { roomId: bigint }) {
         <Hud session={session} />
         <TouchControls />
         <ChainPanel session={session} />
+        <Crosshair />
       </div>
     );
   if (room.status !== ST_LOBBY) return <Spectate room={room} />;
