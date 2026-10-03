@@ -24,7 +24,7 @@ export const controls = {
   sens: num("bo-sens", 36),
   laser: (() => {
     try {
-      return localStorage.getItem("bo-laser") !== "0";
+      return localStorage.getItem("bo-laser-v2") === "1"; // off by default
     } catch {
       return true;
     }
@@ -34,7 +34,7 @@ export const controls = {
 export function setLaser(on: boolean) {
   controls.laser = on;
   try {
-    localStorage.setItem("bo-laser", on ? "1" : "0");
+    localStorage.setItem("bo-laser-v2", on ? "1" : "0");
   } catch {
     /* ignore */
   }

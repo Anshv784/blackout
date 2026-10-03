@@ -383,11 +383,6 @@ function CameraRig({ session }: { session: Session }) {
     if (playing && controls.view === "chase" && !controls.touchMove && controls.touchAim === null) {
       // over-the-shoulder. The camera heading follows your aim only when you point
       // well off to the side, so you can aim freely across the screen.
-      const aimRad = angleToRad(session.input.aim);
-      let diff = aimRad - controls.camYaw;
-      diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-      const dead = 0.55;
-      if (Math.abs(diff) > dead) controls.camYaw += (diff - Math.sign(diff) * dead) * Math.min(1, dt * 3);
       const a = controls.camYaw;
       const px = p!.x / 256;
       const pz = p!.y / 256;
@@ -424,6 +419,13 @@ function CameraRig({ session }: { session: Session }) {
     }
     camera.position.copy(pos.current);
     camera.lookAt(look.current);
+    // shooter view: put the crosshair where your bullets actually go (6 tiles out, gun height)
+    if (playing && controls.view === "chase" && p) {
+      const a = controls.camYaw;
+      const v = new THREE.Vector3(p.x / 256 + Math.cos(a) * 6, 0.68, p.y / 256 + Math.sin(a) * 6).project(camera);
+      controls.cursorX = ((v.x + 1) / 2) * window.innerWidth;
+      controls.cursorY = ((1 - v.y) / 2) * window.innerHeight;
+    }
   });
   return null;
 }
@@ -523,8 +525,10 @@ function InputController({ session }: { session: Session }) {
       if (e.pointerType === "touch") return;
 
       const r = el.getBoundingClientRect();
-      controls.cursorX = e.clientX;
-      controls.cursorY = e.clientY;
+      if (controls.view !== "chase") {
+        controls.cursorX = e.clientX;
+        controls.cursorY = e.clientY;
+      }
       mouse.current.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
       controls.mouseActive = true;
     };
@@ -541,7 +545,12 @@ function InputController({ session }: { session: Session }) {
       if (e.button === 0) controls.fire = false;
     };
     const lockChange = () => (controls.locked = document.pointerLockElement === el);
-    // mousemove carries movementX in every browser, locked or not (Safari doesn't send pointermove under lock)
+    // shooter view: mouse X turns you. mousemove carries movementX in every browser, locked or not.
+    const look = (e: MouseEvent) => {
+      if (controls.view !== "chase") return;
+      controls.camYaw += e.movementX * controls.sens * ((Math.PI * 2) / 65536);
+    };
+    document.addEventListener("mousemove", look);
 
     const wheel = (e: WheelEvent) => {
       e.preventDefault();
@@ -557,6 +566,7 @@ function InputController({ session }: { session: Session }) {
       el.removeEventListener("pointerdown", down);
       window.removeEventListener("pointerup", up);
       document.removeEventListener("pointerlockchange", lockChange);
+      document.removeEventListener("mousemove", look);
 
       el.removeEventListener("wheel", wheel);
     };
@@ -568,6 +578,7 @@ function InputController({ session }: { session: Session }) {
     const turn = (controls.keys.has("e") ? 1 : 0) - (controls.keys.has("q") ? 1 : 0);
     if (turn) controls.camYaw += turn * 0.045;
     if (controls.touchAim !== null) aim = controls.touchAim;
+    else if (controls.view === "chase") aim = radToAngle(controls.camYaw);
     else if (p && controls.mouseActive) {
       ray.setFromCamera(mouse.current, camera);
       if (ray.ray.intersectPlane(plane, hit) && hit.distanceTo(ray.ray.origin) < 60) aim = radToAngle(Math.atan2(hit.z - p.y / 256, hit.x - p.x / 256));

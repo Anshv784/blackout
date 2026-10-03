@@ -95,6 +95,9 @@ export function Hud({ session }: { session: Session }) {
       )}
 
       <CameraSettings />
+      {controls.view === "chase" && !controls.locked && me.alive && (room.status === ST_LIVE || room.status === ST_COUNTDOWN) ? (
+        <div className="lock-hint">CLICK TO AIM WITH THE MOUSE · Esc frees the cursor · V top view</div>
+      ) : null}
       {outside && room.status === ST_LIVE && me.alive ? <div className="zone-warn">OUTSIDE THE ZONE — GET TO THE CIRCLE</div> : null}
 
       {/* sound pings around the screen edge */}
