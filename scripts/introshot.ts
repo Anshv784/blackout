@@ -1,0 +1,14 @@
+import { chromium } from "playwright";
+const out = process.argv[2];
+const b = await chromium.launch({ args: ["--autoplay-policy=no-user-gesture-required"] });
+const p = await b.newPage({ viewport: { width: 1280, height: 720 } });
+const errs: string[] = [];
+p.on("pageerror", (e) => errs.push(e.message));
+await p.goto("http://127.0.0.1:5173/"); await p.waitForTimeout(1500);
+await p.screenshot({ path: `${out}/i0.png` });
+await p.click("text=ENTER"); await p.waitForTimeout(2500);
+await p.screenshot({ path: `${out}/i1.png` });
+await p.waitForTimeout(15000);
+await p.screenshot({ path: `${out}/i4.png` });
+console.log("errors", errs);
+await b.close();

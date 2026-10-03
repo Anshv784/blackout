@@ -1151,3 +1151,24 @@ button {
 @media (pointer:coarse){.cam{top:auto;bottom:250px}}
 
 .nudge{border-color:rgba(255,209,102,.45)}.nudge div{font-size:13px;color:#b9c1d6;line-height:1.45}
+
+/* ---------- intro ---------- */
+.intro{position:fixed;inset:0;background:#000;display:grid;place-items:center;z-index:100;overflow:hidden;cursor:default}
+.intro-grain{position:absolute;inset:-50%;background-image:radial-gradient(rgba(255,255,255,.05) 1px,transparent 1px);background-size:3px 3px;animation:grain .4s steps(2) infinite;pointer-events:none;opacity:.6}
+@keyframes grain{50%{transform:translate(1%,-1%)}}
+.intro-start{display:flex;flex-direction:column;align-items:center;gap:18px;text-align:center;color:var(--dim)}
+.intro-eye{width:140px;height:140px;border-radius:50%;background:radial-gradient(circle at 50% 50%,#ffe9b0 0 6%,#3a2a10 12%,#000 60%);box-shadow:0 0 80px rgba(255,209,102,.15);animation:pulse 3s infinite}
+.intro-beat{max-width:820px;padding:0 24px;text-align:center;animation:fadein 1.2s ease-out}
+.intro-beat h2{font-size:clamp(28px,5vw,54px);margin:0;letter-spacing:.02em;color:#e9e2d0;text-shadow:0 0 30px rgba(255,209,102,.15)}
+.intro-beat p{font-size:clamp(16px,2.2vw,22px);color:#8f97ab;margin-top:18px;animation:fadein 2.4s ease-out}
+.caret{animation:pulse .9s infinite;color:var(--gold);margin-left:4px}
+.intro-title{text-align:center;animation:fadein 2s ease-out}
+.intro-title h1{font-size:clamp(64px,13vw,150px);margin:0;letter-spacing:.08em;color:#fff;text-shadow:0 0 60px rgba(255,209,102,.35)}
+.intro-title p{color:var(--dim);letter-spacing:.3em;font-family:var(--mono)}
+@keyframes fadein{from{opacity:0;filter:blur(6px)}}
+.intro-progress{position:absolute;bottom:40px;left:50%;transform:translateX(-50%);display:flex;gap:6px}
+.intro-progress i{width:26px;height:3px;background:#222;border-radius:2px}
+.intro-progress i.on{background:var(--gold)}
+.intro-skip{position:absolute;bottom:34px;right:28px;color:#666;font-family:var(--mono);font-size:12px;letter-spacing:.15em;cursor:pointer}
+.intro-start .intro-skip{position:static}
+.intro-note{position:absolute;bottom:80px;left:50%;transform:translateX(-50%);color:#6b5fa0;font-family:var(--mono);font-size:12px;text-align:center;max-width:520px;padding:0 16px;animation:fadein 3s ease-out}

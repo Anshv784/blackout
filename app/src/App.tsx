@@ -1,4 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { Intro } from "./ui/Intro";
+import { audio } from "./game/audio";
 import { useStore, type Route } from "./game/store";
 import { loadName } from "./game/identity";
 import { installKeyboard } from "./game/controls";
@@ -21,9 +23,28 @@ export function go(path: string) {
   window.location.hash = path;
 }
 
+const introSeen = () => {
+  try {
+    return localStorage.getItem("bo-intro-seen") === "1";
+  } catch {
+    return true;
+  }
+};
+
 export function App() {
   const route = useStore((s) => s.route);
   const set = useStore((s) => s.set);
+  const [intro, setIntro] = useState(() => !introSeen() && !window.location.hash.startsWith("#/r/"));
+  useEffect(() => {
+    // the dread starts on the first interaction (browsers block autoplay)
+    const start = () => {
+      audio.unlock();
+      audio.startAmbience(1);
+    };
+    window.addEventListener("pointerdown", start, { once: true });
+    window.addEventListener("keydown", start, { once: true });
+    (window as any).__replayIntro = () => setIntro(true);
+  }, []);
   useEffect(() => {
     installKeyboard();
     set({ name: loadName(), route: parseHash() });
@@ -31,6 +52,7 @@ export function App() {
     window.addEventListener("hashchange", on);
     return () => window.removeEventListener("hashchange", on);
   }, [set]);
+  if (intro) return <Intro onDone={() => setIntro(false)} />;
   return (
     <>
       {route.page === "home" && <Home />}

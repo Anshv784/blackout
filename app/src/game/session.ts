@@ -79,6 +79,8 @@ export class Session {
   rtt = 150;
 
   private pingHead = -1;
+  private lastSeenAt = new Map<number, number>();
+  private nearestHeard = { dist: 99, at: 0 };
   private lastHitTick = 0;
   private lastFeedHead = -1;
   private lastRoomTick = 0;
@@ -110,6 +112,7 @@ export class Session {
 
   stop() {
     this.closed = true;
+    audio.setHeartbeat(0);
     this.unsubs.forEach((u) => u());
     this.unsubs = [];
     this.timers.forEach((t) => clearInterval(t));
@@ -262,6 +265,8 @@ export class Session {
     // ignore reordered updates, but a big jump back means a new match on a reused seat
     if (this.view && v.tick < this.view.tick && this.view.tick - v.tick < 100) return;
     const prev = this.view;
+    const now0 = performance.now();
+    void now0;
     this.view = v;
     this.viewAt = now;
     this.viewsRecv++;
@@ -309,6 +314,12 @@ export class Session {
       if (p.flags & 4) this.addFx({ kind: "shot", x: p.x, y: p.y, angle: p.aim, sub: p.seat });
     }
     for (const [seat, tr] of this.tracks) if (!seen.has(seat)) tr.visible = false;
+    // stinger: someone steps into your light who you haven't seen for a while
+    for (const p of v.players) {
+      const last = this.lastSeenAt.get(p.seat) ?? 0;
+      if (now - last > 4000 && !(p.flags & 2)) audio.stinger();
+      this.lastSeenAt.set(p.seat, now);
+    }
     this.bullets = v.bullets;
     this.bulletsAt = now;
     // pings (sounds you can't see)
@@ -318,7 +329,15 @@ export class Session {
       if (!p || v.tick - p.tick > 40) continue;
       this.addFx({ kind: "ping", x: v.me.x, y: v.me.y, angle: p.angle, sub: p.kind, dist: p.dist });
       audio.ping(p.kind, p.angle, p.dist, this.input.aim);
+      if (p.kind === 1 || p.kind === 2) this.nearestHeard = { dist: Math.min(p.dist, now - this.nearestHeard.at < 1500 ? this.nearestHeard.dist : 99), at: now };
     }
+    // heartbeat: low health, enemies you can hear closing in, or one in your light
+    if (v.status === ST_LIVE && v.me.alive) {
+      const hpDanger = v.me.hp < 40 ? (40 - v.me.hp) / 40 : 0;
+      const heard = now - this.nearestHeard.at < 2500 ? Math.max(0, 1 - this.nearestHeard.dist / 9) : 0;
+      const seenDanger = v.players.length ? 0.55 : 0;
+      audio.setHeartbeat(Math.max(hpDanger, heard, seenDanger));
+    } else audio.setHeartbeat(0);
     this.pingHead = v.pingHead;
     // got hit
     if (v.me.hitTick && v.me.hitTick !== this.lastHitTick) {
@@ -359,6 +378,7 @@ export class Session {
   /** Called every animation frame by the scene. */
   frame() {
     const now = performance.now();
+    audio.ambientTick();
     const dt = Math.min(200, now - this.lastFrame);
     this.lastFrame = now;
     const v = this.view;

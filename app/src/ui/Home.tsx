@@ -113,6 +113,7 @@ export function Home() {
         <div className="rooms-head">
           <h2>Rooms</h2>
           <div className="links">
+            <a onClick={() => (window as any).__replayIntro?.()}>Story</a>
             <a onClick={() => go("/how")}>How it works</a>
             <a onClick={() => go("/board")}>Leaderboard</a>
           </div>

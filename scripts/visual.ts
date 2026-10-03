@@ -19,6 +19,7 @@ const ctx = await browser.newContext({
   viewport: { width: 1280, height: 720 },
   ...(process.env.VIDEO ? { recordVideo: { dir: process.env.VIDEO, size: { width: 1280, height: 720 } } } : {}),
 });
+await ctx.addInitScript(() => localStorage.setItem("bo-intro-seen", "1"));
 const page = await ctx.newPage();
 const errors: string[] = [];
 page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));

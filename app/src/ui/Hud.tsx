@@ -64,7 +64,7 @@ export function Hud({ session }: { session: Session }) {
       {countdown && (
         <div className="countdown" key={countdown}>
           {countdown}
-          <small>find the dark</small>
+          <small>NIGHT {room.matchNo} · THE YARD</small>
         </div>
       )}
       {room.status === ST_ENDED && (
