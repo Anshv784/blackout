@@ -31,6 +31,11 @@ export function Hud({ session }: { session: Session }) {
     return () => clearInterval(t);
   }, [session]);
 
+  const lost = (() => {
+    const now = performance.now();
+    for (const tr of session.tracks.values()) if (!tr.visible && now - tr.lastSeen < 1600 && now - tr.lastSeen > 280) return room?.names[tr.seat] || "someone";
+    return null;
+  })();
   if (!room || !view) return <div className="hud"><div className="center-msg">Opening your private view…</div></div>;
   const me = view.me;
   const aim = session.input.aim;
@@ -112,6 +117,7 @@ export function Hud({ session }: { session: Session }) {
         <div className="hit-arc" style={{ transform: `rotate(${(angleToRad(hit.angle) * 180) / Math.PI}deg)`, opacity: 1 - hitAge }} />
       )}
       {hit && hitAge < 0.4 && <div className="hit-flash" style={{ opacity: 0.4 - hitAge }} />}
+      {lost && room.status === ST_LIVE && me.alive ? <div className="lost-hint">{lost} slipped into the dark</div> : null}
       {me.flare > 0 && <div className="flare-banner">FLARE · YOU SEE EVERYONE · {Math.ceil(me.flare / 20)}s</div>}
 
       <div className="hud-bottom-left">

@@ -117,10 +117,12 @@ function MyPlayer({ session }: { session: Session }) {
 
 function Others({ session }: { session: Session }) {
   const refs = useRef<(THREE.Group | null)[]>([]);
-  const ghosts = useRef<(THREE.Mesh | null)[]>([]);
+  const ghosts = useRef<(THREE.Group | null)[]>([]);
   const labels = useRef<(HTMLDivElement | null)[]>([]);
   const hpBars = useRef<(HTMLElement | null)[]>([]);
   const room = session.room;
+  const GRACE = 280; // ms an enemy stays solid after leaving your view (kills cone-edge flicker)
+  const FADE = 2000; // ms the last-known silhouette lingers
   useFrame(() => {
     const now = performance.now();
     for (let s = 0; s < 8; s++) {
@@ -128,38 +130,43 @@ function Others({ session }: { session: Session }) {
       const gh = ghosts.current[s];
       if (!g || !gh) continue;
       const tr = session.tracks.get(s);
-      if (!tr || s === session.mySeat || !session.view?.me.alive) {
+      const lab = labels.current[s];
+      if (!tr || s === session.mySeat || !session.view?.me.alive || !tr.samples.length) {
         g.visible = false;
         gh.visible = false;
-        const lab = labels.current[s];
         if (lab) lab.style.display = "none";
         continue;
       }
-      const smp = session.sampleTrack(tr, now);
-      if (!smp) {
-        g.visible = false;
-        gh.visible = false;
-        continue;
-      }
-      if (tr.visible) {
+      const since = now - tr.lastSeen;
+      const solid = tr.visible || since < GRACE;
+      const last = tr.samples[tr.samples.length - 1];
+      if (solid) {
+        const smp = tr.visible ? session.sampleTrack(tr, now) ?? last : last;
         g.visible = true;
         gh.visible = false;
         g.position.set(smp.x / 256, 0, smp.y / 256);
         g.rotation.y = aimToRotY(smp.aim);
         const hp = hpBars.current[s];
         if (hp) hp.style.width = `${Math.max(0, smp.hp)}%`;
+        if (lab) lab.style.display = "flex";
       } else {
         g.visible = false;
-        const age = (now - tr.lastSeen) / 2000;
-        gh.visible = age < 1;
-        if (age < 1) {
-          const last = tr.samples[tr.samples.length - 1];
-          gh.position.set(last.x / 256, 0.03, last.y / 256);
-          (gh.material as THREE.MeshBasicMaterial).opacity = 0.5 * (1 - age);
+        if (lab) lab.style.display = "none";
+        const k = (since - GRACE) / FADE;
+        gh.visible = k < 1;
+        if (k < 1) {
+          gh.position.set(last.x / 256, 0, last.y / 256);
+          gh.rotation.y = aimToRotY(last.aim);
+          gh.traverse((o) => {
+            const m = (o as THREE.Mesh).material as THREE.Material | undefined;
+            if (m) {
+              m.transparent = true;
+              m.opacity = 0.32 * (1 - k);
+              m.depthWrite = false;
+            }
+          });
         }
       }
-      const lab = labels.current[s];
-      if (lab) lab.style.display = tr.visible ? "flex" : "none";
     }
   });
   return (
@@ -177,10 +184,10 @@ function Others({ session }: { session: Session }) {
               </div>
             </Html>
           </group>
-          <mesh ref={(el) => (ghosts.current[s] = el)} rotation-x={-Math.PI / 2} visible={false}>
-            <ringGeometry args={[0.3, 0.42, 24]} />
-            <meshBasicMaterial color={SEAT_COLORS[s]} transparent opacity={0.4} toneMapped={false} />
-          </mesh>
+          {/* last-known silhouette, fading into the dark */}
+          <group ref={(el) => (ghosts.current[s] = el)} visible={false}>
+            <Avatar color={SEAT_COLORS[s]} ghost />
+          </group>
         </group>
       ))}
     </>

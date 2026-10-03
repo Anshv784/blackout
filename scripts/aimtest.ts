@@ -3,7 +3,7 @@ const b = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-un
 const ctx = await b.newContext({ viewport: { width: 1280, height: 720 } });
 await ctx.addInitScript(() => localStorage.setItem("bo-intro-seen", "1"));
 const p = await ctx.newPage();
-await p.goto("http://127.0.0.1:5173/#/r/11");
+await p.goto("http://127.0.0.1:5173/#/r/13");
 await p.waitForSelector("text=TAKE A SEAT", { timeout: 30000 });
 await p.click("text=TAKE A SEAT"); await p.waitForSelector("text=START MATCH", { timeout: 30000 });
 await p.click("text=START MATCH"); await p.waitForSelector(".game canvas", { timeout: 30000 });
