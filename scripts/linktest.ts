@@ -1,0 +1,15 @@
+import { Keypair, Transaction } from "@solana/web3.js";
+import fs from "fs"; import os from "os";
+import { BlackoutClient } from "../app/src/chain/client.ts";
+const A = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(process.argv[2], "utf8"))));
+const wallet = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(`${os.homedir()}/.config/solana/blackout-devnet.json`, "utf8"))));
+const c = new BlackoutClient(A);
+const show = async (l: string) => { const b = await c.fetchBoard(); console.log(l, b?.entries.filter((e) => e.key.equals(A.publicKey) || e.key.equals(wallet.publicKey)).map((e) => `${e.key.toBase58().slice(0, 4)} g${e.games} k${e.kills} w${e.wins}`)); };
+await show("before");
+const tx = new Transaction().add(c.linkWalletIx(wallet.publicKey));
+tx.feePayer = wallet.publicKey;
+tx.recentBlockhash = (await c.base.getLatestBlockhash()).blockhash;
+tx.sign(wallet, A);
+const sig = await c.base.sendRawTransaction(tx.serialize());
+await c.base.confirmTransaction(sig, "confirmed");
+await show("after");

@@ -887,6 +887,53 @@
       ]
     },
     {
+      "name": "link_wallet",
+      "docs": [
+        "Move a session key's leaderboard stats to a wallet. The session key proves",
+        "ownership by signing; the wallet signs and pays the (base-layer) fee."
+      ],
+      "discriminator": [
+        86,
+        92,
+        31,
+        146,
+        228,
+        51,
+        209,
+        230
+      ],
+      "accounts": [
+        {
+          "name": "board",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  111,
+                  97,
+                  114,
+                  100
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "session",
+          "signer": true
+        },
+        {
+          "name": "wallet",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "on_seed",
       "docs": [
         "VRF callback — seeds spawns, loot and the zone, sealed inside World."

@@ -1,4 +1,5 @@
 // End-to-end match on devnet: 2 unfunded players + bots, VRF, crank, privacy checks, finish + Magic Action, reset.
+import fs from "fs";
 //   npx tsx scripts/e2e.ts <roomId>
 import { Keypair } from "@solana/web3.js";
 import { BlackoutClient, viewPda, worldPda, recPda, roomPda } from "../app/src/chain/client.ts";
@@ -6,7 +7,7 @@ import { STATUS_NAME, ST_ENDED, ST_LIVE, ST_REVEALED, ST_LOBBY, NO_SEAT, decodeV
 
 const roomId = BigInt(process.argv[2] ?? 2);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-const A = new BlackoutClient(Keypair.generate());
+const A = new BlackoutClient(process.env.AKEY ? Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(process.env.AKEY, "utf8")))) : Keypair.generate());
 const B = new BlackoutClient(Keypair.generate());
 const spectator = new BlackoutClient(Keypair.generate());
 const t0 = Date.now();

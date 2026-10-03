@@ -8,6 +8,7 @@ import { explorerAddr, roomLink } from "../config";
 import { audio } from "../game/audio";
 import { go } from "../App";
 import { verifyMatch } from "../game/verify";
+import { linkStats } from "../game/wallet";
 
 const EMPTY = "11111111111111111111111111111111";
 
@@ -24,6 +25,8 @@ export function Reveal({ session }: { session: Session }) {
   const [recording, setRecording] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const rec = reveal?.rec ?? null;
+  const wallet = useStore((st) => st.wallet);
+  const [linking, setLinking] = useState<"idle" | "busy" | "done">("idle");
   const world = reveal?.world ?? null;
   // Which seat to tell the story from: you, or the winner if you were spectating
   const pov = mySeat ?? (room.winner !== 255 ? room.winner : 0);
@@ -257,6 +260,29 @@ export function Reveal({ session }: { session: Session }) {
             </div>
           ))}
         </div>
+        {mySeat !== null && !wallet && linking !== "done" && (
+          <div className="panel nudge">
+            <label>{room.winner === mySeat ? "SAVE THIS WIN" : "SAVE YOUR STATS"}</label>
+            <div>This match is on the leaderboard under a throwaway browser key. Connect a wallet to move it — and every future match — to you.</div>
+            <button
+              className="btn primary wide"
+              disabled={linking === "busy"}
+              onClick={async () => {
+                setLinking("busy");
+                try {
+                  await linkStats();
+                  setLinking("done");
+                  toast("Stats saved to your wallet", true);
+                } catch (e: any) {
+                  setLinking("idle");
+                  toast(String(e?.message ?? e).slice(0, 120));
+                }
+              }}
+            >
+              {linking === "busy" ? "SAVING…" : "CONNECT WALLET"}
+            </button>
+          </div>
+        )}
         <div className="panel verify">
           <label>VERIFY</label>
           <div>

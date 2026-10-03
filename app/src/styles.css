@@ -1149,3 +1149,5 @@ button {
 .cam-row input{accent-color:var(--gold)}
 .cam-panel small{color:var(--dim);font-size:10px}
 @media (pointer:coarse){.cam{top:auto;bottom:250px}}
+
+.nudge{border-color:rgba(255,209,102,.45)}.nudge div{font-size:13px;color:#b9c1d6;line-height:1.45}

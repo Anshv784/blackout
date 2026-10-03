@@ -40,7 +40,13 @@ interface State {
 export const useStore = create<State>((set, get) => ({
   route: { page: "home" },
   name: "",
-  wallet: null,
+  wallet: (() => {
+    try {
+      return localStorage.getItem("bo-wallet");
+    } catch {
+      return null;
+    }
+  })(),
   room: null,
   view: null,
   mySeat: null,

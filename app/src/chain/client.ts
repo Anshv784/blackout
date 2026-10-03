@@ -324,6 +324,10 @@ export class BlackoutClient {
     ]);
   }
 
+  linkWalletIx(wallet: PublicKey) {
+    return ix("link_wallet", {}, [w(boardPda()), r(this.publicKey, true), w(wallet, true)]);
+  }
+
   heartbeatIx(roomId: bigint) {
     return ix("heartbeat", {}, [r(this.publicKey, true), w(roomPda(roomId))]);
   }

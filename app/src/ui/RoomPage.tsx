@@ -13,6 +13,7 @@ import { SEAT_COLORS } from "../scene/Avatar";
 import { roomLink } from "../config";
 import { go } from "../App";
 import { audio } from "../game/audio";
+import { connectWallet as connectWalletFn } from "../game/wallet";
 
 const EMPTY = "11111111111111111111111111111111";
 
@@ -111,13 +112,11 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
   };
 
   const connectWallet = async () => {
-    const sol = (window as any).phantom?.solana ?? (window as any).solana;
-    if (!sol) {
-      toast("No Solana wallet found — you can still play; wins go to your session key");
-      return;
+    try {
+      await connectWalletFn();
+    } catch (e: any) {
+      toast(String(e?.message ?? e));
     }
-    const res = await sol.connect();
-    set({ wallet: res.publicKey.toString() });
   };
 
   return (

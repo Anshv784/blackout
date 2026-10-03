@@ -211,6 +211,34 @@ pub mod blackout {
         Ok(())
     }
 
+    /// Move a session key's leaderboard stats to a wallet. The session key proves
+    /// ownership by signing; the wallet signs and pays the (base-layer) fee.
+    pub fn link_wallet(ctx: Context<LinkWallet>) -> Result<()> {
+        let session = ctx.accounts.session.key();
+        let wallet = ctx.accounts.wallet.key();
+        let mut board = ctx.accounts.board.load_mut()?;
+        let n = board.count as usize;
+        let Some(si) = board.entries[..n].iter().position(|e| e.key == session) else {
+            return Ok(());
+        };
+        let src = board.entries[si];
+        match board.entries[..n].iter().position(|e| e.key == wallet) {
+            Some(wi) => {
+                let e = &mut board.entries[wi];
+                e.wins += src.wins;
+                e.kills += src.kills;
+                e.games += src.games;
+                e.best_place = e.best_place.min(src.best_place);
+                // remove the session entry (swap with last)
+                board.entries[si] = board.entries[n - 1];
+                board.entries[n - 1] = BoardEntry { key: Pubkey::default(), wins: 0, kills: 0, games: 0, best_place: 0 };
+                board.count -= 1;
+            }
+            None => board.entries[si].key = wallet,
+        }
+        Ok(())
+    }
+
     // ======================================================== ER: setup
 
     /// Create the sealed World and set the World/Room permissions.
@@ -929,6 +957,15 @@ pub struct Settle<'info> {
     pub escrow_auth: UncheckedAccount<'info>,
     /// CHECK: see above
     pub escrow: UncheckedAccount<'info>,
+}
+
+#[derive(Accounts)]
+pub struct LinkWallet<'info> {
+    #[account(mut, seeds = [BOARD_SEED], bump)]
+    pub board: AccountLoader<'info, Board>,
+    pub session: Signer<'info>,
+    #[account(mut)]
+    pub wallet: Signer<'info>,
 }
 
 #[derive(Accounts)]
