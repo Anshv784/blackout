@@ -103,6 +103,8 @@ export class Session {
     // websockets can stall; a slow poll keeps the lobby honest
     this.timers.push(window.setInterval(() => this.poll(), 1000));
     this.timers.push(window.setInterval(() => this.duties(), 100));
+    // websocket watchdog: if private view pushes stall mid-match, poll over HTTP and resubscribe
+    this.timers.push(window.setInterval(() => this.viewWatchdog(), 150));
   }
 
   stop() {
@@ -116,6 +118,56 @@ export class Session {
     if (this.closed) return;
     const r = await client.fetchRoom(this.roomId).catch(() => null);
     if (r) this.onRoom(r);
+  }
+
+  private polling = false;
+  private lastResub = 0;
+
+  private lastRoomAt = 0;
+  private roomPolling = false;
+  private lastRoomResub = 0;
+
+  /** Room websocket watchdog: during a match the room should update every tick. */
+  private async roomWatchdog() {
+    const r = this.room;
+    if (!r || this.closed || this.roomPolling) return;
+    const live = r.status === ST_LIVE || r.status === ST_COUNTDOWN || r.status === ST_STARTING;
+    const now = performance.now();
+    if (!live || now - this.lastRoomAt < 600) return;
+    this.roomPolling = true;
+    try {
+      const fresh = await client.fetchRoom(this.roomId).catch(() => null);
+      if (fresh) this.onRoom(fresh);
+      if (now - this.lastRoomResub > 5000) {
+        this.lastRoomResub = now;
+        this.unsubs.forEach((u) => u());
+        this.unsubs = [await client.onRoom(this.roomId, (x) => this.onRoom(x))];
+      }
+    } finally {
+      this.roomPolling = false;
+    }
+  }
+
+  private async viewWatchdog() {
+    void this.roomWatchdog();
+    const r = this.room;
+    if (!r || this.mySeat === null || this.closed || this.polling) return;
+    if (r.status !== ST_LIVE && r.status !== ST_COUNTDOWN) return;
+    const now = performance.now();
+    if (now - this.viewAt < 400) return;
+    this.polling = true;
+    try {
+      const v = await client.fetchView(this.roomId, this.mySeat).catch(() => null);
+      if (v) this.onView(v);
+      if (now - this.lastResub > 5000) {
+        this.lastResub = now;
+        const seat = this.mySeat;
+        this.viewSubSeat = -2; // force a fresh subscription
+        await this.ensureViewSub(seat);
+      }
+    } finally {
+      this.polling = false;
+    }
   }
 
   private viewSub: (() => void) | null = null;
@@ -134,6 +186,7 @@ export class Session {
 
   private onRoom(r: Room) {
     const prev = this.room;
+    if (!prev || r.tick !== prev.tick || r.status !== prev.status) this.lastRoomAt = performance.now();
     this.room = r;
     const me = client.publicKey.toBase58();
     const seat = r.players.findIndex((p, i) => p.toBase58() === me && r.isBot[i] === 0);

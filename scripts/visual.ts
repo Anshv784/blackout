@@ -15,7 +15,11 @@ const browser = await chromium.launch({
   headless: true,
   args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", "--autoplay-policy=no-user-gesture-required"],
 });
-const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
+const ctx = await browser.newContext({
+  viewport: { width: 1280, height: 720 },
+  ...(process.env.VIDEO ? { recordVideo: { dir: process.env.VIDEO, size: { width: 1280, height: 720 } } } : {}),
+});
+const page = await ctx.newPage();
 const errors: string[] = [];
 page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
 page.on("console", (m) => {
@@ -101,4 +105,5 @@ const stats = await page.evaluate(() => {
 });
 log("session stats", stats);
 log("errors", errors.slice(0, 15));
+await ctx.close();
 await browser.close();

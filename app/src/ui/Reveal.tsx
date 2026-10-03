@@ -7,6 +7,7 @@ import { roomPda, worldPda, recPda } from "../chain/client";
 import { explorerAddr, roomLink } from "../config";
 import { audio } from "../game/audio";
 import { go } from "../App";
+import { verifyMatch } from "../game/verify";
 
 const EMPTY = "11111111111111111111111111111111";
 
@@ -137,6 +138,15 @@ export function Reveal({ session }: { session: Session }) {
     }
   };
 
+  const verified = useMemo(() => {
+    if (!world || !rec) return null;
+    const occupied = Array.from({ length: 8 }, (_, s) => room.isBot[s] === 1 || room.players[s].toBase58() !== EMPTY);
+    try {
+      return verifyMatch(room, world, rec, occupied);
+    } catch {
+      return null;
+    }
+  }, [world, rec, room]);
   const order = Array.from({ length: 8 }, (_, i) => i)
     .filter((i) => room.place[i] > 0)
     .sort((a, b) => room.place[a] - room.place[b]);
@@ -255,6 +265,14 @@ export function Reveal({ session }: { session: Session }) {
           <div>
             World <a href={explorerAddr(worldPda(room.roomId).toBase58())} target="_blank" rel="noreferrer">sealed → public</a> at the final kill
           </div>
+          {verified && (
+            <div className="checks">
+              Re-derived from the seed in your browser:{" "}
+              <span className={verified.spawns ? "ok" : "bad"}>spawns {verified.spawns ? "✓" : "✗"}</span>{" "}
+              <span className={verified.loot ? "ok" : "bad"}>loot {verified.loot ? "✓" : "✗"}</span>{" "}
+              <span className={verified.zone ? "ok" : "bad"}>zone {verified.zone ? "✓" : "✗"}</span>
+            </div>
+          )}
           <div>
             Recorder {rec?.frames ?? 0} frames · <code>{recPda(room.roomId, 0).toBase58().slice(0, 6)}…</code>
           </div>

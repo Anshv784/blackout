@@ -1039,3 +1039,27 @@ mod sizes {
         println!("SIZES room={} world={} view={} rec={} player={} board={}", core::mem::size_of::<Room>(), WORLD_LEN, VIEW_LEN, REC_LEN, core::mem::size_of::<PlayerState>(), core::mem::size_of::<Board>());
     }
 }
+
+#[cfg(test)]
+mod mirror {
+    use super::*;
+    #[test]
+    fn movement_trace() {
+        // same LCG as scripts/mirror.ts
+        let mut s: u32 = 12345;
+        let mut out = String::new();
+        for &(sx, sy) in SPAWNS.iter().take(5) {
+            let (mut x, mut y) = (tile_center(sx), tile_center(sy));
+            for _ in 0..400 {
+                s = s.wrapping_mul(1103515245).wrapping_add(12345);
+                let dx = ((s >> 16) % 255) as i32 - 127;
+                s = s.wrapping_mul(1103515245).wrapping_add(12345);
+                let dy = ((s >> 16) % 255) as i32 - 127;
+                let (vx, vy) = input_velocity(dx, dy);
+                move_body(&mut x, &mut y, vx, vy);
+                out.push_str(&format!("{x},{y};"));
+            }
+        }
+        std::fs::write("/tmp/blackout-mirror-rust.txt", out).unwrap();
+    }
+}
