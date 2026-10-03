@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { memo, useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import { EffectComposer, Bloom, Vignette, Noise, ChromaticAberration } from "@react-three/postprocessing";
@@ -388,6 +388,21 @@ function CameraRig({ session }: { session: Session }) {
 }
 
 /** Mouse/keyboard → session input. Touch joysticks write into `controls` directly. */
+function FpsMeter() {
+  const acc = useRef({ n: 0, t: performance.now() });
+  useFrame(() => {
+    const a = acc.current;
+    a.n++;
+    const now = performance.now();
+    if (now - a.t > 1000) {
+      controls.fps = Math.round((a.n * 1000) / (now - a.t));
+      a.n = 0;
+      a.t = now;
+    }
+  });
+  return null;
+}
+
 function InputController({ session }: { session: Session }) {
   const { camera, gl } = useThree();
   const ray = useMemo(() => new THREE.Raycaster(), []);
@@ -405,7 +420,10 @@ function InputController({ session }: { session: Session }) {
     const down = (e: PointerEvent) => {
       audio.unlock();
       if (e.pointerType === "touch") return;
-      if (e.button === 0) controls.fire = true;
+      if (e.button === 0) {
+        controls.fire = true;
+        controls.fireUntil = performance.now() + 160;
+      }
     };
     const up = (e: PointerEvent) => {
       if (e.button === 0) controls.fire = false;
@@ -439,7 +457,8 @@ function InputController({ session }: { session: Session }) {
       dx /= m;
       dy /= m;
     }
-    const buttons = (controls.fire || controls.touchFire ? 1 : 0) | (controls.reload ? 2 : 0);
+    const now = performance.now();
+    const buttons = (controls.fire || controls.touchFire || now < controls.fireUntil ? 1 : 0) | (controls.reload || now < controls.reloadUntil ? 2 : 0);
     session.setInput(dx * 127, dy * 127, aim, buttons);
     session.frame();
   });
@@ -476,17 +495,17 @@ function FlareLight({ session }: { session: Session }) {
   return <ambientLight ref={l} color="#ff9ed8" intensity={0.025} />;
 }
 
-export function GameScene({ session }: { session: Session }) {
+export const GameScene = memo(function GameScene({ session }: { session: Session }) {
   return (
     <Canvas
       shadows
-      dpr={[1, 1.75]}
+      dpr={[1, 1.5]}
       camera={{ fov: 46, position: [16, 30, 30], near: 0.1, far: 120 }}
       gl={{ antialias: true, powerPreference: "high-performance" }}
       onCreated={({ gl }) => {
         gl.toneMapping = THREE.ACESFilmicToneMapping;
         gl.toneMappingExposure = 1.1;
-        gl.shadowMap.type = THREE.PCFSoftShadowMap;
+        gl.shadowMap.type = THREE.PCFShadowMap;
       }}
     >
       <color attach="background" args={["#020203"]} />
@@ -502,7 +521,8 @@ export function GameScene({ session }: { session: Session }) {
       <Fx session={session} />
       <CameraRig session={session} />
       <InputController session={session} />
+      <FpsMeter />
       <Post session={session} />
     </Canvas>
   );
-}
+});

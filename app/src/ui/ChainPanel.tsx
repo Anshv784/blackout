@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useStore } from "../game/store";
 import type { Session } from "../game/session";
 import { viewPda, worldPda } from "../chain/client";
+import { controls } from "../game/controls";
 
 /** Live proof of the integration while you play. */
 export function ChainPanel({ session }: { session: Session }) {
@@ -19,7 +20,7 @@ export function ChainPanel({ session }: { session: Session }) {
   return (
     <div className={`chain ${open ? "open" : ""}`} onClick={() => setOpen(!open)}>
       <div className="chain-row">
-        <span className="lock">🔒</span> SEALED IN TEE · {stats.tps.toFixed(1)} ticks/s · {rtt}ms
+        <span className="lock">🔒</span> SEALED IN TEE · {stats.tps.toFixed(1)} ticks/s · {rtt}ms · {controls.fps} fps
       </div>
       {open && (
         <div className="chain-detail" onClick={(e) => e.stopPropagation()}>

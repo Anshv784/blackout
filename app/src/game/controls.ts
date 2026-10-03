@@ -7,6 +7,9 @@ export const controls = {
   touchMove: null as [number, number] | null,
   touchAim: null as number | null,
   touchFire: false,
+  fireUntil: 0, // a click always fires for >= 3 server ticks
+  reloadUntil: 0,
+  fps: 0,
 };
 
 let installed = false;
@@ -18,8 +21,14 @@ export function installKeyboard() {
     if ((e.target as HTMLElement)?.tagName === "INPUT") return;
     const k = norm(e.key);
     controls.keys.add(k);
-    if (k === "r") controls.reload = true;
-    if (k === " ") controls.fire = true;
+    if (k === "r") {
+      controls.reload = true;
+      controls.reloadUntil = performance.now() + 200;
+    }
+    if (k === " ") {
+      controls.fire = true;
+      controls.fireUntil = performance.now() + 160;
+    }
   });
   window.addEventListener("keyup", (e) => {
     const k = norm(e.key);
