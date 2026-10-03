@@ -391,7 +391,8 @@ function CameraRig({ session }: { session: Session }) {
           break;
         }
       }
-      const h = 1.1 + (controls.chaseHeight - 1.1) * (d / controls.chaseDist);
+      // keep the height: a blocked camera comes in closer and looks down over the wall
+      const h = controls.chaseHeight;
       wantLook = new THREE.Vector3(px + Math.cos(a) * 3.2, 0.6, pz + Math.sin(a) * 3.2);
       wantPos = new THREE.Vector3(px - Math.cos(a) * d, Math.max(h, 2.2), pz - Math.sin(a) * d);
       const k = 1 - Math.pow(0.000002, dt);
