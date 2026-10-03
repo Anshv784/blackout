@@ -708,7 +708,10 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
             }
         }
         // 7. end of match
-        if room.alive_count <= 1 || t >= MATCH_TICKS {
+        // once every human is down, don't make them watch bots fight: end now
+        let humans_in = (0..MAXP).any(|i| room.is_bot[i] == 0 && room.players[i] != anchor_lang::prelude::Pubkey::default());
+        let humans_alive = (0..MAXP).any(|i| room.is_bot[i] == 0 && room.players[i] != anchor_lang::prelude::Pubkey::default() && w.players[i].alive == 1);
+        if room.alive_count <= 1 || t >= MATCH_TICKS || (humans_in && !humans_alive) {
             // rank survivors by hp+armor, then kills
             let mut survivors: [(u32, u32, usize); MAXP] = [(0, 0, 0); MAXP];
             let mut n = 0;

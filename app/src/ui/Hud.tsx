@@ -37,6 +37,7 @@ export function Hud({ session }: { session: Session }) {
   const secs = Math.floor(t / 20);
   const hitAge = hit ? (performance.now() - hit.at) / 900 : 1;
   const myPos = session.myPos();
+  const humansAlive = room.alive.filter((a, i) => a === 1 && room.isBot[i] === 0 && i !== session.mySeat).length;
   const outside = myPos && Math.hypot(myPos.x - room.zone.x, myPos.y - room.zone.y) > room.zone.r;
 
   return (
@@ -75,7 +76,14 @@ export function Hud({ session }: { session: Session }) {
         <div className="dead">
           <h2>ELIMINATED</h2>
           <p>#{view.place || "?"} of {room.nPlayers + room.nBots}</p>
-          <small>No ghosting: the dead see nothing. The replay unlocks when the match ends.</small>
+          <small>
+            {humansAlive > 0
+              ? `${humansAlive} other player${humansAlive > 1 ? "s" : ""} still in the dark · ${room.aliveCount} alive. No ghosting — the dead see nothing. The lights come on when they fall.`
+              : "Turning the lights on…"}
+          </small>
+          <a className="btn ghost" style={{ pointerEvents: "auto", marginTop: 16 }} href="#/">
+            LEAVE TO ROOMS
+          </a>
         </div>
       )}
       {outside && room.status === ST_LIVE && me.alive ? <div className="zone-warn">OUTSIDE THE ZONE — GET TO THE CIRCLE</div> : null}
