@@ -43,7 +43,7 @@ export function Home() {
 
   const playNow = () => {
     audio.unlock();
-    const open = PUBLIC_ROOMS.map((id) => [id, rooms[id]] as const).filter(([, r]) => r && r.status === ST_LOBBY && r.readyMask && humans(r) < 8);
+    const open = PUBLIC_ROOMS.map((id) => [id, rooms[id]] as const).filter(([, r]) => r && r.status === ST_LOBBY && r.readyMask && r.stake === 0n && humans(r) < 8);
     open.sort((a, b) => humans(b[1]!) - humans(a[1]!));
     go(`/r/${open[0]?.[0] ?? PUBLIC_ROOMS[0]}`);
   };
@@ -132,7 +132,10 @@ export function Home() {
                     return <i key={i} className={taken ? (r!.isBot[i] ? "bot" : "on") : ""} />;
                   })}
                 </div>
-                <div className="rc-meta">{r ? `${humans(r)} players · match #${r.matchNo}` : "connecting to TEE…"}</div>
+                <div className="rc-meta">
+                  {r ? `${humans(r)} players · match #${r.matchNo}` : "connecting to TEE…"}
+                  {r && r.stake > 0n ? <b className="stake"> · {(Number(r.stake) / 1e9).toFixed(2)} SOL STAKE</b> : null}
+                </div>
               </button>
             );
           })}

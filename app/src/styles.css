@@ -1127,3 +1127,7 @@ button {
   border-radius: 14px;
   padding: 16px;
 }
+
+.rc-meta .stake{color:var(--gold)}
+.seat-name .away{color:var(--dim);font-weight:400;font-size:12px}
+@media (max-width:640px){.stick{width:104px;height:104px}.knob{left:27px;top:27px}.hud-bottom-left{bottom:auto;top:112px;width:44vw}.hud-bottom-right{bottom:auto;top:118px}.chain{display:none}.feed{top:250px}}

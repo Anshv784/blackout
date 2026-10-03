@@ -129,7 +129,10 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
         <div className="lobby-title">
           ROOM {room.roomId.toString()} <span className="badge st-0">LOBBY</span>
         </div>
-        <div className="lobby-sub">match #{room.matchNo + 1} · {humans}/8 players</div>
+        <div className="lobby-sub">
+          match #{room.matchNo + 1} · {humans}/8 players
+          {room.stake > 0n ? ` · ${(Number(room.stake) / 1e9).toFixed(2)} SOL stake · pot ${(Number(room.pot) / 1e9).toFixed(2)} SOL` : ""}
+        </div>
       </header>
 
       <div className="lobby-body">
@@ -164,16 +167,36 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
                   set({ name: e.target.value.toUpperCase().replace(/[^A-Z0-9_\-]/g, "").slice(0, 12) });
                 }}
               />
-              <button className="btn primary big wide" disabled={!!busy} onClick={() => run("join", () => session.join(name || "GHOST", wallet ? new PublicKey(wallet) : null))}>
-                {busy === "join" ? "TAKING SEAT…" : "TAKE A SEAT"}
-              </button>
+              {room.stake > 0n ? (
+                <button
+                  className="btn primary big wide"
+                  disabled={!!busy}
+                  onClick={() =>
+                    run("join", async () => {
+                      const sol = (window as any).phantom?.solana ?? (window as any).solana;
+                      if (!sol) throw new Error("Staked rooms need a Solana wallet (Phantom) on devnet");
+                      const res = await sol.connect();
+                      set({ wallet: res.publicKey.toString() });
+                      await session.buyTicket(sol);
+                      await session.join(name || "GHOST", new PublicKey(res.publicKey.toString()));
+                    })
+                  }
+                >
+                  {busy === "join" ? "BUYING TICKET…" : `STAKE ${(Number(room.stake) / 1e9).toFixed(2)} SOL & SIT`}
+                </button>
+              ) : (
+                <button className="btn primary big wide" disabled={!!busy} onClick={() => run("join", () => session.join(name || "GHOST", wallet ? new PublicKey(wallet) : null))}>
+                  {busy === "join" ? "TAKING SEAT…" : "TAKE A SEAT"}
+                </button>
+              )}
+              {room.stake > 0n && <p className="hint">Devnet SOL. Winner takes the pot, paid on Solana by a Magic Action the moment the match commits.</p>}
               <p className="hint">Your seat's view account is re-permissioned so only your session key can read it.</p>
             </div>
           ) : (
             <div className="panel">
               {canStart ? (
                 <>
-                  <label>FILL EMPTY SEATS WITH BOTS UP TO</label>
+                  {room.stake > 0n ? <label>STAKED ROOM · HUMANS ONLY</label> : <label>FILL EMPTY SEATS WITH BOTS UP TO</label>}
                   <div className="fill">
                     {[2, 4, 6, 8].map((n) => (
                       <button key={n} className={`chip ${fill === n ? "on" : ""}`} onClick={() => setFill(n)}>

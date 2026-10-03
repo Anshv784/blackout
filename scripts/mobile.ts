@@ -1,0 +1,13 @@
+import { chromium, devices } from "playwright";
+const out = process.argv[2];
+const b = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
+const ctx = await b.newContext({ ...devices["iPhone 14"] });
+const p = await ctx.newPage();
+await p.goto("http://127.0.0.1:5173/"); await p.waitForTimeout(3000);
+await p.screenshot({ path: `${out}/m-home.png` });
+await p.goto("http://127.0.0.1:5173/#/r/11"); await p.waitForSelector(".lobby", { timeout: 30000 }); await p.waitForTimeout(1500);
+await p.screenshot({ path: `${out}/m-lobby.png` });
+await p.tap("text=TAKE A SEAT"); await p.waitForSelector("text=LEAVE SEAT", { timeout: 30000 });
+await p.tap("text=START MATCH"); await p.waitForSelector(".game canvas", { timeout: 30000 }); await p.waitForTimeout(9000);
+await p.screenshot({ path: `${out}/m-game.png` });
+await b.close();

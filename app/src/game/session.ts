@@ -2,6 +2,7 @@
 // and the "anyone can push the room forward" duties (tick/seed/finish fallbacks).
 import { PublicKey } from "@solana/web3.js";
 import { client } from "./identity";
+import { ticketPda } from "../chain/client";
 import { useStore } from "./store";
 import {
   decodeView,
@@ -368,6 +369,27 @@ export class Session {
 
   // ------------------------------------------------------------ actions
 
+  /** Staked rooms: the wallet funds the session key and buys a ticket in one base-layer tx. */
+  async buyTicket(wallet: any): Promise<void> {
+    const r = this.room ?? (await client.fetchRoom(this.roomId));
+    const base = await client.fetchRoomBase(this.roomId);
+    if (!r || !base) throw new Error("Room not found");
+    const matchNo = base.matchNo + 1;
+    const { Transaction, SystemProgram } = await import("@solana/web3.js");
+    const tx = new Transaction().add(
+      SystemProgram.transfer({ fromPubkey: wallet.publicKey, toPubkey: client.publicKey, lamports: Number(r.stake) + 3_000_000 }),
+      client.buyTicketIx(this.roomId, matchNo, wallet.publicKey),
+    );
+    tx.feePayer = wallet.publicKey;
+    tx.recentBlockhash = (await client.base.getLatestBlockhash()).blockhash;
+    tx.partialSign(client.keypair);
+    const signed = await wallet.signTransaction(tx);
+    const sig = await client.base.sendRawTransaction(signed.serialize(), { skipPreflight: true });
+    await client.base.confirmTransaction(sig, "confirmed");
+    this.ticketMatch = matchNo;
+  }
+  ticketMatch = 0;
+
   async join(name: string, wallet: PublicKey | null, code = 0) {
     const r = this.room ?? (await client.fetchRoom(this.roomId));
     if (!r) throw new Error("Room not found");
@@ -377,7 +399,8 @@ export class Session {
     let lastErr: unknown = null;
     for (const seat of free.slice(0, 3)) {
       try {
-        await client.sendEr([client.joinIx(this.roomId, seat, name, wallet, code)]);
+        const ticket = r.stake > 0n ? ticketPda(this.roomId, r.matchNo + 1, client.publicKey) : undefined;
+        await client.sendEr([client.joinIx(this.roomId, seat, name, wallet, code, ticket)]);
         await this.poll();
         return;
       } catch (e) {
