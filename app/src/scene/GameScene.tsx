@@ -420,11 +420,9 @@ function CameraRig({ session }: { session: Session }) {
     camera.position.copy(pos.current);
     camera.lookAt(look.current);
     // shooter view: put the crosshair where your bullets actually go (6 tiles out, gun height)
-    if (playing && controls.view === "chase" && p) {
-      const a = controls.camYaw;
-      const v = new THREE.Vector3(p.x / 256 + Math.cos(a) * 6, 0.68, p.y / 256 + Math.sin(a) * 6).project(camera);
-      controls.cursorX = ((v.x + 1) / 2) * window.innerWidth;
-      controls.cursorY = ((1 - v.y) / 2) * window.innerHeight;
+    if (playing && controls.view === "chase") {
+      controls.cursorX = ((controls.vcx + 1) / 2) * window.innerWidth;
+      controls.cursorY = ((1 - controls.vcy) / 2) * window.innerHeight;
     }
   });
   return null;
@@ -548,7 +546,24 @@ function InputController({ session }: { session: Session }) {
     // shooter view: mouse X turns you. mousemove carries movementX in every browser, locked or not.
     const look = (e: MouseEvent) => {
       if (controls.view !== "chase") return;
-      controls.camYaw += e.movementX * controls.sens * ((Math.PI * 2) / 65536);
+      if (document.pointerLockElement === el) {
+        // locked: a virtual crosshair moves freely; past the side edges it turns you
+        const k = controls.sens / 18000;
+        controls.vcx += e.movementX * k;
+        controls.vcy -= e.movementY * k;
+        const lim = 0.62;
+        if (Math.abs(controls.vcx) > lim) {
+          const over = controls.vcx - Math.sign(controls.vcx) * lim;
+          controls.camYaw += over * 1.6;
+          controls.vcx = Math.sign(controls.vcx) * lim;
+        }
+        controls.vcy = Math.max(-0.35, Math.min(0.85, controls.vcy));
+      } else {
+        const r = el.getBoundingClientRect();
+        controls.vcx = ((e.clientX - r.left) / r.width) * 2 - 1;
+        controls.vcy = -(((e.clientY - r.top) / r.height) * 2 - 1);
+      }
+      controls.mouseActive = true;
     };
     document.addEventListener("mousemove", look);
 
@@ -578,7 +593,20 @@ function InputController({ session }: { session: Session }) {
     const turn = (controls.keys.has("e") ? 1 : 0) - (controls.keys.has("q") ? 1 : 0);
     if (turn) controls.camYaw += turn * 0.045;
     if (controls.touchAim !== null) aim = controls.touchAim;
-    else if (controls.view === "chase") aim = radToAngle(controls.camYaw);
+    else if (controls.view === "chase" && p) {
+      // unlocked cursor near the side edges turns the camera
+      if (!controls.locked && Math.abs(controls.vcx) > 0.82) controls.camYaw += Math.sign(controls.vcx) * (Math.abs(controls.vcx) - 0.82) * 0.25;
+      ray.setFromCamera(new THREE.Vector2(controls.vcx, controls.vcy), camera);
+      if (ray.ray.intersectPlane(plane, hit) && hit.distanceTo(ray.ray.origin) < 60) {
+        const dx = hit.x - p.x / 256;
+        const dz = hit.z - p.y / 256;
+        aim = dx * dx + dz * dz > 0.25 ? radToAngle(Math.atan2(dz, dx)) : radToAngle(controls.camYaw);
+      } else aim = radToAngle(Math.atan2(ray.ray.direction.z, ray.ray.direction.x));
+      // the camera eases round to follow your aim once it's well off-centre
+      let d = angleToRad(aim) - controls.camYaw;
+      d = Math.atan2(Math.sin(d), Math.cos(d));
+      if (Math.abs(d) > 0.45) controls.camYaw += (d - Math.sign(d) * 0.45) * 0.04;
+    }
     else if (p && controls.mouseActive) {
       ray.setFromCamera(mouse.current, camera);
       if (ray.ray.intersectPlane(plane, hit) && hit.distanceTo(ray.ray.origin) < 60) aim = radToAngle(Math.atan2(hit.z - p.y / 256, hit.x - p.x / 256));

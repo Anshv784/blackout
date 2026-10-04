@@ -14,6 +14,9 @@ export const controls = {
   chaseAim: 0, // unused (kept for compatibility)
   camYaw: 0, // behind-view camera heading (radians), follows your aim
   onTarget: false, // an enemy is on your line of fire
+  // behind-view virtual cursor in normalized device coords (-1..1), moved by the mouse
+  vcx: 0,
+  vcy: 0.15,
   cursorX: -100,
   cursorY: -100,
   locked: false,
