@@ -12,6 +12,8 @@ import {
 } from "@solana/web3.js";
 import nacl from "tweetnacl";
 import { Buffer } from "buffer";
+import bs58 from "bs58";
+const bs58encode = (b: Uint8Array) => bs58.encode(b);
 import {
   EPHEMERAL_VAULT_ID,
   MAGIC_CONTEXT_ID,
@@ -160,7 +162,20 @@ export class BlackoutClient {
     tx.feePayer = this.publicKey;
     tx.recentBlockhash = await this.freshBlockhash(conn);
     tx.sign(this.keypair);
-    const sig = await conn.sendRawTransaction(tx.serialize(), { skipPreflight: true });
+    const sigBytes = tx.signature!;
+    let sig: string;
+    try {
+      sig = await conn.sendRawTransaction(tx.serialize(), { skipPreflight: true });
+    } catch (e: any) {
+      // an identical tx (same ix + blockhash) already landed — that's a success, not an error
+      if (/already been processed/i.test(String(e?.message ?? e))) return bs58encode(sigBytes);
+      // stale blockhash: refresh once and retry
+      if (/blockhash not found/i.test(String(e?.message ?? e))) {
+        this.blockhash = null;
+        return this.sendEr(ixs, opts);
+      }
+      throw e;
+    }
     if (opts.confirm === false) return sig;
     const deadline = Date.now() + 20_000;
     while (Date.now() < deadline) {

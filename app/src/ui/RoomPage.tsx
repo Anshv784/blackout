@@ -130,7 +130,19 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
   const staked = room.stake > 0n;
   const link = roomLink(room.roomId);
 
-  const size = room.maxPlayers;
+  // optimistic seat count so rapid clicks build on each other instead of re-sending the same value
+  const [pendingSize, setPendingSize] = useState<number | null>(null);
+  useEffect(() => {
+    if (pendingSize !== null && room.maxPlayers === pendingSize) setPendingSize(null);
+  }, [room.maxPlayers, pendingSize]);
+  const size = pendingSize ?? room.maxPlayers;
+  const resize = (n: number) => {
+    setPendingSize(n);
+    session.setSize(n).catch((e) => {
+      setPendingSize(null);
+      toast(String(e?.message ?? e).replace(/\(.*\)$/, "").slice(0, 120));
+    });
+  };
   const seats: SeatInfo[] = Array.from({ length: staked ? 8 : size }, (_, i) => {
     const taken = room.players[i].toBase58() !== EMPTY || room.isBot[i] === 1;
     return {
@@ -326,11 +338,11 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
             <>
               <label>SEATS</label>
               <div className="stepper">
-                <button onClick={() => run("size", () => session.setSize(size - 1))} disabled={!canStart || !!busy || size <= Math.max(2, humans)}>
+                <button onClick={() => resize(size - 1)} disabled={!canStart || !!busy || size <= Math.max(2, humans)}>
                   −
                 </button>
                 <b>{size}</b>
-                <button onClick={() => run("size", () => session.setSize(size + 1))} disabled={!canStart || !!busy || size >= 8}>
+                <button onClick={() => resize(size + 1)} disabled={!canStart || !!busy || size >= 8}>
                   +
                 </button>
               </div>
