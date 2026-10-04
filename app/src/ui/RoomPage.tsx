@@ -208,7 +208,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
             </button>
           ) : canStart ? (
             <button className="btn primary huge" disabled={!!busy || (staked ? humans < 2 : Math.max(humans, fill) < 2)} onClick={() => run("start", () => session.startMatch(staked ? 0 : fill))}>
-              {busy === "start" ? "WAKING THE WARDEN…" : staked && humans < 2 ? "NEED 2 STAKERS" : "START THE NIGHT"}
+              {busy === "start" ? "WAKING THE WARDEN…" : staked && humans < 2 ? `WAITING FOR ${2 - humans} MORE STAKER` : "START THE NIGHT"}
             </button>
           ) : (
             <div className="waiting">
@@ -239,8 +239,11 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
             </>
           ) : (
             <>
-              <label>STAKED ROOM</label>
-              <small>humans only · winner takes the pot</small>
+              <label>THE POT</label>
+              <b className="pot">{(Number(room.pot) / 1e9).toFixed(2)} SOL</b>
+              <small>
+                {humans} staker{humans === 1 ? "" : "s"} · {(Number(room.stake) / 1e9).toFixed(2)} SOL each · winner takes all
+              </small>
             </>
           )}
         </div>

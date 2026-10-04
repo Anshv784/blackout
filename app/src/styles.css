@@ -1351,3 +1351,7 @@ button {
 .hud{z-index:6}
 .chain{z-index:7}
 .reveal-top,.replay-bar,.reveal-side{z-index:8}
+
+.dock-cell .row .btn{height:34px;margin-top:0;padding:0 14px;display:inline-flex;align-items:center}
+.dock-cell.main .btn.primary:disabled{background:transparent;color:var(--gold);border:1px dashed rgba(255,209,102,.45);box-shadow:none;opacity:1;font-size:15px;letter-spacing:.12em}
+.dock-cell .pot{font-size:28px;color:var(--gold);text-shadow:0 0 20px rgba(255,209,102,.35)}
