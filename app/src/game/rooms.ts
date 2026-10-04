@@ -10,8 +10,18 @@ const EMPTY = "11111111111111111111111111111111";
 export const liveHumansAt = (r: Room, slot: number) =>
   r.players.filter((p, i) => r.isBot[i] === 0 && p.toBase58() !== EMPTY && ((slot >>> 0) - r.lastSeen[i]) >>> 0 <= 4500).length;
 
+/** The room you're already sitting in (one room per player), if any. */
+export function myRoom(rooms: (readonly [number, Room | null])[]): number | null {
+  const me = client.publicKey.toBase58();
+  const hit = rooms.find(([, r]) => r && r.players.some((p, i) => r.isBot[i] === 0 && p.toBase58() === me));
+  return hit ? hit[0] : null;
+}
+
 export async function createRoom(maxPlayers: number, unlisted: boolean): Promise<number> {
   const rooms = await Promise.all(ROOM_POOL.map(async (id) => [id, await client.fetchRoom(id).catch(() => null)] as const));
+  // one room at a time: if you're already seated somewhere, go back there
+  const mine = myRoom(rooms);
+  if (mine !== null) return mine;
   const slot = await (await client.teeConn()).getSlot().catch(() => 0);
   const free = rooms.filter(([, r]) => r && r.status === ST_LOBBY && r.readyMask === READY_ALL && liveHumansAt(r, slot) === 0);
   if (!free.length) throw new Error("Every room is in use right now — try again in a minute");

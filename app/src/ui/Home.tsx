@@ -7,7 +7,7 @@ import { useStore } from "../game/store";
 import { audio } from "../game/audio";
 import { TopBar } from "./TopBar";
 import { requireWallet } from "../game/wallet";
-import { createRoom } from "../game/rooms";
+import { createRoom, myRoom } from "../game/rooms";
 
 const Backdrop = lazy(() => import("../scene/Backdrop").then((m) => ({ default: m.Backdrop })));
 
@@ -71,6 +71,7 @@ export function Home() {
   const entries = Object.entries(rooms).filter(([id, r]) => r && !STAKED_ROOMS.includes(Number(id))) as [string, Room][];
   const openRooms = entries.filter(([, r]) => r.status === ST_LOBBY && !r.unlisted && slot > 0 && liveHumans(r, slot) > 0 && liveHumans(r, slot) < r.maxPlayers);
   const liveMatches = entries.filter(([, r]) => r.status === ST_LIVE || r.status === ST_COUNTDOWN);
+  const mine = myRoom(Object.entries(rooms).map(([id, r]) => [Number(id), r] as const));
   const live = Object.values(rooms).filter((r) => r && (r.status === ST_LIVE || r.status === ST_COUNTDOWN)).length;
   const players = Object.values(rooms).reduce((n, r) => n + (r ? (slot ? liveHumans(r, slot) : humansIn(r)) : 0), 0);
 
@@ -92,12 +93,19 @@ export function Home() {
             A real-time battle royale where <b>nobody can see you</b> — not the other players, not the RPC, <b>not even the chain</b>.
           </p>
           <div className="gate-cta">
-            <button className="btn primary huge" onClick={() => requireWallet(() => create(false))} disabled={!!busy}>
-              {busy === "create" ? "OPENING A ROOM…" : "CREATE A ROOM"}
-              <small>you're the host · pick your seats · bots fill the rest</small>
-            </button>
+            {mine !== null ? (
+              <button className="btn primary huge" onClick={() => go(`/r/${mine}`)}>
+                BACK TO YOUR ROOM
+                <small>you can only host one room at a time</small>
+              </button>
+            ) : (
+              <button className="btn primary huge" onClick={() => requireWallet(() => create(false))} disabled={!!busy}>
+                {busy === "create" ? "OPENING A ROOM…" : "CREATE A ROOM"}
+                <small>you're the host · pick your seats · bots fill the rest</small>
+              </button>
+            )}
             <div className="gate-alt">
-              <button className="btn" onClick={() => requireWallet(() => create(true))} disabled={!!busy}>
+              <button className="btn" onClick={() => requireWallet(() => create(true))} disabled={!!busy || mine !== null}>
                 {busy === "friends" ? "OPENING…" : "PRIVATE ROOM FOR FRIENDS"}
               </button>
               <button className="btn gold-outline" onClick={() => requireWallet(() => go(`/r/${STAKED_ROOMS[0]}`))}>
@@ -120,7 +128,7 @@ export function Home() {
             {openRooms.map(([id, r]) => (
               <button key={id} className="room-row" onClick={() => requireWallet(() => go(`/r/${id}`))}>
                 <span className="pulse st-0" />
-                <span className="rr-name">{r.names[r.players.findIndex((p) => p.equals(r.host))] || "ROOM"}'s</span>
+                <span className="rr-name">{r.names[r.players.findIndex((p) => p.equals(r.host))] || "Someone"}'s room</span>
                 <span className="rr-seats">
                   {Array.from({ length: r.maxPlayers }, (_, i) => (
                     <i key={i} className={r.players[i].toBase58() !== EMPTY ? "on" : ""} />

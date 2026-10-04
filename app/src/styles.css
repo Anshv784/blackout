@@ -1428,3 +1428,7 @@ button {
 .side-live{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dim);padding:8px 8px 2px;border-top:1px solid var(--line);margin-top:6px}
 
 .stage-open{display:flex;flex-direction:column;align-items:center;gap:2px}.stage-open small{font-size:8px;letter-spacing:.14em;opacity:.65}
+
+.room-row{grid-template-columns:12px minmax(0,1fr) auto auto!important}
+.room-row .rr-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.room-row .rr-seats{margin:0 4px}

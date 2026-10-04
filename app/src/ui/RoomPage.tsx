@@ -33,7 +33,16 @@ export function RoomPage({ roomId }: { roomId: bigint }) {
     useStore.getState().set({ room: null, view: null, mySeat: null, reveal: null });
     session.start().catch((e) => setErr(String(e?.message ?? e)));
     (window as any).__session = session;
-    return () => session.stop();
+    const bye = () => {
+      // walking away from a lobby frees your seat (and the room, if you were alone)
+      if (session.room?.status === ST_LOBBY && session.mySeat !== null) session.leave().catch(() => {});
+    };
+    window.addEventListener("pagehide", bye);
+    return () => {
+      window.removeEventListener("pagehide", bye);
+      bye();
+      session.stop();
+    };
   }, [session]);
 
   if (err) return <Center title="The Warden isn't answering" sub={err} />;
