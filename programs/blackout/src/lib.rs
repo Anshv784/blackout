@@ -41,6 +41,8 @@ declare_id!("VWHcbCSH4kATcuPJgjZ6QC56W3NBQ53U6fxJNtGknh3");
 
 /// Escrow index used for the post-commit settle action.
 pub const ACTION_ESCROW_INDEX: u8 = 255;
+/// Deployer key, allowed to clean test entries off the leaderboard.
+pub const ADMIN: Pubkey = pubkey!("9Sg12k15Ann4SKSxcA85bq5fbpq7WMLH9bLCTUbTRkQV");
 pub const COMPUTE_BUDGET_PROGRAM: Pubkey = pubkey!("ComputeBudget111111111111111111111111111111");
 pub const TICK_MS: i64 = 50;
 pub const TICK_ITERATIONS: i64 = 3300;
@@ -158,7 +160,8 @@ pub mod blackout {
         let mut board = ctx.accounts.board.load_mut()?;
         board.matches += 1;
         for s in 0..MAXP {
-            if room.is_bot[s] == 1 || room.players[s] == Pubkey::default() {
+            // only real, wallet-linked humans make the board: bots and bare session keys never do
+            if room.is_bot[s] == 1 || room.players[s] == Pubkey::default() || room.payout[s] == room.players[s] || room.payout[s] == Pubkey::default() {
                 continue;
             }
             let key = room.payout[s];
@@ -208,6 +211,19 @@ pub mod blackout {
             msg!("settled match {}: paid {} lamports to seat {}", room.match_no, pay, w);
         } else {
             msg!("settled match {}", room.match_no);
+        }
+        Ok(())
+    }
+
+    /// Admin: remove an entry (test accounts).
+    pub fn board_remove(ctx: Context<BoardAdmin>, key: Pubkey) -> Result<()> {
+        require_keys_eq!(ctx.accounts.admin.key(), ADMIN, BlackoutError::NotHost);
+        let mut board = ctx.accounts.board.load_mut()?;
+        let n = board.count as usize;
+        if let Some(i) = board.entries[..n].iter().position(|e| e.key == key) {
+            board.entries[i] = board.entries[n - 1];
+            board.entries[n - 1] = BoardEntry { key: Pubkey::default(), name: [0; 16], wins: 0, kills: 0, games: 0, best_place: 0 };
+            board.count -= 1;
         }
         Ok(())
     }
@@ -991,6 +1007,13 @@ pub struct Settle<'info> {
     pub escrow_auth: UncheckedAccount<'info>,
     /// CHECK: see above
     pub escrow: UncheckedAccount<'info>,
+}
+
+#[derive(Accounts)]
+pub struct BoardAdmin<'info> {
+    #[account(mut, seeds = [BOARD_SEED], bump)]
+    pub board: AccountLoader<'info, Board>,
+    pub admin: Signer<'info>,
 }
 
 #[derive(Accounts)]
