@@ -6,7 +6,7 @@ import { go } from "../App";
 import { useStore } from "../game/store";
 import { audio } from "../game/audio";
 import { TopBar } from "./TopBar";
-import { requireWallet } from "../game/wallet";
+import { requireRealWallet, requireWallet } from "../game/wallet";
 import { createRoom, myRoom } from "../game/rooms";
 
 const Backdrop = lazy(() => import("../scene/Backdrop").then((m) => ({ default: m.Backdrop })));
@@ -46,7 +46,7 @@ export function Home() {
     load();
     client
       .fetchBoard()
-      .then((b) => alive && b && setBoard([...b.entries].sort((a, c) => c.wins - a.wins || c.kills - a.kills).slice(0, 3)))
+      .then((b) => alive && b && setBoard([...b.entries].sort((a, c) => c.wins - a.wins || Number(c.earned - a.earned) || c.kills - a.kills).slice(0, 3)))
       .catch(() => {});
     const t = setInterval(load, 3000);
     return () => {
@@ -112,7 +112,7 @@ export function Home() {
               <button className="btn" onClick={() => requireWallet(() => create(true))} disabled={!!busy || mine !== null}>
                 {busy === "friends" ? "OPENING…" : "PRIVATE ROOM FOR FRIENDS"}
               </button>
-              <button className="btn gold-outline" onClick={() => requireWallet(() => go(`/r/${STAKED_ROOMS[0]}`))}>
+              <button className="btn gold-outline" onClick={() => requireRealWallet(() => go(`/r/${STAKED_ROOMS[0]}`))}>
                 STAKED NIGHT · 0.01 SOL
               </button>
             </div>
@@ -152,15 +152,13 @@ export function Home() {
           </div>
           {board.length > 0 && (
             <div className="side-card">
-              <label>LAST ONES STANDING</label>
+              <label>TOP STAKED WINNERS</label>
               {board.map((e, i) => (
                 <div key={e.key.toBase58()} className="lb-row">
                   <span className="lb-rank">{["I", "II", "III"][i]}</span>
-                  <code>
-                    {e.key.toBase58().slice(0, 4)}…{e.key.toBase58().slice(-4)}
-                  </code>
+                  <code>{e.name || `${e.key.toBase58().slice(0, 4)}…${e.key.toBase58().slice(-4)}`}</code>
                   <span>
-                    {e.wins}W · {e.kills}K
+                    {e.wins}W · {(Number(e.earned) / 1e9).toFixed(2)} SOL
                   </span>
                 </div>
               ))}

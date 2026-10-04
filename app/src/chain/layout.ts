@@ -331,6 +331,8 @@ export interface BoardEntry {
   kills: number;
   games: number;
   bestPlace: number;
+  /** lamports won from staked pots */
+  earned: bigint;
 }
 
 export function decodeBoard(data: Uint8Array): { matches: bigint; entries: BoardEntry[] } {
@@ -338,6 +340,6 @@ export function decodeBoard(data: Uint8Array): { matches: bigint; entries: Board
   const matches = r.u64();
   const count = r.u32();
   r.u32();
-  const entries = r.arr(64, () => ({ key: r.key(), name: decodeName(r.bytes(16)), wins: r.u32(), kills: r.u32(), games: r.u32(), bestPlace: r.u32() })).slice(0, count);
+  const entries = r.arr(64, () => ({ key: r.key(), name: decodeName(r.bytes(16)), wins: r.u32(), kills: r.u32(), games: r.u32(), bestPlace: r.u32(), earned: r.u64() })).slice(0, count);
   return { matches, entries };
 }

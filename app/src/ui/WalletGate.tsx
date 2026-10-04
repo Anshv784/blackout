@@ -54,7 +54,7 @@ export function WalletGate() {
     <div className="wgate" onClick={close}>
       <div className="wgate-card" onClick={(e) => e.stopPropagation()}>
         <div className="wgate-eye" />
-        {!wallet && guestStep ? (
+        {!wallet && guestStep && !gate.walletOnly ? (
           <>
             <div className="vc-kicker">PLAYING AS A GUEST</div>
             <h2>Pick a callsign</h2>
@@ -67,7 +67,7 @@ export function WalletGate() {
               onKeyDown={(e) => e.key === "Enter" && enterAsGuest()}
             />
             <div className="guest-warn">
-              ⚠ As a guest, your nights <b>aren't saved</b> and you <b>won't appear on the leaderboard</b>. Staked rooms need a wallet. You can connect one any time.
+              ⚠ As a guest, your nights <b>aren't saved</b> and you <b>won't appear on the leaderboard</b>. Staked nights, the only ones that count, need a wallet. You can connect one any time.
             </div>
             <button className="btn primary huge" onClick={enterAsGuest}>
               ENTER AS GUEST
@@ -78,9 +78,13 @@ export function WalletGate() {
           </>
         ) : !wallet ? (
           <>
-            <div className="vc-kicker">WHO GOES THERE?</div>
-            <h2>Enter the Yard</h2>
-            <p>Connect a wallet to save your callsign, wins and kills on Solana and get ranked on the leaderboard. Or jump straight in as a guest. Either way, playing is free and gasless, with no popups mid-match.</p>
+            <div className="vc-kicker">{gate.walletOnly ? "STAKED NIGHT" : "WHO GOES THERE?"}</div>
+            <h2>{gate.walletOnly ? "Staked nights need a wallet" : "Enter the Yard"}</h2>
+            <p>
+              {gate.walletOnly
+                ? "Every staker puts in the same amount and the winner takes the whole pot, paid straight to their wallet on Solana. Connect one to sit at the table."
+                : "Connect a wallet to keep your callsign, play staked nights and get ranked on the leaderboard (staked wins only). Or jump straight in as a guest. Either way, playing is free and gasless, with no popups mid-match."}
+            </p>
             <div className="wgate-list">
               {WALLETS.map((w) => {
                 const installed = !!w.get();
@@ -117,6 +121,10 @@ export function WalletGate() {
               })}
             </div>
             {err && <div className="wgate-err">{err}</div>}
+            {gate.walletOnly ? (
+              <small>Guests can't stake: the pot is paid to your wallet and staked wins are what the leaderboard ranks.</small>
+            ) : (
+              <>
             <div className="wgate-or">
               <span>or</span>
             </div>
@@ -124,6 +132,8 @@ export function WalletGate() {
               PLAY AS GUEST
             </button>
             <small>Guests play the same game — but nothing is saved and you're not ranked. Devnet only; we never ask you to sign a payment to play.</small>
+              </>
+            )}
           </>
         ) : needsName ? (
           <>

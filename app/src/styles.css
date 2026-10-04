@@ -1414,7 +1414,7 @@ button {
 .pod-you{position:absolute;top:10px;right:10px;font-size:10px;font-weight:700;letter-spacing:.14em;color:#141006;background:var(--gold);padding:3px 7px;border-radius:6px}
 .pod.me{outline:2px solid var(--gold)}
 .board-table{background:rgba(8,10,16,.8);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:16px;padding:8px}
-.bt-row{display:grid;grid-template-columns:44px minmax(0,1.8fr) 64px 64px 64px minmax(90px,1fr) 56px;gap:8px;align-items:center;padding:11px 12px;border-radius:10px;font-size:14px}
+.bt-row{display:grid;grid-template-columns:44px minmax(0,1.8fr) 56px 80px 56px 56px minmax(90px,1fr);gap:8px;align-items:center;padding:11px 12px;border-radius:10px;font-size:14px}
 .bt-row:nth-child(even):not(.head){background:rgba(255,255,255,.02)}
 .bt-row.head{color:var(--dim);font-size:10px;letter-spacing:.18em;text-transform:uppercase;padding-top:8px;padding-bottom:8px}
 .bt-row.me{background:rgba(255,209,102,.08)!important;outline:1px solid rgba(255,209,102,.4)}
@@ -1487,3 +1487,4 @@ button {
 .wgate-or{display:flex;align-items:center;gap:10px;color:var(--dim);font-size:11px;letter-spacing:.2em}
 .wgate-or::before,.wgate-or::after{content:"";flex:1;height:1px;background:var(--line)}
 .guest-tag{color:var(--dim);border-style:dashed}
+.bt-sol{color:#ffd166;font-weight:600}

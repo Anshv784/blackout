@@ -4,8 +4,9 @@ import { client } from "../game/identity";
 import { useStore } from "../game/store";
 import type { BoardEntry } from "../chain/layout";
 import { boardPda } from "../chain/client";
-import { explorerAddr } from "../config";
+import { explorerAddr, STAKED_ROOMS } from "../config";
 import { go } from "../App";
+import { requireRealWallet } from "../game/wallet";
 
 const Backdrop = lazy(() => import("../scene/Backdrop").then((m) => ({ default: m.Backdrop })));
 
@@ -31,9 +32,9 @@ export function Board() {
       .then(setData)
       .catch(() => setFailed(true));
   }, []);
-  const rows = [...(data?.entries ?? [])].sort((a, b) => b.wins - a.wins || b.kills - a.kills || a.bestPlace - b.bestPlace || b.games - a.games);
+  const rows = [...(data?.entries ?? [])].sort((a, b) => b.wins - a.wins || Number(b.earned - a.earned) || b.kills - a.kills || b.games - a.games);
   const podium = rows.slice(0, 3);
-  const totalKills = rows.reduce((n, e) => n + e.kills, 0);
+  const totalWon = rows.reduce((n, e) => n + Number(e.earned), 0) / 1e9;
   const myIdx = rows.findIndex((e) => mine.has(e.key.toBase58()));
 
   return (
@@ -46,21 +47,21 @@ export function Board() {
       <main className="board-main">
         <div className="board-head">
           <div className="kicker">
-            <span className="dot" /> SETTLED ON SOLANA BY A MAGIC ACTION AFTER EVERY NIGHT
+            <span className="dot" /> STAKED NIGHTS ONLY · HUMANS ONLY · SETTLED ON SOLANA BY A MAGIC ACTION
           </div>
-          <h1>The Last Ones Standing</h1>
+          <h1>Top Staked Winners</h1>
           <div className="board-stats">
             <div>
               <b>{data ? data.matches.toString() : "—"}</b>
-              <span>nights settled</span>
+              <span>staked nights</span>
             </div>
             <div>
               <b>{rows.length || "—"}</b>
-              <span>survivors ranked</span>
+              <span>stakers ranked</span>
             </div>
             <div>
-              <b>{totalKills || "—"}</b>
-              <span>kills in the dark</span>
+              <b>{totalWon ? totalWon.toFixed(2) : "—"}</b>
+              <span>SOL won</span>
             </div>
           </div>
         </div>
@@ -85,7 +86,7 @@ export function Board() {
                       <b>{e.wins}</b> wins
                     </span>
                     <span>
-                      <b>{e.kills}</b> kills
+                      <b>{(Number(e.earned) / 1e9).toFixed(2)}</b> SOL
                     </span>
                   </div>
                   {mine.has(k) && <div className="pod-you">YOU</div>}
@@ -101,10 +102,10 @@ export function Board() {
               <span>#</span>
               <span>survivor</span>
               <span>wins</span>
+              <span>SOL won</span>
               <span>kills</span>
               <span>nights</span>
               <span>win rate</span>
-              <span>best</span>
             </div>
             {rows.map((e, i) => {
               const k = e.key.toBase58();
@@ -120,13 +121,13 @@ export function Board() {
                     {mine.has(k) && <em>YOU</em>}
                   </span>
                   <span>{e.wins}</span>
+                  <span className="bt-sol">{(Number(e.earned) / 1e9).toFixed(2)}</span>
                   <span>{e.kills}</span>
                   <span>{e.games}</span>
                   <span className="bt-rate">
                     <i style={{ width: `${rate}%` }} />
                     <small>{rate}%</small>
                   </span>
-                  <span>{e.bestPlace === 99 ? "—" : `#${e.bestPlace}`}</span>
                 </div>
               );
             })}
@@ -136,9 +137,9 @@ export function Board() {
         <div className="board-foot">
           {myIdx < 0 ? (
             <div className="board-cta">
-              <span>You're not on the board yet.</span>
-              <button className="btn primary" onClick={() => go("/")}>
-                SURVIVE A NIGHT
+              <span>{rows.length ? "You're not on the board yet. Win a staked night to get on it." : "No staked night has been won yet. The first winner takes #1."}</span>
+              <button className="btn primary" onClick={() => requireRealWallet(() => go(`/r/${STAKED_ROOMS[0]}`))}>
+                PLAY A STAKED NIGHT
               </button>
             </div>
           ) : (

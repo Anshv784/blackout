@@ -26,7 +26,7 @@ interface State {
   wallet: string | null;
   profile: BoardEntry | null;
   guest: boolean;
-  walletGate: { then: () => void } | null;
+  walletGate: { then: () => void; walletOnly?: boolean } | null;
   room: Room | null;
   view: View | null;
   mySeat: number | null;

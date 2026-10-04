@@ -21,7 +21,7 @@ pub const REC_SEED: &[u8] = b"rec";
 pub const BANK_SEED: &[u8] = b"bank";
 pub const TICKET_SEED: &[u8] = b"ticket";
 /// v2: entries carry the callsign, so a wallet's profile lives on Solana
-pub const BOARD_SEED: &[u8] = b"board2";
+pub const BOARD_SEED: &[u8] = b"board3"; // staked nights only
 pub const BOARD_SLOTS: usize = 64;
 
 // Room status
@@ -130,7 +130,7 @@ pub struct KillEvent {
     pub weapon: u32,
 }
 
-/// Global leaderboard on the base layer, updated by a Magic Action after every match.
+/// Global leaderboard on the base layer: staked nights only, updated by a Magic Action after each one.
 #[account(zero_copy)]
 #[repr(C)]
 pub struct Board {
@@ -149,6 +149,8 @@ pub struct BoardEntry {
     pub kills: u32,
     pub games: u32,
     pub best_place: u32,
+    /// lamports won from staked pots
+    pub earned: u64,
 }
 
 /// Base-layer escrow for staked rooms. Program-owned so it can pay out directly.

@@ -15,6 +15,8 @@ export interface SeatInfo {
   host: boolean;
   away: boolean;
   canMakeHost?: boolean;
+  /** hint under OPEN SEAT */
+  openHint?: string;
 }
 
 const seatPos = (i: number, n: number): [number, number, number] => {
@@ -88,7 +90,7 @@ function Pedestal({ i, n, seat, onTake, onMakeHost }: { i: number; n: number; se
         ) : (
           <button className="stage-open" style={{ ["--c" as any]: color }} onClick={() => onTake(i)}>
             OPEN SEAT
-            <small>bot if empty</small>
+            <small>{seat.openHint ?? "bot if empty"}</small>
           </button>
         )}
       </Html>

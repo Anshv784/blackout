@@ -1,4 +1,4 @@
-// Wallet is optional. Connected players get their callsign + stats saved on Solana (board2,
+// Wallet is optional. Connected players get their callsign + stats saved on Solana (board3,
 // written by the settle Magic Action after each night). Guests play on the same gasless
 // in-browser session key, but settle skips them, so nothing is saved or ranked.
 import { PublicKey, Transaction } from "@solana/web3.js";
@@ -52,7 +52,7 @@ export function saveWalletName(wallet: string, name: string) {
   }
 }
 
-/** Profile as stored on Solana (board2), if this wallet has played before. */
+/** Profile as stored on Solana (board3), if this wallet has played before. */
 export async function loadProfile(wallet: string): Promise<BoardEntry | null> {
   const b = await client.fetchBoard().catch(() => null);
   return b?.entries.find((e) => e.key.toBase58() === wallet) ?? null;
@@ -122,6 +122,13 @@ export function requireWallet(then: () => void) {
   const st = useStore.getState();
   if ((st.wallet && localNameFor(st.wallet)) || isGuest()) then();
   else st.set({ walletGate: { then } });
+}
+
+/** Staked nights need a real wallet: guests get the gate with no guest option. */
+export function requireRealWallet(then: () => void) {
+  const st = useStore.getState();
+  if (st.wallet && localNameFor(st.wallet)) then();
+  else st.set({ walletGate: { then, walletOnly: true } });
 }
 
 /** Move this browser key's leaderboard stats to the wallet (wallet pays the fee). */

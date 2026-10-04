@@ -13,7 +13,7 @@ import { Crosshair } from "./Crosshair";
 import { roomLink } from "../config";
 import { go } from "../App";
 import { audio } from "../game/audio";
-import { connectWallet, requireWallet } from "../game/wallet";
+import { connectWallet, requireRealWallet, requireWallet } from "../game/wallet";
 import { TopBar } from "./TopBar";
 import type { SeatInfo } from "../scene/LobbyStage";
 
@@ -153,6 +153,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
       host: taken && i === effectiveHost,
       away: taken && room.isBot[i] === 0 && !fresh(i),
       canMakeHost: canStart && taken && room.isBot[i] === 0 && i !== mySeat && fresh(i),
+      openHint: staked ? "stake to sit" : undefined,
     };
   });
 
@@ -169,7 +170,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
   };
 
   const take = (seat?: number) =>
-    new Promise<void>((resolve) => requireWallet(() => resolve(doTake(seat))));
+    new Promise<void>((resolve) => (staked ? requireRealWallet : requireWallet)(() => resolve(doTake(seat))));
   const doTake = (seat?: number) =>
     run("join", async () => {
       if (staked) {
@@ -226,7 +227,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
               ? "Your room. Pick the seats, then start the night."
               : `Waiting for ${room.names[effectiveHost] || "the host"} to start…`}
         </h2>
-        {staked && <p className="sub">Pot {(Number(room.pot) / 1e9).toFixed(2)} SOL · winner is paid on Solana by a Magic Action the moment the match commits.</p>}
+        {staked && <p className="sub">Pot {(Number(room.pot) / 1e9).toFixed(2)} SOL · humans only, no bots. The winner is paid on Solana by a Magic Action the moment the match commits, and staked wins are what the leaderboard ranks.</p>}
         {quick.current && <p className="sub">Opening the gate for you…</p>}
       </div>
 
@@ -356,7 +357,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
               <label>THE POT</label>
               <b className="pot">{(Number(room.pot) / 1e9).toFixed(2)} SOL</b>
               <small>
-                {humans} staker{humans === 1 ? "" : "s"} · {(Number(room.stake) / 1e9).toFixed(2)} SOL each · winner takes all
+                {humans} staker{humans === 1 ? "" : "s"} · {(Number(room.stake) / 1e9).toFixed(2)} SOL each · no bots · winner takes all
               </small>
             </>
           )}

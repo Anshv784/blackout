@@ -156,10 +156,22 @@ pub mod blackout {
         }
         bank.paid_match = room.match_no;
 
-        // leaderboard
+        // leaderboard: staked nights only (no bots there, real money on the line)
+        let pay_to = if room.stake > 0 && room.winner != NO_SEAT && room.is_bot[room.winner as usize] == 0 {
+            let bank_ai = ctx.accounts.bank.to_account_info();
+            let rent = Rent::get()?.minimum_balance(bank_ai.data_len());
+            room.pot.min(bank_ai.lamports().saturating_sub(rent))
+        } else {
+            0
+        };
         let mut board = ctx.accounts.board.load_mut()?;
-        board.matches += 1;
+        if room.stake > 0 {
+            board.matches += 1;
+        }
         for s in 0..MAXP {
+            if room.stake == 0 {
+                break;
+            }
             // only real, wallet-linked humans make the board: bots and bare session keys never do
             if room.is_bot[s] == 1 || room.players[s] == Pubkey::default() || room.payout[s] == room.players[s] || room.payout[s] == Pubkey::default() {
                 continue;
@@ -170,13 +182,13 @@ pub mod blackout {
             let idx = match board.entries[..n].iter().position(|e| e.key == key) {
                 Some(i) => Some(i),
                 None if n < BOARD_SLOTS => {
-                    board.entries[n] = BoardEntry { key, name: [0; 16], wins: 0, kills: 0, games: 0, best_place: 99 };
+                    board.entries[n] = BoardEntry { key, name: [0; 16], wins: 0, kills: 0, games: 0, best_place: 99, earned: 0 };
                     board.count += 1;
                     Some(n)
                 }
                 None if won => {
                     let (i, _) = board.entries.iter().enumerate().min_by_key(|(_, e)| (e.wins, e.kills)).unwrap();
-                    board.entries[i] = BoardEntry { key, name: [0; 16], wins: 0, kills: 0, games: 0, best_place: 99 };
+                    board.entries[i] = BoardEntry { key, name: [0; 16], wins: 0, kills: 0, games: 0, best_place: 99, earned: 0 };
                     Some(i)
                 }
                 None => None,
@@ -188,6 +200,7 @@ pub mod blackout {
                 e.kills += room.kills[s];
                 if won {
                     e.wins += 1;
+                    e.earned += pay_to;
                 }
                 if room.place[s] > 0 && room.place[s] < e.best_place {
                     e.best_place = room.place[s];
@@ -201,9 +214,7 @@ pub mod blackout {
             let w = room.winner as usize;
             require_keys_eq!(ctx.accounts.winner.key(), room.payout[w], BlackoutError::BadAccount);
             let bank_ai = ctx.accounts.bank.to_account_info();
-            let rent = Rent::get()?.minimum_balance(bank_ai.data_len());
-            let avail = bank_ai.lamports().saturating_sub(rent);
-            let pay = room.pot.min(avail);
+            let pay = pay_to;
             if pay > 0 {
                 **bank_ai.try_borrow_mut_lamports()? -= pay;
                 **ctx.accounts.winner.to_account_info().try_borrow_mut_lamports()? += pay;
@@ -222,7 +233,7 @@ pub mod blackout {
         let n = board.count as usize;
         if let Some(i) = board.entries[..n].iter().position(|e| e.key == key) {
             board.entries[i] = board.entries[n - 1];
-            board.entries[n - 1] = BoardEntry { key: Pubkey::default(), name: [0; 16], wins: 0, kills: 0, games: 0, best_place: 0 };
+            board.entries[n - 1] = BoardEntry { key: Pubkey::default(), name: [0; 16], wins: 0, kills: 0, games: 0, best_place: 0, earned: 0 };
             board.count -= 1;
         }
         Ok(())
@@ -245,10 +256,11 @@ pub mod blackout {
                 e.wins += src.wins;
                 e.kills += src.kills;
                 e.games += src.games;
+                e.earned += src.earned;
                 e.best_place = e.best_place.min(src.best_place);
                 // remove the session entry (swap with last)
                 board.entries[si] = board.entries[n - 1];
-                board.entries[n - 1] = BoardEntry { key: Pubkey::default(), name: [0; 16], wins: 0, kills: 0, games: 0, best_place: 0 };
+                board.entries[n - 1] = BoardEntry { key: Pubkey::default(), name: [0; 16], wins: 0, kills: 0, games: 0, best_place: 0, earned: 0 };
                 board.count -= 1;
             }
             None => board.entries[si].key = wallet,

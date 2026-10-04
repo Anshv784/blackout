@@ -65,7 +65,7 @@ export const recPda = (roomId: bigint | number, chunk: number) => pda([Buffer.fr
 export const recPdas = (roomId: bigint | number) => Array.from({ length: REC_CHUNKS }, (_, c) => recPda(roomId, c));
 export const viewPda = (roomId: bigint | number, seat: number) => pda([Buffer.from("view"), u64le(roomId), Buffer.from([seat])]);
 export const bankPda = (roomId: bigint | number) => pda([Buffer.from("bank"), u64le(roomId)]);
-export const boardPda = () => pda([Buffer.from("board2")]);
+export const boardPda = () => pda([Buffer.from("board3")]);
 export const programIdentityPda = () => pda([Buffer.from("identity")]);
 export const ticketPda = (roomId: bigint | number, matchNo: number, player: PublicKey) => {
   const m = Buffer.alloc(4);

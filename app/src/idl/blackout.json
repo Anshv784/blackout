@@ -36,7 +36,7 @@
                   97,
                   114,
                   100,
-                  50
+                  51
                 ]
               }
             ]
@@ -634,7 +634,7 @@
                   97,
                   114,
                   100,
-                  50
+                  51
                 ]
               }
             ]
@@ -742,7 +742,7 @@
                   97,
                   114,
                   100,
-                  50
+                  51
                 ]
               }
             ]
@@ -1002,7 +1002,7 @@
                   97,
                   114,
                   100,
-                  50
+                  51
                 ]
               }
             ]
@@ -1347,7 +1347,7 @@
                   97,
                   114,
                   100,
-                  50
+                  51
                 ]
               }
             ]
@@ -1992,7 +1992,7 @@
     {
       "name": "Board",
       "docs": [
-        "Global leaderboard on the base layer, updated by a Magic Action after every match."
+        "Global leaderboard on the base layer: staked nights only, updated by a Magic Action after each one."
       ],
       "serialization": "bytemuck",
       "repr": {
@@ -2066,6 +2066,13 @@
           {
             "name": "best_place",
             "type": "u32"
+          },
+          {
+            "name": "earned",
+            "docs": [
+              "lamports won from staked pots"
+            ],
+            "type": "u64"
           }
         ]
       }
