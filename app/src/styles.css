@@ -1355,3 +1355,9 @@ button {
 .dock-cell .row .btn{height:34px;margin-top:0;padding:0 14px;display:inline-flex;align-items:center}
 .dock-cell.main .btn.primary:disabled{background:transparent;color:var(--gold);border:1px dashed rgba(255,209,102,.45);box-shadow:none;opacity:1;font-size:15px;letter-spacing:.12em}
 .dock-cell .pot{font-size:28px;color:var(--gold);text-shadow:0 0 20px rgba(255,209,102,.35)}
+
+.wallet-menu{position:relative}
+.wm-pop{position:absolute;right:0;top:calc(100% + 6px);background:rgba(10,12,20,.96);border:1px solid var(--line);border-radius:10px;padding:5px;display:flex;flex-direction:column;min-width:160px;z-index:40;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+.wm-pop button{background:transparent;border:0;color:var(--fg);text-align:left;padding:9px 10px;border-radius:7px;cursor:pointer;font-family:inherit;font-size:13px}
+.wm-pop button:hover{background:rgba(255,255,255,.06)}
+.wm-pop .danger{color:#ff7a90}

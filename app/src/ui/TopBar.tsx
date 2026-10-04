@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../game/store";
 import { saveName } from "../game/identity";
-import { connectWallet } from "../game/wallet";
+import { connectWallet, disconnectWallet } from "../game/wallet";
 import { SoundToggle } from "./SoundToggle";
 import { go } from "../App";
 
@@ -49,10 +49,36 @@ function Callsign() {
 function Wallet() {
   const wallet = useStore((s) => s.wallet);
   const toast = useStore((s) => s.toast);
+  const [open, setOpen] = useState(false);
   return wallet ? (
-    <span className="chip-btn static" title="Wins and payouts go here">
-      ◎ {wallet.slice(0, 4)}…{wallet.slice(-4)}
-    </span>
+    <div className="wallet-menu" onMouseLeave={() => setOpen(false)}>
+      <button className="chip-btn" onClick={() => setOpen(!open)} title="Wins and payouts go here">
+        ◎ {wallet.slice(0, 4)}…{wallet.slice(-4)} <em>▾</em>
+      </button>
+      {open && (
+        <div className="wm-pop">
+          <button
+            onClick={() => {
+              navigator.clipboard?.writeText(wallet);
+              toast("Address copied");
+              setOpen(false);
+            }}
+          >
+            Copy address
+          </button>
+          <button
+            className="danger"
+            onClick={async () => {
+              await disconnectWallet();
+              setOpen(false);
+              toast("Wallet disconnected — you're playing with your browser key");
+            }}
+          >
+            Disconnect
+          </button>
+        </div>
+      )}
+    </div>
   ) : (
     <button
       className="chip-btn ghost"

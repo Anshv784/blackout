@@ -37,3 +37,17 @@ export async function linkStats(): Promise<void> {
   const sig = await client.base.sendRawTransaction(signed.serialize());
   await client.base.confirmTransaction(sig, "confirmed");
 }
+
+export async function disconnectWallet() {
+  try {
+    await provider()?.disconnect?.();
+  } catch {
+    /* ignore */
+  }
+  try {
+    localStorage.removeItem("bo-wallet");
+  } catch {
+    /* ignore */
+  }
+  useStore.getState().set({ wallet: null });
+}
