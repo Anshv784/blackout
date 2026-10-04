@@ -202,6 +202,10 @@
         {
           "name": "unlisted",
           "type": "bool"
+        },
+        {
+          "name": "code",
+          "type": "u32"
         }
       ]
     },
@@ -900,6 +904,82 @@
         },
         {
           "name": "code",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "name": "kick",
+      "docs": [
+        "Host removes a player from the lobby. In a private room the code rotates",
+        "(`new_code`), so the kicked player's copy of the old one stops working."
+      ],
+      "discriminator": [
+        184,
+        92,
+        149,
+        185,
+        62,
+        150,
+        19,
+        210
+      ],
+      "accounts": [
+        {
+          "name": "room",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  111,
+                  111,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "room"
+              }
+            ]
+          }
+        },
+        {
+          "name": "view",
+          "writable": true
+        },
+        {
+          "name": "view_permission",
+          "writable": true
+        },
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "permission_program",
+          "address": "ACLseoPoyC3cBqoUtkbjZ4aDrkurZW86v19pXz2XQnp1"
+        },
+        {
+          "name": "ephemeral_vault",
+          "writable": true,
+          "address": "MagicVau1t999999999999999999999999999999999"
+        },
+        {
+          "name": "magic_program",
+          "address": "Magic11111111111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "seat",
+          "type": "u8"
+        },
+        {
+          "name": "new_code",
           "type": "u32"
         }
       ]

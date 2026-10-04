@@ -15,6 +15,7 @@ export interface SeatInfo {
   host: boolean;
   away: boolean;
   canMakeHost?: boolean;
+  canKick?: boolean;
   /** hint under OPEN SEAT */
   openHint?: string;
 }
@@ -24,7 +25,7 @@ const seatPos = (i: number, n: number): [number, number, number] => {
   return [x, 0, -(x * x) / 16];
 };
 
-function Pedestal({ i, n, seat, onTake, onMakeHost }: { i: number; n: number; seat: SeatInfo; onTake: (i: number) => void; onMakeHost?: (i: number) => void }) {
+function Pedestal({ i, n, seat, onTake, onMakeHost, onKick }: { i: number; n: number; seat: SeatInfo; onTake: (i: number) => void; onMakeHost?: (i: number) => void; onKick?: (i: number) => void }) {
   const ring = useRef<THREE.Mesh>(null);
   const g = useRef<THREE.Group>(null);
   const spot = useRef<THREE.SpotLight>(null);
@@ -81,10 +82,19 @@ function Pedestal({ i, n, seat, onTake, onMakeHost }: { i: number; n: number; se
               {seat.bot && "BOT"}
               {seat.away && " · AWAY"}
             </span>
-            {seat.canMakeHost && onMakeHost && (
-              <button className="make-host" onClick={() => onMakeHost(i)}>
-                MAKE HOST
-              </button>
+            {(seat.canMakeHost || seat.canKick) && (
+              <div className="seat-actions">
+                {seat.canMakeHost && onMakeHost && (
+                  <button className="make-host" onClick={() => onMakeHost(i)}>
+                    MAKE HOST
+                  </button>
+                )}
+                {seat.canKick && onKick && (
+                  <button className="make-host kick" onClick={() => onKick(i)}>
+                    KICK
+                  </button>
+                )}
+              </div>
             )}
           </div>
         ) : (
@@ -107,7 +117,7 @@ function Breath() {
   return null;
 }
 
-export const LobbyStage = memo(function LobbyStage({ seats, onTake, onMakeHost }: { seats: SeatInfo[]; onTake: (i: number) => void; onMakeHost?: (i: number) => void }) {
+export const LobbyStage = memo(function LobbyStage({ seats, onTake, onMakeHost, onKick }: { seats: SeatInfo[]; onTake: (i: number) => void; onMakeHost?: (i: number) => void; onKick?: (i: number) => void }) {
   const floor = useMemo(() => {
     const c = document.createElement("canvas");
     c.width = c.height = 512;
@@ -142,7 +152,7 @@ export const LobbyStage = memo(function LobbyStage({ seats, onTake, onMakeHost }
           <meshStandardMaterial map={floor} roughness={0.6} metalness={0.3} />
         </mesh>
         {seats.map((s, i) => (
-          <Pedestal key={i} i={i} n={seats.length} seat={s} onTake={onTake} onMakeHost={onMakeHost} />
+          <Pedestal key={i} i={i} n={seats.length} seat={s} onTake={onTake} onMakeHost={onMakeHost} onKick={onKick} />
         ))}
         <EffectComposer multisampling={0}>
           <Bloom intensity={1.0} luminanceThreshold={0.25} mipmapBlur />

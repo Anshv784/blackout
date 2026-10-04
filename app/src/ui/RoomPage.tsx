@@ -14,6 +14,7 @@ import { roomLink } from "../config";
 import { go } from "../App";
 import { audio } from "../game/audio";
 import { connectWallet, requireRealWallet, requireWallet } from "../game/wallet";
+import { codeToText, newCode, textToCode } from "../game/rooms";
 import { TopBar } from "./TopBar";
 import type { SeatInfo } from "../scene/LobbyStage";
 
@@ -114,6 +115,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
   const [copied, setCopied] = useState(false);
   const quick = useRef(flags().get("quick") === "1");
   const invite = flags().get("invite") === "1";
+  const urlCode = textToCode(flags().get("code") ?? "");
   const autoDone = useRef(false);
 
   // mirror the on-chain host rule: a host who stopped heart-beating is replaced by the first live seat
@@ -128,7 +130,22 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
   // only people still here count (stale seats are cleared on-chain when the night starts)
   const humans = [0, 1, 2, 3, 4, 5, 6, 7].filter(fresh).length;
   const staked = room.stake > 0n;
-  const link = roomLink(room.roomId);
+  // private rooms: you need the code (from the creator's link, or typed in) to sit down
+  const isPrivate = room.unlisted && room.privateCode !== 0;
+  const codeText = isPrivate ? codeToText(room.privateCode) : "";
+  const link = isPrivate ? `${roomLink(room.roomId)}?code=${codeText.replace("-", "")}` : roomLink(room.roomId);
+  const [typed, setTyped] = useState("");
+  const knownCode = textToCode(typed) ?? urlCode;
+  const locked = isPrivate && mySeat === null && knownCode !== room.privateCode;
+  const [askKick, setAskKick] = useState<number | null>(null);
+  // you were seated, the host is still here, and you didn't leave: the host removed you
+  const wasIn = useRef(false);
+  const leaving = useRef(false);
+  const [kicked, setKicked] = useState(false);
+  useEffect(() => {
+    if (mySeat !== null) wasIn.current = true;
+    else if (wasIn.current && !leaving.current && hostPresent) setKicked(true);
+  }, [mySeat]);
 
   // optimistic seat count so rapid clicks build on each other instead of re-sending the same value
   const [pendingSize, setPendingSize] = useState<number | null>(null);
@@ -153,6 +170,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
       host: taken && i === effectiveHost,
       away: taken && room.isBot[i] === 0 && !fresh(i),
       canMakeHost: canStart && taken && room.isBot[i] === 0 && i !== mySeat && fresh(i),
+      canKick: canStart && !staked && taken && room.isBot[i] === 0 && i !== mySeat,
       openHint: staked ? "stake to sit" : undefined,
     };
   });
@@ -182,14 +200,14 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
         await session.join(name || "GHOST", new PublicKey(pk), 0, seat);
       } else {
         const w = useStore.getState().wallet;
-        await session.join(useStore.getState().name || name || "GHOST", w ? new PublicKey(w) : null, 0, seat);
+        await session.join(useStore.getState().name || name || "GHOST", w ? new PublicKey(w) : null, isPrivate ? (knownCode ?? 0) : 0, seat);
       }
     });
 
   // arriving from an invite link: sit down right away (wallet gate first if needed)
   useEffect(() => {
     if (autoDone.current || staked || mySeat !== null || busy) return;
-    if (quick.current || invite) {
+    if ((quick.current || invite || urlCode) && !locked) {
       autoDone.current = true;
       take();
     }
@@ -200,6 +218,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
   const doExit = () =>
     run("leave", async () => {
       setAskExit(false);
+      leaving.current = true;
       if (mySeat !== null) await session.leave().catch(() => {});
       go("/");
     });
@@ -213,12 +232,12 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
   return (
     <div className="lobby2">
       <Suspense fallback={<div className="backdrop" />}>
-        <LobbyStage seats={seats} onTake={(i) => mySeat === null && take(i)} onMakeHost={(i) => run("host", () => session.makeHost(i))} />
+        <LobbyStage seats={seats} onTake={(i) => mySeat === null && !locked && take(i)} onMakeHost={(i) => run("host", () => session.makeHost(i))} onKick={(i) => setAskKick(i)} />
       </Suspense>
       <TopBar />
       <div className="lobby2-head">
         <div className="kicker">
-          <span className="dot" /> {invite ? "PRIVATE ROOM" : `ROOM ${room.roomId}`} · NIGHT {room.matchNo + 1} {staked ? `· ${(Number(room.stake) / 1e9).toFixed(2)} SOL STAKE` : ""}
+          <span className="dot" /> {isPrivate ? "🔒 PRIVATE ROOM" : `ROOM ${room.roomId}`} · NIGHT {room.matchNo + 1} {staked ? `· ${(Number(room.stake) / 1e9).toFixed(2)} SOL STAKE` : ""}
         </div>
         <h2>
           {mySeat === null
@@ -260,6 +279,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
                           run("leave", async () => {
                             await session.makeHost(i);
                             setAskExit(false);
+                            leaving.current = true;
                             await session.leave().catch(() => {});
                             go("/");
                           })
@@ -282,6 +302,69 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
           </div>
         </div>
       )}
+      {askKick !== null && (
+        <div className="room-closed" onClick={() => setAskKick(null)}>
+          <div className="room-closed-card" onClick={(e) => e.stopPropagation()}>
+            <div className="vc-kicker">KICK PLAYER</div>
+            <h2>Remove {room.names[askKick] || "this player"}?</h2>
+            <p>{isPrivate ? "They're sent back to the gate and the room gets a new code, so their old one stops working. Share the new code with anyone still on the way." : "They're sent back to the gate. This is a public room, so they could take a seat again."}</p>
+            <div className="row center">
+              <button className="btn" onClick={() => setAskKick(null)}>
+                CANCEL
+              </button>
+              <button
+                className="btn danger"
+                disabled={busy === "kick"}
+                onClick={() => {
+                  const seat = askKick;
+                  setAskKick(null);
+                  run("kick", () => session.kick(seat, isPrivate ? newCode() : 0));
+                }}
+              >
+                KICK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {kicked && (
+        <div className="room-closed">
+          <div className="room-closed-card">
+            <div className="vc-kicker">REMOVED</div>
+            <h2>The host removed you from this room.</h2>
+            <p>You can create your own room from the gate. You'll be the host there.</p>
+            <button className="btn primary huge" onClick={() => go("/")}>
+              BACK TO THE GATE
+            </button>
+          </div>
+        </div>
+      )}
+      {locked && !kicked && !closed && (
+        <div className="room-closed">
+          <div className="room-closed-card">
+            <div className="vc-kicker">🔒 PRIVATE ROOM</div>
+            <h2>{room.names[effectiveHost] || "Someone"}'s room needs a code</h2>
+            <p>Ask the host for the 6-character room code.{urlCode ? " The code in your link has changed." : ""}</p>
+            <input
+              className="code-input"
+              autoFocus
+              placeholder="ABC-123"
+              maxLength={7}
+              value={typed}
+              onChange={(e) => setTyped(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""))}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && textToCode(typed) === room.privateCode) take();
+              }}
+            />
+            {typed.replace("-", "").length === 6 && textToCode(typed) !== room.privateCode && <div className="wgate-err">That code doesn't open this room.</div>}
+            <div className="row center">
+              <button className="btn" onClick={() => go("/")}>
+                BACK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {closed && (
         <div className="room-closed">
           <div className="room-closed-card">
@@ -296,8 +379,22 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
       )}
       <div className="dock">
         <div className="dock-cell invite">
-          <label>INVITE</label>
-          <div className="row">
+          <label>{isPrivate ? "ROOM CODE · share it with friends" : "INVITE"}</label>
+          {isPrivate && mySeat !== null && (
+            <div className="row code-row">
+              <b className="room-code">{codeText}</b>
+              <button
+                className="btn small"
+                onClick={() => {
+                  navigator.clipboard?.writeText(codeText);
+                  toast(`Code ${codeText} copied`);
+                }}
+              >
+                COPY CODE
+              </button>
+            </div>
+          )}
+          <div className="row" style={isPrivate && mySeat === null ? { display: "none" } : undefined}>
             <code>{link.replace(/^https?:\/\//, "")}</code>
             <button className="btn small" onClick={copy}>
               {copied ? "COPIED" : "COPY"}

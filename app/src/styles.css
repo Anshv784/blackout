@@ -1564,3 +1564,15 @@ button {
 .bo-hide-net .chain{display:none!important}
 .game:has(.menu-overlay) .crosshair:not(.set-preview .crosshair){display:none}
 .game:has(.menu-overlay) canvas{cursor:default!important}
+
+/* private rooms: codes + kick */
+.join-code{display:flex;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap}
+.join-code label{flex-basis:100%;font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--dim)}
+.join-code input,.code-input{background:rgba(5,6,10,.8);border:1px solid var(--line);border-radius:10px;color:var(--gold);font-family:var(--mono);font-size:18px;letter-spacing:.3em;padding:10px 14px;width:170px;text-transform:uppercase;text-align:center;outline:none}
+.join-code input:focus,.code-input:focus{border-color:rgba(255,209,102,.6)}
+.code-input{width:220px;font-size:24px;margin:6px auto 12px;display:block}
+.code-row{align-items:center;margin-bottom:6px}
+.room-code{font-family:var(--mono);font-size:26px;letter-spacing:.22em;color:var(--gold);text-shadow:0 0 14px rgba(255,209,102,.4);flex:1}
+.seat-actions{display:flex;gap:4px;justify-content:center}
+.make-host.kick{border-color:rgba(255,77,106,.6);color:#ff8a9c}
+.make-host.kick:hover{background:rgba(255,77,106,.15)}

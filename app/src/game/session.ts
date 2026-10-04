@@ -513,6 +513,12 @@ export class Session {
     await this.poll();
   }
 
+  /** Host only. A private room gets a fresh code so the kicked player can't walk back in. */
+  async kick(seat: number, newCode = 0) {
+    await client.sendEr([client.kickIx(this.roomId, seat, newCode)]);
+    await this.poll();
+  }
+
   async setSize(n: number) {
     await client.sendEr([client.setSizeIx(this.roomId, n)]);
     await this.poll();

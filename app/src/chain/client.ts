@@ -343,8 +343,22 @@ export class BlackoutClient {
     return ix("link_wallet", {}, [w(boardPda()), r(this.publicKey, true), w(wallet, true)]);
   }
 
-  claimIx(roomId: bigint, maxPlayers: number, unlisted: boolean) {
-    return ix("claim_room", { max_players: maxPlayers, unlisted }, [r(this.publicKey, true), w(roomPda(roomId))]);
+  claimIx(roomId: bigint, maxPlayers: number, unlisted: boolean, code = 0) {
+    return ix("claim_room", { max_players: maxPlayers, unlisted, code }, [r(this.publicKey, true), w(roomPda(roomId))]);
+  }
+
+  /** Host only: remove the player in `seat`; a private room's code rotates to `newCode`. */
+  kickIx(roomId: bigint, seat: number, newCode = 0) {
+    const view = viewPda(roomId, seat);
+    return ix("kick", { seat, new_code: newCode }, [
+      w(roomPda(roomId)),
+      w(view),
+      w(permissionPdaFromAccount(view)),
+      w(this.publicKey, true),
+      r(PERMISSION_PROGRAM_ID),
+      w(EPHEMERAL_VAULT_ID),
+      r(MAGIC_PROGRAM_ID),
+    ]);
   }
 
   makeHostIx(roomId: bigint, seat: number) {

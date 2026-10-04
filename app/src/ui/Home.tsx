@@ -7,7 +7,7 @@ import { useStore } from "../game/store";
 import { audio } from "../game/audio";
 import { TopBar } from "./TopBar";
 import { requireRealWallet, requireWallet } from "../game/wallet";
-import { createRoom, myRoom } from "../game/rooms";
+import { codeToText, createRoom, findByCode, myRoom } from "../game/rooms";
 
 const Backdrop = lazy(() => import("../scene/Backdrop").then((m) => ({ default: m.Backdrop })));
 
@@ -55,12 +55,25 @@ export function Home() {
     };
   }, []);
 
+  const [code, setCode] = useState("");
+  const joinCode = () =>
+    requireWallet(async () => {
+      setBusy("code");
+      try {
+        const hit = await findByCode(code);
+        if (!hit) toast("No open room with that code. Check it with the host.");
+        else go(`/r/${hit.id}?code=${codeToText(hit.code).replace("-", "")}`);
+      } finally {
+        setBusy(null);
+      }
+    });
+
   const create = async (unlisted: boolean) => {
     audio.unlock();
     setBusy(unlisted ? "friends" : "create");
     try {
-      const id = await createRoom(6, unlisted);
-      go(`/r/${id}${unlisted ? "?invite=1" : ""}`);
+      const { id, code } = await createRoom(6, unlisted);
+      go(`/r/${id}${code ? `?code=${codeToText(code).replace("-", "")}` : ""}`);
     } catch (e: any) {
       toast(String(e?.message ?? e).replace(/\(.*\)$/, "").slice(0, 140));
     } finally {
@@ -116,6 +129,19 @@ export function Home() {
                 STAKED NIGHT · 0.01 SOL
               </button>
             </div>
+            <form
+              className="join-code"
+              onSubmit={(e) => {
+                e.preventDefault();
+                joinCode();
+              }}
+            >
+              <label>GOT A ROOM CODE?</label>
+              <input placeholder="ABC-123" maxLength={7} value={code} onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""))} />
+              <button className="btn" type="submit" disabled={!!busy || code.replace("-", "").length !== 6}>
+                {busy === "code" ? "FINDING…" : "JOIN PRIVATE ROOM"}
+              </button>
+            </form>
           </div>
           <div className="gate-facts">
             <span>🔒 positions sealed in a TEE</span>

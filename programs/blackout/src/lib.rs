@@ -462,7 +462,7 @@ pub mod blackout {
 
     /// "Create a room": claim a free room (no live humans), become its host and
     /// choose how many seats it has. Bots fill whatever seats humans don't.
-    pub fn claim_room(ctx: Context<ClaimRoom>, max_players: u8, unlisted: bool) -> Result<()> {
+    pub fn claim_room(ctx: Context<ClaimRoom>, max_players: u8, unlisted: bool, code: u32) -> Result<()> {
         let slot = Clock::get()?.slot;
         let mut room = ctx.accounts.room.load_mut()?;
         require!(room.status == ST_LOBBY, BlackoutError::NotInLobby);
@@ -475,6 +475,8 @@ pub mod blackout {
         }
         let m = (max_players as u32).clamp(2, MAXP as u32);
         room.cfg = m | if unlisted { 1 << 8 } else { 0 };
+        // private rooms are joined with a code the creator shares; public ones need none
+        room.private_code = if unlisted { code.max(1) } else { 0 };
         room.host = ctx.accounts.player.key();
         Ok(())
     }
@@ -532,6 +534,41 @@ pub mod blackout {
                     }
                 }
                 room.host = Pubkey::default();
+                room.private_code = 0;
+            }
+            room.room_id.to_le_bytes()
+        };
+        let room_seeds: &[&[u8]] = &[ROOM_SEED, &rid_bytes, &[ctx.bumps.room]];
+        let view_seeds: &[&[u8]] = &[VIEW_SEED, &rid_bytes, &[seat], &[ctx.bumps.view]];
+        UpdateEphemeralPermissionCpi {
+            payer: ctx.accounts.room.to_account_info(),
+            permissioned_account: ctx.accounts.view.to_account_info(),
+            permission: ctx.accounts.view_permission.to_account_info(),
+            vault: ctx.accounts.ephemeral_vault.to_account_info(),
+            magic_program: ctx.accounts.magic_program.to_account_info(),
+            permission_program: ctx.accounts.permission_program.to_account_info(),
+            authority: ctx.accounts.view.to_account_info(),
+            authority_is_signer: false,
+            args: EphemeralMembersArgs { is_private: true, members: vec![] },
+        }
+        .invoke_signed(&[room_seeds, view_seeds])?;
+        Ok(())
+    }
+
+    /// Host removes a player from the lobby. In a private room the code rotates
+    /// (`new_code`), so the kicked player's copy of the old one stops working.
+    pub fn kick(ctx: Context<Leave>, seat: u8, new_code: u32) -> Result<()> {
+        let s = seat as usize;
+        let host = ctx.accounts.player.key();
+        let rid_bytes = {
+            let mut room = ctx.accounts.room.load_mut()?;
+            require!(room.status == ST_LOBBY, BlackoutError::NotInLobby);
+            require!(room.host == host, BlackoutError::NotHost);
+            require!(room.stake == 0, BlackoutError::NotReady); // stakers have paid in: no kicking at a staked table
+            require!(s < MAXP && room.is_bot[s] == 0 && room.players[s] != Pubkey::default() && room.players[s] != host, BlackoutError::BadSeat);
+            room.clear_seat(s);
+            if room.private_code != 0 && new_code != 0 {
+                room.private_code = new_code;
             }
             room.room_id.to_le_bytes()
         };
