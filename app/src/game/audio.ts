@@ -69,12 +69,17 @@ class Audio {
 
   unlock() {
     const c = this.ensure();
-    if (c && c.state === "suspended") c.resume().catch(() => {});
+    if (c && c.state === "suspended" && !this.muted) c.resume().catch(() => {});
   }
 
   setMuted(m: boolean) {
     this.muted = m;
     if (this.master) this.master.gain.setTargetAtTime(m ? 0 : 0.7, this.ctx!.currentTime, 0.05);
+    // hard stop: pause the whole audio graph (loops, heartbeat, hum) — not just the volume
+    if (this.ctx) {
+      if (m) setTimeout(() => this.muted && this.ctx?.suspend().catch(() => {}), 80);
+      else this.ctx.resume().catch(() => {});
+    }
     try {
       localStorage.setItem("bo-muted", m ? "1" : "0");
     } catch {
@@ -444,4 +449,8 @@ class Audio {
   }
 }
 
-export const audio = new Audio();
+// one engine per page, even across hot reloads (otherwise an old engine keeps playing unmuted)
+const g = globalThis as any;
+if (g.__boAudio?.ctx) g.__boAudio.ctx.close?.().catch?.(() => {});
+export const audio: Audio = new Audio();
+g.__boAudio = audio;
