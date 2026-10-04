@@ -1021,6 +1021,38 @@
       "args": []
     },
     {
+      "name": "make_host",
+      "docs": [
+        "Host hands the room to another player who is in it."
+      ],
+      "discriminator": [
+        92,
+        219,
+        253,
+        42,
+        106,
+        125,
+        180,
+        146
+      ],
+      "accounts": [
+        {
+          "name": "player",
+          "signer": true
+        },
+        {
+          "name": "room",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "seat",
+          "type": "u8"
+        }
+      ]
+    },
+    {
       "name": "on_seed",
       "docs": [
         "VRF callback — seeds spawns, loot and the zone, sealed inside World."

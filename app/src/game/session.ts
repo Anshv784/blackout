@@ -508,6 +508,11 @@ export class Session {
     await this.poll();
   }
 
+  async makeHost(seat: number) {
+    await client.sendEr([client.makeHostIx(this.roomId, seat)]);
+    await this.poll();
+  }
+
   async setSize(n: number) {
     await client.sendEr([client.setSizeIx(this.roomId, n)]);
     await this.poll();

@@ -14,6 +14,7 @@ export interface SeatInfo {
   me: boolean;
   host: boolean;
   away: boolean;
+  canMakeHost?: boolean;
 }
 
 const seatPos = (i: number, n: number): [number, number, number] => {
@@ -21,7 +22,7 @@ const seatPos = (i: number, n: number): [number, number, number] => {
   return [x, 0, -(x * x) / 16];
 };
 
-function Pedestal({ i, n, seat, onTake }: { i: number; n: number; seat: SeatInfo; onTake: (i: number) => void }) {
+function Pedestal({ i, n, seat, onTake, onMakeHost }: { i: number; n: number; seat: SeatInfo; onTake: (i: number) => void; onMakeHost?: (i: number) => void }) {
   const ring = useRef<THREE.Mesh>(null);
   const g = useRef<THREE.Group>(null);
   const spot = useRef<THREE.SpotLight>(null);
@@ -78,6 +79,11 @@ function Pedestal({ i, n, seat, onTake }: { i: number; n: number; seat: SeatInfo
               {seat.bot && "BOT"}
               {seat.away && " · AWAY"}
             </span>
+            {seat.canMakeHost && onMakeHost && (
+              <button className="make-host" onClick={() => onMakeHost(i)}>
+                MAKE HOST
+              </button>
+            )}
           </div>
         ) : (
           <button className="stage-open" style={{ ["--c" as any]: color }} onClick={() => onTake(i)}>
@@ -99,7 +105,7 @@ function Breath() {
   return null;
 }
 
-export const LobbyStage = memo(function LobbyStage({ seats, onTake }: { seats: SeatInfo[]; onTake: (i: number) => void }) {
+export const LobbyStage = memo(function LobbyStage({ seats, onTake, onMakeHost }: { seats: SeatInfo[]; onTake: (i: number) => void; onMakeHost?: (i: number) => void }) {
   const floor = useMemo(() => {
     const c = document.createElement("canvas");
     c.width = c.height = 512;
@@ -134,7 +140,7 @@ export const LobbyStage = memo(function LobbyStage({ seats, onTake }: { seats: S
           <meshStandardMaterial map={floor} roughness={0.6} metalness={0.3} />
         </mesh>
         {seats.map((s, i) => (
-          <Pedestal key={i} i={i} n={seats.length} seat={s} onTake={onTake} />
+          <Pedestal key={i} i={i} n={seats.length} seat={s} onTake={onTake} onMakeHost={onMakeHost} />
         ))}
         <EffectComposer multisampling={0}>
           <Bloom intensity={1.0} luminanceThreshold={0.25} mipmapBlur />

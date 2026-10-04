@@ -467,6 +467,19 @@ pub mod blackout {
         Ok(())
     }
 
+    /// Host hands the room to another player who is in it.
+    pub fn make_host(ctx: Context<Heartbeat>, seat: u8) -> Result<()> {
+        let slot = Clock::get()?.slot;
+        let mut room = ctx.accounts.room.load_mut()?;
+        require!(room.status == ST_LOBBY, BlackoutError::NotInLobby);
+        require!(room.host == ctx.accounts.player.key(), BlackoutError::NotHost);
+        let s = seat as usize;
+        require!(s < MAXP && room.is_bot[s] == 0 && room.players[s] != Pubkey::default(), BlackoutError::BadSeat);
+        require!(!room.is_stale(s, slot), BlackoutError::BadSeat);
+        room.host = room.players[s];
+        Ok(())
+    }
+
     /// Host resizes the room (seats beyond the new size must be empty).
     pub fn set_size(ctx: Context<Heartbeat>, max_players: u8) -> Result<()> {
         let mut room = ctx.accounts.room.load_mut()?;

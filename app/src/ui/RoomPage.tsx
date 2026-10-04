@@ -133,7 +133,15 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
   const size = room.maxPlayers;
   const seats: SeatInfo[] = Array.from({ length: staked ? 8 : size }, (_, i) => {
     const taken = room.players[i].toBase58() !== EMPTY || room.isBot[i] === 1;
-    return { name: room.names[i], taken, bot: room.isBot[i] === 1, me: i === mySeat, host: taken && i === effectiveHost, away: taken && room.isBot[i] === 0 && !fresh(i) };
+    return {
+      name: room.names[i],
+      taken,
+      bot: room.isBot[i] === 1,
+      me: i === mySeat,
+      host: taken && i === effectiveHost,
+      away: taken && room.isBot[i] === 0 && !fresh(i),
+      canMakeHost: canStart && taken && room.isBot[i] === 0 && i !== mySeat && fresh(i),
+    };
   });
 
   const run = async (label: string, f: () => Promise<void>) => {
@@ -192,7 +200,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
   return (
     <div className="lobby2">
       <Suspense fallback={<div className="backdrop" />}>
-        <LobbyStage seats={seats} onTake={(i) => mySeat === null && take(i)} />
+        <LobbyStage seats={seats} onTake={(i) => mySeat === null && take(i)} onMakeHost={(i) => run("host", () => session.makeHost(i))} />
       </Suspense>
       <TopBar />
       <div className="lobby2-head">
@@ -225,6 +233,31 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
                   : "You're the host. The room closes and frees up for someone else."
                 : "You'll give up your seat and go back to the gate."}
             </p>
+            {canStart && humans > 1 && (
+              <div className="handover">
+                <label>OR HAND THE ROOM OVER AND LEAVE</label>
+                <div className="row center wrap">
+                  {[0, 1, 2, 3, 4, 5, 6, 7]
+                    .filter((i) => i !== mySeat && fresh(i))
+                    .map((i) => (
+                      <button
+                        key={i}
+                        className="btn small"
+                        onClick={() =>
+                          run("leave", async () => {
+                            await session.makeHost(i);
+                            setAskExit(false);
+                            await session.leave().catch(() => {});
+                            go("/");
+                          })
+                        }
+                      >
+                        {room.names[i]} becomes host
+                      </button>
+                    ))}
+                </div>
+              </div>
+            )}
             <div className="row center">
               <button className="btn" onClick={() => setAskExit(false)}>
                 STAY

@@ -1448,3 +1448,10 @@ button {
 .btn.danger{background:#3a0e18;border-color:#ff4d6d;color:#ffb3c0}
 
 .row.center{display:flex;gap:10px;justify-content:center}
+
+.make-host{pointer-events:auto;margin-top:4px;background:rgba(5,6,10,.75);border:1px solid rgba(255,209,102,.6);color:var(--gold);font-family:var(--mono);font-size:9px;letter-spacing:.16em;padding:4px 7px;border-radius:6px;cursor:pointer}
+.make-host:hover{background:rgba(255,209,102,.15)}
+.stage-tag{pointer-events:auto}
+.handover{display:flex;flex-direction:column;gap:8px;padding:10px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.handover label{font-size:10px;letter-spacing:.16em;color:var(--dim);font-weight:700}
+.row.wrap{flex-wrap:wrap}

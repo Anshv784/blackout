@@ -332,6 +332,10 @@ export class BlackoutClient {
     return ix("claim_room", { max_players: maxPlayers, unlisted }, [r(this.publicKey, true), w(roomPda(roomId))]);
   }
 
+  makeHostIx(roomId: bigint, seat: number) {
+    return ix("make_host", { seat }, [r(this.publicKey, true), w(roomPda(roomId))]);
+  }
+
   setSizeIx(roomId: bigint, maxPlayers: number) {
     return ix("set_size", { max_players: maxPlayers }, [r(this.publicKey, true), w(roomPda(roomId))]);
   }
