@@ -19,6 +19,8 @@ pub const LOOT_R: i32 = 9 * UNIT;
 pub const PICK_R: i32 = 180;
 pub const FLARE_TICKS: u32 = 100;
 pub const REC_EVERY: u32 = 2;
+/// 10 s without input from any living human = the room is abandoned; end the night
+pub const IDLE_TICKS: u32 = 200;
 
 pub const PING_STEP: u32 = 1;
 pub const PING_SHOT: u32 = 2;
@@ -710,7 +712,13 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
         // 7. end of match
         // once every human is down, don't make them watch bots fight: end now
         let humans_in = (0..MAXP).any(|i| room.is_bot[i] == 0 && room.players[i] != anchor_lang::prelude::Pubkey::default());
-        let humans_alive = (0..MAXP).any(|i| room.is_bot[i] == 0 && room.players[i] != anchor_lang::prelude::Pubkey::default() && w.players[i].alive == 1);
+        // a human only counts if their browser is still sending input (no ghost rooms full of bots)
+        let humans_alive = (0..MAXP).any(|i| {
+            room.is_bot[i] == 0
+                && room.players[i] != anchor_lang::prelude::Pubkey::default()
+                && w.players[i].alive == 1
+                && (t < IDLE_TICKS || tick.saturating_sub(w.players[i].last_input_tick) <= IDLE_TICKS)
+        });
         if room.alive_count <= 1 || t >= MATCH_TICKS || (humans_in && !humans_alive) {
             // rank survivors by hp+armor, then kills
             let mut survivors: [(u32, u32, usize); MAXP] = [(0, 0, 0); MAXP];

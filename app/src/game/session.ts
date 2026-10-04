@@ -434,6 +434,9 @@ export class Session {
     const r = this.room;
     if (!r || this.closed || this.mySeat === null) return;
     const now = performance.now();
+    // keep-alive even when the tab is in the background (rAF stops, timers don't):
+    // the chain ends a night when no living human has sent input for 10 s
+    if (r.status === ST_LIVE || r.status === ST_COUNTDOWN) this.maybeSendInput(now);
     // lobby presence (free, gasless)
     if ((r.status === ST_LOBBY || r.status === ST_REVEALED) && now - this.lastBeat > 8000) {
       this.lastBeat = now;
