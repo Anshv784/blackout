@@ -124,7 +124,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
   const hostPresent = hostIdx >= 0 && fresh(hostIdx);
   const effectiveHost = hostPresent ? hostIdx : -1;
   const canStart = mySeat !== null && hostIdx === mySeat;
-  const closed = !hostPresent && room.stake === 0n && !canStart && room.players.some((p, i) => room.isBot[i] === 0 && p.toBase58() !== EMPTY);
+  const closed = !hostPresent && room.stake === 0n && !canStart && !busy;
   // only people still here count (stale seats are cleared on-chain when the night starts)
   const humans = [0, 1, 2, 3, 4, 5, 6, 7].filter(fresh).length;
   const staked = room.stake > 0n;
@@ -214,8 +214,8 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
         <div className="room-closed">
           <div className="room-closed-card">
             <div className="vc-kicker">ROOM CLOSED</div>
-            <h2>The host left the Yard.</h2>
-            <p>A night can only start with its host in the room. Create your own room — you'll be the host.</p>
+            <h2>{mySeat !== null ? "The host left the Yard." : "This room has no host."}</h2>
+            <p>A night can only start with its host in the room. Create your own room from the gate — you'll be the host.</p>
             <button className="btn primary huge" onClick={exit}>
               BACK TO THE GATE
             </button>
