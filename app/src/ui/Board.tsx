@@ -2,7 +2,8 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { TopBar } from "./TopBar";
 import { client } from "../game/identity";
 import { useStore } from "../game/store";
-import type { BoardEntry } from "../chain/layout";
+import type { BoardEntry, Room } from "../chain/layout";
+import { STATUS_NAME } from "../chain/layout";
 import { boardPda } from "../chain/client";
 import { explorerAddr, STAKED_ROOMS } from "../config";
 import { go } from "../App";
@@ -26,12 +27,18 @@ export function Board() {
   const [failed, setFailed] = useState(false);
   const wallet = useStore((s) => s.wallet);
   const mine = new Set([client.publicKey.toBase58(), ...(wallet ? [wallet] : [])]);
+  const [table, setTable] = useState<Room | null>(null);
   useEffect(() => {
     client
       .fetchBoard()
       .then(setData)
       .catch(() => setFailed(true));
+    const load = () => client.fetchRoom(STAKED_ROOMS[0]).then(setTable).catch(() => {});
+    load();
+    const t = setInterval(load, 5000);
+    return () => clearInterval(t);
   }, []);
+  const stakers = table ? table.players.filter((p, i) => table.isBot[i] === 0 && p.toBase58() !== "11111111111111111111111111111111").length : 0;
   const rows = [...(data?.entries ?? [])].sort((a, b) => b.wins - a.wins || Number(b.earned - a.earned) || b.kills - a.kills || b.games - a.games);
   const podium = rows.slice(0, 3);
   const totalWon = rows.reduce((n, e) => n + Number(e.earned), 0) / 1e9;
@@ -66,8 +73,60 @@ export function Board() {
           </div>
         </div>
 
+        <div className="board-steps">
+          <div>
+            <span>1</span>
+            <b>Stake 0.01 SOL</b>
+            <small>your wallet buys a ticket into the room's bank</small>
+          </div>
+          <i>→</i>
+          <div>
+            <span>2</span>
+            <b>Be the last one standing</b>
+            <small>humans only, sealed in MagicBlock's TEE</small>
+          </div>
+          <i>→</i>
+          <div>
+            <span>3</span>
+            <b>A Magic Action pays you</b>
+            <small>settle() sends the pot and writes your row here</small>
+          </div>
+        </div>
+
+        {table && (
+          <div className="live-table">
+            <span className={`pulse st-${table.status}`} />
+            <div>
+              <b>THE STAKED TABLE</b>
+              <small>
+                {STATUS_NAME[table.status]?.toLowerCase()} · {stakers} staker{stakers === 1 ? "" : "s"} seated · pot {(Number(table.pot) / 1e9).toFixed(2)} SOL
+              </small>
+            </div>
+            <button className="btn gold-outline" onClick={() => requireRealWallet(() => go(`/r/${STAKED_ROOMS[0]}`))}>
+              {stakers ? "JOIN THE TABLE" : "OPEN THE TABLE"}
+            </button>
+          </div>
+        )}
+
         {!data && !failed && <div className="board-loading"><div className="warden-loader" /> reading the board from Solana…</div>}
         {failed && <div className="board-loading">Couldn't reach Solana devnet — try again in a moment.</div>}
+
+        {data && rows.length === 0 && (
+          <div className="throne">
+            <div className="podium ghost">
+              {["II", "I", "III"].map((r, i) => (
+                <div key={r} className={`pod ${i === 1 ? "p1" : ""}`} style={{ ["--m" as any]: MEDAL[[1, 0, 2][i]] }}>
+                  <div className="pod-rank">{r}</div>
+                  <div className="pod-orb" />
+                  <div className="pod-name">?</div>
+                  <code>unclaimed</code>
+                </div>
+              ))}
+            </div>
+            <h3>The throne is empty.</h3>
+            <p>No one has won a staked night on this board yet. The first winner takes #1, and the pot.</p>
+          </div>
+        )}
 
         {podium.length > 0 && (
           <div className="podium">
@@ -137,7 +196,7 @@ export function Board() {
         <div className="board-foot">
           {myIdx < 0 ? (
             <div className="board-cta">
-              <span>{rows.length ? "You're not on the board yet. Win a staked night to get on it." : "No staked night has been won yet. The first winner takes #1."}</span>
+              <span>{rows.length ? "You're not on the board yet. Win a staked night to get on it." : "Be the first."}</span>
               <button className="btn primary" onClick={() => requireRealWallet(() => go(`/r/${STAKED_ROOMS[0]}`))}>
                 PLAY A STAKED NIGHT
               </button>
