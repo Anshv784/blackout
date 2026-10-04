@@ -55,10 +55,13 @@ export function Hud({ session }: { session: Session }) {
         <div className="alive">
           <b>{room.aliveCount}</b> ALIVE
         </div>
-        <div className="timer">
-          {String(Math.floor(secs / 60)).padStart(1, "0")}:{String(secs % 60).padStart(2, "0")} · ZONE {room.zonePhase > 0 ? `PHASE ${room.zonePhase}` : "STABLE"}
-        </div>
         <div className="kills">☠ {view.kills} kills</div>
+      </div>
+      <div className="hud-clock">
+        <b>
+          {Math.floor(secs / 60)}:{String(secs % 60).padStart(2, "0")}
+        </b>
+        <span>ZONE {room.zonePhase > 0 ? `PHASE ${room.zonePhase}` : "STABLE"}</span>
       </div>
       <Minimap session={session} />
 
