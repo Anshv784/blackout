@@ -174,8 +174,11 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
     }
   }, [mySeat, busy]);
 
-  const exit = () =>
+  const [askExit, setAskExit] = useState(false);
+  const exit = () => (mySeat !== null ? setAskExit(true) : go("/"));
+  const doExit = () =>
     run("leave", async () => {
+      setAskExit(false);
       if (mySeat !== null) await session.leave().catch(() => {});
       go("/");
     });
@@ -208,15 +211,38 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
       </div>
 
       <button className="exit-room" onClick={exit} disabled={busy === "leave"}>
-        ← EXIT ROOM
+        ← {canStart ? "CLOSE ROOM" : "EXIT ROOM"}
       </button>
+      {askExit && (
+        <div className="room-closed" onClick={() => setAskExit(false)}>
+          <div className="room-closed-card" onClick={(e) => e.stopPropagation()}>
+            <div className="vc-kicker">{canStart ? "CLOSE ROOM" : "EXIT ROOM"}</div>
+            <h2>{canStart ? "Close this room?" : "Leave this room?"}</h2>
+            <p>
+              {canStart
+                ? humans > 1
+                  ? `You're the host. Everyone inside (${humans - 1} other ${humans - 1 === 1 ? "player" : "players"}) will be sent back to the gate.`
+                  : "You're the host. The room closes and frees up for someone else."
+                : "You'll give up your seat and go back to the gate."}
+            </p>
+            <div className="row center">
+              <button className="btn" onClick={() => setAskExit(false)}>
+                STAY
+              </button>
+              <button className="btn danger" onClick={doExit} disabled={busy === "leave"}>
+                {busy === "leave" ? "CLOSING…" : canStart ? "CLOSE ROOM" : "LEAVE"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {closed && (
         <div className="room-closed">
           <div className="room-closed-card">
             <div className="vc-kicker">ROOM CLOSED</div>
             <h2>{mySeat !== null ? "The host left the Yard." : "This room has no host."}</h2>
             <p>A night can only start with its host in the room. Create your own room from the gate — you'll be the host.</p>
-            <button className="btn primary huge" onClick={exit}>
+            <button className="btn primary huge" onClick={doExit}>
               BACK TO THE GATE
             </button>
           </div>
@@ -257,7 +283,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
           )}
           {mySeat !== null && (
             <a className="dock-leave" onClick={exit}>
-              exit room
+              {canStart ? "close room" : "exit room"}
             </a>
           )}
         </div>

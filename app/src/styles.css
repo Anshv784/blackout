@@ -1446,3 +1446,5 @@ button {
 .exit-card h3{margin:0 0 6px}.exit-card p{margin:0 0 14px;color:#aab2c6;font-size:14px}
 .exit-card .row{display:flex;gap:10px;justify-content:center}
 .btn.danger{background:#3a0e18;border-color:#ff4d6d;color:#ffb3c0}
+
+.row.center{display:flex;gap:10px;justify-content:center}
