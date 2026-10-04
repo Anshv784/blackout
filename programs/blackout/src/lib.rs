@@ -494,6 +494,15 @@ pub mod blackout {
         Ok(())
     }
 
+    /// Host picks how good the bots are: 0 = medium, 1 = easy, 2 = hard.
+    pub fn set_bots(ctx: Context<Heartbeat>, level: u8) -> Result<()> {
+        let mut room = ctx.accounts.room.load_mut()?;
+        require!(room.status == ST_LOBBY, BlackoutError::NotInLobby);
+        require!(room.host == ctx.accounts.player.key(), BlackoutError::NotHost);
+        room.cfg = (room.cfg & !(3 << 9)) | ((level as u32 & 3).min(2) << 9);
+        Ok(())
+    }
+
     /// Host resizes the room (seats beyond the new size must be empty).
     pub fn set_size(ctx: Context<Heartbeat>, max_players: u8) -> Result<()> {
         let mut room = ctx.accounts.room.load_mut()?;

@@ -1676,3 +1676,15 @@ button {
 .podium.ghost .pod-orb{filter:grayscale(.6) brightness(.7)}
 .throne h3{font-size:26px;margin:4px 0 6px}
 .throne p{color:var(--dim);margin:0}
+.bot-level{display:flex;align-items:center;gap:4px;margin-top:8px}
+.bot-level span{font-family:var(--mono);font-size:9px;letter-spacing:.18em;color:var(--dim);margin-right:4px}
+.bot-level button{background:none;border:1px solid var(--line);color:var(--dim);font-family:var(--mono);font-size:10px;letter-spacing:.08em;padding:4px 7px;border-radius:7px;cursor:pointer}
+.bot-level button:disabled{cursor:default}
+.bot-level button.on.lv-1{color:#06d6a0;border-color:rgba(6,214,160,.6);background:rgba(6,214,160,.1)}
+.bot-level button.on.lv-0{color:var(--gold);border-color:rgba(255,209,102,.6);background:rgba(255,209,102,.1)}
+.bot-level button.on.lv-2{color:#ff6b81;border-color:rgba(255,77,106,.6);background:rgba(255,77,106,.1)}
+.btn.ghost-danger{background:rgba(10,12,20,.7);border:1px solid rgba(255,77,106,.45);color:#ff8a9c}
+.btn.ghost-danger:hover{background:rgba(255,77,106,.12)}
+.reveal-actions{display:flex;gap:8px;align-items:center}
+.vc-close{display:block;text-align:center;margin-top:8px;font-size:12px;color:var(--dim);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.vc-close:hover{color:#ff8a9c}

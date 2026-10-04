@@ -519,6 +519,11 @@ export class Session {
     await this.poll();
   }
 
+  async setBots(level: number) {
+    await client.sendEr([client.setBotsIx(this.roomId, level)]);
+    await this.poll();
+  }
+
   async setSize(n: number) {
     await client.sendEr([client.setSizeIx(this.roomId, n)]);
     await this.poll();
@@ -527,6 +532,25 @@ export class Session {
   async startMatch(fillTo: number) {
     await client.sendEr([client.startIx(this.roomId, fillTo)]);
     await this.poll();
+  }
+
+  /** From the verdict screen: put the room back in the lobby, then give up your seat.
+   *  For the host that closes the room for everyone. */
+  async closeFromReveal(seat: number, host: boolean) {
+    if (this.room?.status === ST_REVEALED) {
+      // a guest leaving doesn't end everyone else's replay: their seat just goes stale and is cleared at the next start
+      if (!host) return;
+      await client.sendEr([client.resetIx(this.roomId)]).catch(() => {});
+    }
+    useStore.getState().set({ reveal: null });
+    for (let i = 0; i < 4; i++) {
+      try {
+        await client.sendEr([client.leaveIx(this.roomId, seat)]);
+        return;
+      } catch {
+        await new Promise((r) => setTimeout(r, 900));
+      }
+    }
   }
 
   async reset() {

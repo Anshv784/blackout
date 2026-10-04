@@ -1366,6 +1366,38 @@
       "args": []
     },
     {
+      "name": "set_bots",
+      "docs": [
+        "Host picks how good the bots are: 0 = medium, 1 = easy, 2 = hard."
+      ],
+      "discriminator": [
+        116,
+        7,
+        220,
+        19,
+        48,
+        67,
+        150,
+        66
+      ],
+      "accounts": [
+        {
+          "name": "player",
+          "signer": true
+        },
+        {
+          "name": "room",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "level",
+          "type": "u8"
+        }
+      ]
+    },
+    {
       "name": "set_size",
       "docs": [
         "Host resizes the room (seats beyond the new size must be empty)."
@@ -2382,7 +2414,7 @@
           {
             "name": "cfg",
             "docs": [
-              "room config set by its creator: bits 0-7 = seats (2..8, 0 = 8), bit 8 = unlisted"
+              "room config set by its creator: bits 0-7 = seats (2..8, 0 = 8), bit 8 = unlisted, bits 9-10 = bot level"
             ],
             "type": "u32"
           },

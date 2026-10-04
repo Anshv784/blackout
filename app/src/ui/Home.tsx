@@ -7,7 +7,8 @@ import { useStore } from "../game/store";
 import { audio } from "../game/audio";
 import { TopBar } from "./TopBar";
 import { requireRealWallet, requireWallet } from "../game/wallet";
-import { codeToText, createRoom, findByCode, myRoom } from "../game/rooms";
+import { codeToText, createRoom, findByCode, myRoom, sweepRooms } from "../game/rooms";
+import { AlreadyInRoom } from "./AlreadyInRoom";
 
 const Backdrop = lazy(() => import("../scene/Backdrop").then((m) => ({ default: m.Backdrop })));
 
@@ -41,6 +42,7 @@ export function Home() {
       if (alive) {
         setRooms(out);
         setSlot(sl);
+        if (sl) sweepRooms(out, sl);
       }
     };
     load();
@@ -56,12 +58,20 @@ export function Home() {
   }, []);
 
   const [code, setCode] = useState("");
+  const [blocked, setBlocked] = useState(false);
+  /** One room at a time: anything that would put you in a different room asks first. */
+  const guard = (target: number | null, then: () => void) => {
+    const m = myRoom(Object.entries(rooms).map(([id, r]) => [Number(id), r] as const));
+    if (m !== null && m !== target) setBlocked(true);
+    else then();
+  };
   const joinCode = () =>
     requireWallet(async () => {
       setBusy("code");
       try {
         const hit = await findByCode(code);
         if (!hit) toast("No open room with that code. Check it with the host.");
+        else if (mine !== null && mine !== hit.id) setBlocked(true);
         else go(`/r/${hit.id}?code=${codeToText(hit.code).replace("-", "")}`);
       } finally {
         setBusy(null);
@@ -122,10 +132,10 @@ export function Home() {
               </button>
             )}
             <div className="gate-alt">
-              <button className="btn" onClick={() => requireWallet(() => create(true))} disabled={!!busy || mine !== null}>
+              <button className="btn" onClick={() => guard(null, () => requireWallet(() => create(true)))} disabled={!!busy}>
                 {busy === "friends" ? "OPENING…" : "PRIVATE ROOM FOR FRIENDS"}
               </button>
-              <button className="btn gold-outline" onClick={() => requireRealWallet(() => go(`/r/${STAKED_ROOMS[0]}`))}>
+              <button className="btn gold-outline" onClick={() => guard(STAKED_ROOMS[0], () => requireRealWallet(() => go(`/r/${STAKED_ROOMS[0]}`)))}>
                 STAKED NIGHT · 0.01 SOL
               </button>
             </div>
@@ -156,7 +166,7 @@ export function Home() {
             <label>OPEN ROOMS · JOIN SOMEONE</label>
             {openRooms.length === 0 && <div className="side-empty">No one is waiting right now. Create a room — friends can join from your link.</div>}
             {openRooms.map(([id, r]) => (
-              <button key={id} className="room-row" onClick={() => requireWallet(() => go(`/r/${id}`))}>
+              <button key={id} className="room-row" onClick={() => guard(Number(id), () => requireWallet(() => go(`/r/${id}`)))}>
                 <span className="pulse st-0" />
                 <span className="rr-name">{r.names[r.players.findIndex((p) => p.equals(r.host))] || "Someone"}'s room</span>
                 <span className="rr-seats">
@@ -195,6 +205,7 @@ export function Home() {
           )}
         </aside>
       </main>
+      {blocked && mine !== null && rooms[mine] && <AlreadyInRoom id={mine} room={rooms[mine]!} onClose={() => setBlocked(false)} onLeft={() => toast(`Left room ${mine}`)} />}
     </div>
   );
 }

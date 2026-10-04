@@ -9,6 +9,7 @@ import { audio } from "../game/audio";
 import { go } from "../App";
 import { verifyMatch } from "../game/verify";
 import { connectWallet } from "../game/wallet";
+import { client } from "../game/identity";
 
 const EMPTY = "11111111111111111111111111111111";
 
@@ -139,6 +140,18 @@ export function Reveal({ session }: { session: Session }) {
     paint();
   };
 
+  const [askClose, setAskClose] = useState(false);
+  const iHost = mySeat !== null && room.host.equals(client.publicKey);
+  const closeRoom = async () => {
+    setBusy(true);
+    try {
+      if (mySeat !== null) await session.closeFromReveal(mySeat, iHost);
+    } finally {
+      setBusy(false);
+      go("/");
+    }
+  };
+
   const playAgain = async () => {
     setBusy(true);
     try {
@@ -229,6 +242,11 @@ export function Reveal({ session }: { session: Session }) {
               <button className="btn primary huge" onClick={playAgain} disabled={busy}>
                 {busy ? "RESEALING THE YARD…" : "PLAY AGAIN"}
               </button>
+              {mySeat !== null && (
+                <a className="vc-close" onClick={() => setAskClose(true)}>
+                  {iHost ? "done for tonight? close the room" : "done for tonight? leave the room"}
+                </a>
+              )}
               <div className="row">
                 <button className="btn" onClick={() => setCard(false)}>
                   WATCH THE REPLAY
@@ -251,6 +269,27 @@ export function Reveal({ session }: { session: Session }) {
           </div>
         </div>
       )}
+      {askClose && (
+        <div className="room-closed" onClick={() => setAskClose(false)}>
+          <div className="room-closed-card" onClick={(e) => e.stopPropagation()}>
+            <div className="vc-kicker">{iHost ? "CLOSE ROOM" : "LEAVE ROOM"}</div>
+            <h2>{iHost ? "Close this room?" : "Leave this room?"}</h2>
+            <p>
+              {iHost
+                ? "You're the host. Everyone is sent back to the gate and the room frees up. The replay stays verifiable on-chain until the room is used again."
+                : "You give up your seat and go back to the gate. The others can keep playing."}
+            </p>
+            <div className="row center">
+              <button className="btn" onClick={() => setAskClose(false)}>
+                STAY
+              </button>
+              <button className="btn danger" onClick={closeRoom} disabled={busy}>
+                {busy ? "CLOSING…" : iHost ? "CLOSE ROOM" : "LEAVE"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="reveal-top">
         <a className="back" onClick={() => go("/")}>
           ← BLACKOUT
@@ -260,6 +299,11 @@ export function Reveal({ session }: { session: Session }) {
           <h2>{room.winner === mySeat ? "👑 YOU WON" : `👑 ${winnerName} WINS`}</h2>
         </div>
         <div className="reveal-actions">
+          {mySeat !== null && (
+            <button className="btn ghost-danger" onClick={() => setAskClose(true)} disabled={busy}>
+              {iHost ? "CLOSE ROOM" : "LEAVE ROOM"}
+            </button>
+          )}
           <button className="btn primary" onClick={playAgain} disabled={busy}>
             {busy ? "RESEALING…" : "PLAY AGAIN"}
           </button>

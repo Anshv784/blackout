@@ -21,6 +21,9 @@ pub const REC_SEED: &[u8] = b"rec";
 pub const BANK_SEED: &[u8] = b"bank";
 pub const TICKET_SEED: &[u8] = b"ticket";
 /// v2: entries carry the callsign, so a wallet's profile lives on Solana
+pub const BOT_MEDIUM: u32 = 0;
+pub const BOT_EASY: u32 = 1;
+pub const BOT_HARD: u32 = 2;
 pub const BOARD_SEED: &[u8] = b"board3"; // staked nights only
 pub const BOARD_SLOTS: usize = 64;
 
@@ -75,7 +78,7 @@ pub struct Room {
     pub zone_phase: u32,
     pub private_code: u32, // 0 = public room
     pub seed_revealed: u32,
-    /// room config set by its creator: bits 0-7 = seats (2..8, 0 = 8), bit 8 = unlisted
+    /// room config set by its creator: bits 0-7 = seats (2..8, 0 = 8), bit 8 = unlisted, bits 9-10 = bot level
     pub cfg: u32,
     pub ready_mask: u32,
     pub last_seen: [u32; MAXP], // ER slot (truncated) of each seat's last lobby heartbeat
@@ -115,6 +118,11 @@ impl Room {
 
     /// The host is whoever created the room. No hand-offs: if they're gone, the room is closed.
     pub fn fix_host(&mut self, _slot: u64) {}
+
+    /// cfg bits 9-10: 0 = medium (default), 1 = easy, 2 = hard
+    pub fn bot_level(&self) -> u32 {
+        (self.cfg >> 9) & 3
+    }
 
     pub fn host_present(&self, slot: u64) -> bool {
         self.seat_of(&self.host).map(|i| !self.is_stale(i, slot)).unwrap_or(false)

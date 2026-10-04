@@ -14,7 +14,8 @@ import { roomLink } from "../config";
 import { go } from "../App";
 import { audio } from "../game/audio";
 import { connectWallet, requireRealWallet, requireWallet } from "../game/wallet";
-import { codeToText, newCode, textToCode } from "../game/rooms";
+import { codeToText, newCode, seatElsewhere, sweepRooms, textToCode } from "../game/rooms";
+import { AlreadyInRoom } from "./AlreadyInRoom";
 import { TopBar } from "./TopBar";
 import type { SeatInfo } from "../scene/LobbyStage";
 
@@ -79,6 +80,10 @@ function Center({ title, sub, spinner }: { title: string; sub?: string; spinner?
 }
 
 function Spectate({ room }: { room: Room }) {
+  // a finished night nobody called finish on: do it, so the lights come on for everyone
+  useEffect(() => {
+    if (room.status === ST_ENDED) sweepRooms({ [Number(room.roomId)]: room }, 0);
+  }, [room.status]);
   return (
     <div className="gate">
       <Suspense fallback={<div className="backdrop" />}>
@@ -138,6 +143,17 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
   const knownCode = textToCode(typed) ?? urlCode;
   const locked = isPrivate && mySeat === null && knownCode !== room.privateCode;
   const [askKick, setAskKick] = useState<number | null>(null);
+  // one room at a time: are you seated somewhere else?
+  const [other, setOther] = useState<{ id: number; room: Room } | null>(null);
+  const [showOther, setShowOther] = useState(false);
+  useEffect(() => {
+    if (mySeat !== null) return;
+    seatElsewhere(Number(room.roomId)).then((o) => {
+      setOther(o);
+      if (o) setShowOther(true);
+    });
+  }, [room.roomId, mySeat]);
+  const LEVELS = ["MEDIUM", "EASY", "HARD"];
   // you were seated, the host is still here, and you didn't leave: the host removed you
   const wasIn = useRef(false);
   const leaving = useRef(false);
@@ -188,7 +204,9 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
   };
 
   const take = (seat?: number) =>
-    new Promise<void>((resolve) => (staked ? requireRealWallet : requireWallet)(() => resolve(doTake(seat))));
+    other
+      ? (setShowOther(true), Promise.resolve())
+      : new Promise<void>((resolve) => (staked ? requireRealWallet : requireWallet)(() => resolve(doTake(seat))));
   const doTake = (seat?: number) =>
     run("join", async () => {
       if (staked) {
@@ -301,6 +319,17 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
             </div>
           </div>
         </div>
+      )}
+      {showOther && other && mySeat === null && (
+        <AlreadyInRoom
+          id={other.id}
+          room={other.room}
+          onClose={() => setShowOther(false)}
+          onLeft={() => {
+            setOther(null);
+            toast(`Left room ${other.id}. You can sit down here now.`);
+          }}
+        />
       )}
       {askKick !== null && (
         <div className="room-closed" onClick={() => setAskKick(null)}>
@@ -448,6 +477,19 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
                 {humans} {humans === 1 ? "player" : "players"} + {Math.max(0, size - humans)} {size - humans === 1 ? "bot" : "bots"}
                 {canStart ? "" : " · host decides"}
               </small>
+              <div className="bot-level">
+                <span>BOTS</span>
+                {[1, 0, 2].map((lv) => (
+                  <button
+                    key={lv}
+                    className={`lv-${lv} ${room.botLevel === lv ? "on" : ""}`}
+                    disabled={!canStart || !!busy}
+                    onClick={() => room.botLevel !== lv && run("bots", () => session.setBots(lv))}
+                  >
+                    {LEVELS[lv]}
+                  </button>
+                ))}
+              </div>
             </>
           ) : (
             <>

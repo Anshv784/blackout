@@ -2,8 +2,8 @@
 import { PublicKey } from "@solana/web3.js";
 import { client } from "./identity";
 import { useStore } from "./store";
-import { ROOM_POOL } from "../config";
-import { ST_LOBBY, READY_ALL, type Room } from "../chain/layout";
+import { ROOM_POOL, STAKED_ROOMS } from "../config";
+import { ST_LOBBY, ST_ENDED, ST_REVEALED, READY_ALL, NO_SEAT, type Room } from "../chain/layout";
 
 const EMPTY = "11111111111111111111111111111111";
 
@@ -28,6 +28,42 @@ export function textToCode(t: string): number | null {
     n = n * 32 + v;
   }
   return n >>> 0 || null;
+}
+
+/** The room (other than `except`) where you hold a seat, if any. */
+export async function seatElsewhere(except: number): Promise<{ id: number; room: Room } | null> {
+  const ids = [...ROOM_POOL, ...STAKED_ROOMS].filter((i) => i !== except);
+  const rooms = await Promise.all(ids.map(async (id) => [id, await client.fetchRoom(id).catch(() => null)] as const));
+  const me = client.publicKey;
+  const hit = rooms.find(([, r]) => r && r.players.some((p, i) => r.isBot[i] === 0 && p.equals(me)));
+  return hit ? { id: hit[0], room: hit[1]! } : null;
+}
+
+// Rooms everyone walked away from: ENDED needs someone to call finish, REVEALED needs a reset
+// before anyone can claim it again. Any visitor nudges them along (gasless).
+const nudged = new Map<number, number>();
+const abandonedSince = new Map<number, number>();
+export function sweepRooms(rooms: Record<number, Room | null>, slot: number) {
+  const now = Date.now();
+  for (const [k, r] of Object.entries(rooms)) {
+    const id = Number(k);
+    if (!r || now - (nudged.get(id) ?? 0) < 15000) continue;
+    if (r.status === ST_ENDED) {
+      nudged.set(id, now);
+      const w = r.winner;
+      const payout = w !== NO_SEAT && r.isBot[w] === 0 ? r.payout[w] : null;
+      client.sendEr([client.finishIx(BigInt(id), payout)], { confirm: false }).catch(() => {});
+    } else if (r.status === ST_REVEALED && liveHumansAt(r, slot) === 0) {
+      // nobody is watching the replay: reset after it has looked abandoned for a while
+      const since = abandonedSince.get(id) ?? now;
+      abandonedSince.set(id, since);
+      if (now - since > 20000) {
+        nudged.set(id, now);
+        abandonedSince.delete(id);
+        client.sendEr([client.resetIx(BigInt(id))], { confirm: false }).catch(() => {});
+      }
+    } else abandonedSince.delete(id);
+  }
 }
 
 /** Find the open private room behind a code. */

@@ -365,6 +365,10 @@ export class BlackoutClient {
     return ix("make_host", { seat }, [r(this.publicKey, true), w(roomPda(roomId))]);
   }
 
+  setBotsIx(roomId: bigint, level: number) {
+    return ix("set_bots", { level }, [r(this.publicKey, true), w(roomPda(roomId))]);
+  }
+
   setSizeIx(roomId: bigint, maxPlayers: number) {
     return ix("set_size", { max_players: maxPlayers }, [r(this.publicKey, true), w(roomPda(roomId))]);
   }

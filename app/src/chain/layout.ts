@@ -100,6 +100,8 @@ export interface Room {
   lastSeen: number[];
   maxPlayers: number;
   unlisted: boolean;
+  /** 0 = medium, 1 = easy, 2 = hard */
+  botLevel: number;
 }
 
 export const READY_ALL = 1 | (0b11111 << 1) | (0xff << 8);
@@ -149,6 +151,7 @@ export function decodeRoom(data: Uint8Array): Room {
     privateCode, seedRevealed, readyMask, lastSeen,
     maxPlayers: cfg & 0xff ? Math.min(8, Math.max(2, cfg & 0xff)) : 8,
     unlisted: (cfg & 0x100) !== 0,
+    botLevel: (cfg >>> 9) & 3,
   };
 }
 

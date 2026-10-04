@@ -404,7 +404,25 @@ fn push_ping(v: &mut View, tick: u32, angle: u32, kind: u32, dist: u32) {
     v.ping_head = v.ping_head.wrapping_add(1);
 }
 
+/// Bot skill, picked by the host: (reaction ticks, aim spray, firing range, strafe speed, fire windows of 4).
+pub struct Skill {
+    pub react: u32,
+    pub jitter: i32,
+    pub range: i32,
+    pub strafe: i32,
+    pub fire: u32,
+}
+
+pub fn bot_skill(room: &Room) -> Skill {
+    match room.bot_level() {
+        BOT_EASY => Skill { react: 26, jitter: 3600, range: 8 * UNIT, strafe: 70, fire: 2 },
+        BOT_HARD => Skill { react: 10, jitter: 1500, range: 12 * UNIT, strafe: 115, fire: 3 },
+        _ => Skill { react: 17, jitter: 2500, range: 10 * UNIT, strafe: 95, fire: 2 },
+    }
+}
+
 fn bot_think(w: &mut World, room: &Room, seat: usize, tick: u32) {
+    let sk = bot_skill(room);
     let zone = (room.zone_x, room.zone_y, room.zone_r);
     let next = (room.next_x, room.next_y, room.next_r);
     let p = w.players[seat];
@@ -428,20 +446,20 @@ fn bot_think(w: &mut World, room: &Room, seat: usize, tick: u32) {
     if b.target != NO_SEAT {
         let t = w.players[b.target as usize];
         let ang = atan2(t.y - p.y, t.x - p.x);
-        // human-fair bots: half-second reaction, ~9° spray, and they need a moment to re-acquire
-        let jitter = if tick >= b.react_at { 1600 } else { 4000 };
+        // human-fair bots: a reaction delay, some spray, and a moment to re-acquire (all set by difficulty)
+        let jitter = if tick >= b.react_at { sk.jitter } else { sk.jitter * 5 / 2 };
         let j = rng_range(w, -jitter, jitter);
         aim = (ang as i32 + j) as u32 & 0xffff;
         let d = isqrt(dist2(p.x, p.y, t.x, t.y) as u64) as i32;
-        if tick >= b.react_at && d < 11 * UNIT && (tick / 6) % 3 != 2 {
+        if tick >= b.react_at && d < sk.range && (tick / 6) % 4 < sk.fire {
             buttons |= 1;
         }
         if tick % 25 == (seat as u32 * 3) % 25 {
             b.strafe = -b.strafe;
         }
         let side = ang.wrapping_add(if b.strafe > 0 { 16384 } else { 49152 });
-        dx = cos(side) * 110 / 1024;
-        dy = sin(side) * 110 / 1024;
+        dx = cos(side) * sk.strafe / 1024;
+        dy = sin(side) * sk.strafe / 1024;
         if d > 7 * UNIT {
             dx += cos(ang) * 90 / 1024;
             dy += sin(ang) * 90 / 1024;
@@ -800,7 +818,7 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
                 }
             }
             if best.1 != NO_SEAT && b.target != best.1 {
-                b.react_at = tick + 11;
+                b.react_at = tick + bot_skill(room).react;
             }
             b.target = best.1;
             for q in 0..MAXP {
