@@ -113,7 +113,8 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
   const hostIdx = room.players.findIndex((p, i) => room.isBot[i] === 0 && p.equals(room.host));
   const effectiveHost = hostIdx >= 0 && fresh(hostIdx) ? hostIdx : [0, 1, 2, 3, 4, 5, 6, 7].find(fresh) ?? -1;
   const canStart = mySeat !== null && effectiveHost === mySeat;
-  const humans = room.players.filter((p, i) => room.isBot[i] === 0 && p.toBase58() !== EMPTY).length;
+  // only people still here count (stale seats are cleared on-chain when the night starts)
+  const humans = [0, 1, 2, 3, 4, 5, 6, 7].filter(fresh).length;
   const staked = room.stake > 0n;
   const link = roomLink(room.roomId);
 

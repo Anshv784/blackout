@@ -11,6 +11,9 @@ const Backdrop = lazy(() => import("../scene/Backdrop").then((m) => ({ default: 
 
 const EMPTY = "11111111111111111111111111111111";
 export const humansIn = (r: Room) => r.players.filter((p, i) => r.isBot[i] === 0 && p.toBase58() !== EMPTY).length;
+/** Humans whose browser is still heart-beating (seats go stale after ~45 s of silence). */
+export const liveHumans = (r: Room, slot: number) =>
+  r.players.filter((p, i) => r.isBot[i] === 0 && p.toBase58() !== EMPTY && ((slot >>> 0) - r.lastSeen[i]) >>> 0 <= 4500).length;
 
 function statusLine(r: Room) {
   if (r.status === ST_LIVE) return `${r.aliveCount} alive · night ${r.matchNo}`;
@@ -51,7 +54,8 @@ export function Home() {
     setBusy("quick");
     try {
       const fresh = await Promise.all(QUICK_ROOMS.map(async (id) => [id, await client.fetchRoom(id).catch(() => null)] as const));
-      const empty = fresh.filter(([, r]) => r && r.status === ST_LOBBY && humansIn(r) === 0);
+      const slot = await (await client.teeConn()).getSlot().catch(() => 0);
+      const empty = fresh.filter(([, r]) => r && r.status === ST_LOBBY && liveHumans(r, slot) === 0);
       const pick = empty[Math.floor(Math.random() * empty.length)] ?? fresh.find(([, r]) => r && r.status === ST_LOBBY);
       if (!pick) throw new Error("Every room is mid-match — try again in a minute");
       go(`/r/${pick[0]}?quick=1`);
@@ -67,7 +71,8 @@ export function Home() {
     setBusy("friends");
     try {
       const all = await Promise.all(PRIVATE_POOL.map(async (id) => [id, await client.fetchRoom(id).catch(() => null)] as const));
-      const free = all.filter(([, r]) => r && r.status === ST_LOBBY && humansIn(r) === 0);
+      const slot = await (await client.teeConn()).getSlot().catch(() => 0);
+      const free = all.filter(([, r]) => r && r.status === ST_LOBBY && liveHumans(r, slot) === 0);
       const pick = free[Math.floor(Math.random() * free.length)] ?? all.find(([, r]) => r && r.status === ST_LOBBY);
       if (!pick) throw new Error("All private rooms are busy — try a public room");
       go(`/r/${pick[0]}?invite=1`);
