@@ -362,6 +362,12 @@ function Reactions({ session }: { session: Session }) {
       if (f.kind === "hit") {
         feel.shake = Math.min(1.4, feel.shake + 0.9);
         feel.hurtAt = now;
+      } else if (f.kind === "loot") {
+        const col = ["#fff", "#ffd166", "#06d6a0", "#4cc9f0", "#ff5ccd"][f.sub ?? 0];
+        sparks(f.x / 256, 0.4, f.y / 256, col, 22, { speed: 1.6, up: 3.2, life: 0.8, grav: 3 });
+      } else if (f.kind === "death") {
+        sparks(f.x / 256, 0.8, f.y / 256, "#ff2e4d", 34, { speed: 3, up: 3, life: 0.9, grav: 6 });
+        sparks(f.x / 256, 0.3, f.y / 256, "#9fb4ff", 16, { speed: 1, up: 4, life: 1.4, grav: -0.5 });
       } else if (f.kind === "shot") {
         const a = angleToRad(f.angle ?? 0);
         sparks(f.x / 256 + Math.cos(a) * 0.7, 0.72, f.y / 256 + Math.sin(a) * 0.7, "#ffcf7a", 5, { speed: 4, dir: a, spread: 0.7, up: 0.4, life: 0.12, grav: 0 });

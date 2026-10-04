@@ -44,6 +44,8 @@ function MyPlayer({ session }: { session: Session }) {
   const flash = useRef<THREE.PointLight>(null);
   const beam = useMemo(beamMaterial, []);
   const lastShot = useRef(0);
+  const lastPos = useRef({ x: 0, y: 0 });
+  const gait = useRef(0);
   const { scene } = useThree();
   useEffect(() => {
     scene.add(target);
@@ -65,9 +67,18 @@ function MyPlayer({ session }: { session: Session }) {
     }
     g.visible = true;
     const alive = v.me.alive === 1;
-    g.position.set(pos.x / 256, 0, pos.y / 256);
+    // walk cycle: bob while moving (faster when sprinting), lean into the run
+    const t = performance.now() / 1000;
+    const step = Math.hypot(pos.x - lastPos.current.x, pos.y - lastPos.current.y);
+    lastPos.current = { x: pos.x, y: pos.y };
+    gait.current += ((step > 0.5 ? 1 : 0) - gait.current) * 0.15;
+    const freq = session.sprinting ? 16 : 11;
+    g.position.set(pos.x / 256, Math.abs(Math.sin(t * freq)) * 0.07 * gait.current, pos.y / 256);
     const aim = session.input.aim;
-    if (aimGroup.current) aimGroup.current.rotation.y = aimToRotY(aim);
+    if (aimGroup.current) {
+      aimGroup.current.rotation.y = aimToRotY(aim);
+      aimGroup.current.rotation.z = -gait.current * (session.sprinting ? 0.16 : 0.06);
+    }
     const a = angleToRad(aim);
     target.position.set(pos.x / 256 + Math.cos(a) * 6, 0.2, pos.y / 256 + Math.sin(a) * 6);
     const flare = v.me.flare > 0;
@@ -133,6 +144,8 @@ function Others({ session }: { session: Session }) {
   const labels = useRef<(HTMLDivElement | null)[]>([]);
   const hpBars = useRef<(HTMLElement | null)[]>([]);
   const room = session.room;
+  const lastAt = useRef<({ x: number; y: number } | null)[]>(Array(8).fill(null));
+  const gaits = useRef<number[]>(Array(8).fill(0));
   const GRACE = 280; // ms an enemy stays solid after leaving your view (kills cone-edge flicker)
   const FADE = 2000; // ms the last-known silhouette lingers
   useFrame(() => {
@@ -156,7 +169,11 @@ function Others({ session }: { session: Session }) {
         const smp = tr.visible ? session.sampleTrack(tr, now) ?? last : last;
         g.visible = true;
         gh.visible = false;
-        g.position.set(smp.x / 256, 0, smp.y / 256);
+        const lp = lastAt.current[s];
+        const moving = lp ? Math.hypot(smp.x - lp.x, smp.y - lp.y) > 0.5 : false;
+        lastAt.current[s] = { x: smp.x, y: smp.y };
+        gaits.current[s] += ((moving ? 1 : 0) - gaits.current[s]) * 0.15;
+        g.position.set(smp.x / 256, Math.abs(Math.sin(now / 1000 * 11 + s)) * 0.07 * gaits.current[s], smp.y / 256);
         g.rotation.y = aimToRotY(smp.aim);
         const hp = hpBars.current[s];
         if (hp) hp.style.width = `${Math.max(0, smp.hp)}%`;
@@ -286,8 +303,14 @@ function zoneMaterial(color: string) {
     uniforms: { uTime: { value: 0 }, uColor: { value: new THREE.Color(color) } },
     vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
     fragmentShader: `uniform float uTime; uniform vec3 uColor; varying vec2 vUv;
-      void main(){ float lines = 0.5 + 0.5*sin(vUv.y*60.0 - uTime*4.0); float fade = pow(1.0 - vUv.y, 2.0);
-      gl_FragColor = vec4(uColor, (0.10 + 0.25*lines) * fade); }`,
+      float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+      void main(){
+        float lines = 0.5 + 0.5*sin(vUv.y*60.0 - uTime*4.0);
+        float cols = 0.5 + 0.5*sin(vUv.x*420.0 + uTime*1.5);
+        float fade = pow(1.0 - vUv.y, 1.6);
+        float base = smoothstep(0.08, 0.0, vUv.y) * 1.2;
+        float flick = 0.85 + 0.15 * h(vec2(floor(uTime*12.0), floor(vUv.x*80.0)));
+        gl_FragColor = vec4(uColor * (1.0 + base), ((0.08 + 0.22*lines + 0.08*cols) * fade + base * 0.5) * flick); }`,
   });
 }
 
@@ -301,7 +324,7 @@ function Zone({ session }: { session: Session }) {
     if (!r || !wall.current || !next.current) return;
     const show = r.status === ST_LIVE || r.status === ST_COUNTDOWN || r.status === ST_ENDED;
     wall.current.visible = show && r.zone.r > 0;
-    wall.current.position.set(r.zone.x / 256, 1.25, r.zone.y / 256);
+    wall.current.position.set(r.zone.x / 256, 2, r.zone.y / 256);
     wall.current.scale.set(r.zone.r / 256, 1, r.zone.r / 256);
     const nr = r.next.r;
     next.current.visible = show && nr > 0 && nr < r.zone.r - 10;
@@ -317,7 +340,7 @@ function Zone({ session }: { session: Session }) {
   return (
     <>
       <mesh ref={wall} material={mat} visible={false}>
-        <cylinderGeometry args={[1, 1, 2.5, 96, 1, true]} />
+        <cylinderGeometry args={[1, 1, 4, 128, 1, true]} />
       </mesh>
       <mesh ref={next} rotation-x={-Math.PI / 2} visible={false}>
         <ringGeometry args={[0.992, 1, 160]} />

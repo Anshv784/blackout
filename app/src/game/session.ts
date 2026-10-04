@@ -218,6 +218,10 @@ export class Session {
         const victim = r.names[e.victim] || `#${e.victim}`;
         const mine = e.killer === this.mySeat || e.victim === this.mySeat;
         useStore.getState().toast(`${killer} ✕ ${victim}`, mine);
+        // a death you were watching: burst where they fell
+        const tr = this.tracks.get(e.victim);
+        const last = tr?.samples[tr.samples.length - 1];
+        if (tr && last && performance.now() - tr.lastSeen < 800) this.addFx({ kind: "death", x: last.x, y: last.y, sub: e.victim });
         if (h === 0 && e.killer !== NO_SEAT) banner("FIRST BLOOD", "kill", `${killer} ✕ ${victim}`);
         if (e.killer === this.mySeat && e.victim !== this.mySeat) {
           const now = performance.now();
@@ -380,7 +384,12 @@ export class Session {
       audio.death();
     }
     if (prev && v.me.flare > prev.me.flare + 50) audio.flare();
-    if (prev && (v.me.weapon !== prev.me.weapon || v.me.hp > prev.me.hp + 10 || v.me.armor > prev.me.armor + 10)) audio.pickup();
+    if (prev && (v.me.weapon !== prev.me.weapon || v.me.hp > prev.me.hp + 10 || v.me.armor > prev.me.armor + 10 || v.me.flare > prev.me.flare + 50)) {
+      audio.pickup();
+      const what = v.me.weapon !== prev.me.weapon ? 1 : v.me.flare > prev.me.flare + 50 ? 4 : v.me.armor > prev.me.armor + 10 ? 3 : 2;
+      this.addFx({ kind: "loot", x: v.me.x, y: v.me.y, sub: what });
+      banner(["", ["PISTOL", "SMG", "SHOTGUN"][v.me.weapon] ?? "WEAPON", "+ HEALTH", "+ ARMOR", "FLARE: YOU SEE EVERYONE"][what], "event");
+    }
     if (prev && prev.me.reload === 0 && v.me.reload > 0) audio.reload();
     useStore.getState().set({ view: v });
   }
