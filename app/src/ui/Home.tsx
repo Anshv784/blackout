@@ -15,11 +15,11 @@ export const humansIn = (r: Room) => r.players.filter((p, i) => r.isBot[i] === 0
 export const liveHumans = (r: Room, slot: number) =>
   r.players.filter((p, i) => r.isBot[i] === 0 && p.toBase58() !== EMPTY && ((slot >>> 0) - r.lastSeen[i]) >>> 0 <= 4500).length;
 
-function statusLine(r: Room) {
+function statusLine(r: Room, slot: number) {
   if (r.status === ST_LIVE) return `${r.aliveCount} alive · night ${r.matchNo}`;
   if (r.status === ST_COUNTDOWN || r.status === ST_STARTING) return "dropping in…";
   if (r.status === ST_ENDED || r.status === ST_REVEALED) return "lights on";
-  const h = humansIn(r);
+  const h = slot ? liveHumans(r, slot) : humansIn(r);
   return h ? `${h} waiting` : "empty";
 }
 
@@ -27,6 +27,7 @@ export function Home() {
   const [rooms, setRooms] = useState<Record<number, Room | null>>({});
   const [board, setBoard] = useState<BoardEntry[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
+  const [slot, setSlot] = useState(0);
   const toast = useStore((s) => s.toast);
 
   useEffect(() => {
@@ -34,7 +35,11 @@ export function Home() {
     const load = async () => {
       const out: Record<number, Room | null> = {};
       await Promise.all([...PUBLIC_ROOMS, ...STAKED_ROOMS].map(async (id) => (out[id] = await client.fetchRoom(id).catch(() => null))));
-      if (alive) setRooms(out);
+      const sl = await (await client.teeConn()).getSlot().catch(() => 0);
+      if (alive) {
+        setRooms(out);
+        setSlot(sl);
+      }
     };
     load();
     client
@@ -84,7 +89,7 @@ export function Home() {
   };
 
   const live = Object.values(rooms).filter((r) => r && (r.status === ST_LIVE || r.status === ST_COUNTDOWN)).length;
-  const players = Object.values(rooms).reduce((n, r) => n + (r ? humansIn(r) : 0), 0);
+  const players = Object.values(rooms).reduce((n, r) => n + (r ? (slot ? liveHumans(r, slot) : humansIn(r)) : 0), 0);
 
   return (
     <div className="gate">
@@ -137,11 +142,11 @@ export function Home() {
                   <span className="rr-name">Room {id}</span>
                   <span className="rr-seats">
                     {Array.from({ length: 8 }, (_, i) => {
-                      const on = r && (r.isBot[i] === 1 || r.players[i].toBase58() !== EMPTY);
+                      const on = r && (r.isBot[i] === 1 || (r.players[i].toBase58() !== EMPTY && (!slot || ((slot >>> 0) - r.lastSeen[i]) >>> 0 <= 4500 || r.status !== ST_LOBBY)));
                       return <i key={i} className={on ? (r!.isBot[i] ? "bot" : "on") : ""} />;
                     })}
                   </span>
-                  <span className="rr-st">{r ? statusLine(r) : "waking…"}</span>
+                  <span className="rr-st">{r ? statusLine(r, slot) : "waking…"}</span>
                 </button>
               );
             })}
