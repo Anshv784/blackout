@@ -202,7 +202,7 @@ function Driver({ rec, me, ctl, onTime }: { rec: Recording; me: number | null; c
   useFrame((_, dt) => {
     const c = ctl.current;
     if (c.playing) {
-      c.t += dt * 10 * c.speed; // 10 frames per second of match time
+      c.t += dt * (20 / rec.every) * c.speed; // recorder frames per second of match time
       if (c.t >= rec.frames - 1) {
         c.t = rec.frames - 1;
         c.playing = false;

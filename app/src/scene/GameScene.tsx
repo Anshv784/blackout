@@ -4,12 +4,14 @@ import { Html } from "@react-three/drei";
 import { EffectComposer, Bloom, Vignette, Noise, ChromaticAberration } from "@react-three/postprocessing";
 import { BlendFunction } from "postprocessing";
 import * as THREE from "three";
-import { Arena } from "./Arena";
+import { Arena, occlusion } from "./Arena";
 import { Avatar, SEAT_COLORS, aimToRotY } from "./Avatar";
 import type { Session } from "../game/session";
 import { ST_COUNTDOWN, ST_LIVE, ST_ENDED } from "../chain/layout";
 import { controls, wheelZoom } from "../game/controls";
 import { prefs, usePrefs } from "../game/prefs";
+import { feel } from "../game/feel";
+import { Effects, sparks } from "./Effects";
 import { radToAngle, angleToRad, isWall } from "../game/sim";
 import { audio } from "../game/audio";
 
@@ -81,6 +83,15 @@ function MyPlayer({ session }: { session: Session }) {
       lastShot.current = now;
       audio.shoot(v.me.weapon);
       if (flash.current) flash.current.intensity = 14;
+      feel.recoil = Math.min(1.6, feel.recoil + (v.me.weapon === 2 ? 1.3 : v.me.weapon === 1 ? 0.45 : 0.8));
+      sparks(pos.x / 256 + Math.cos(a) * 0.75, 0.7, pos.y / 256 + Math.sin(a) * 0.75, "#ffd27a", v.me.weapon === 2 ? 10 : 5, {
+        speed: 5,
+        dir: a,
+        spread: 0.6,
+        up: 0.3,
+        life: 0.1,
+        grav: 0,
+      });
     }
     if (flash.current) flash.current.intensity *= 0.72;
   });
@@ -373,6 +384,12 @@ function Fx({ session }: { session: Session }) {
 
 function CameraRig({ session }: { session: Session }) {
   const { camera } = useThree();
+  useEffect(
+    () => () => {
+      occlusion.active = false;
+    },
+    [],
+  );
   const look = useRef(new THREE.Vector3(16, 0, 16));
   const pos = useRef(new THREE.Vector3(16, 30, 30));
   useFrame((_, dt) => {
@@ -420,6 +437,34 @@ function CameraRig({ session }: { session: Session }) {
     }
     camera.position.copy(pos.current);
     camera.lookAt(look.current);
+    occlusion.active = !!playing && controls.view === "chase";
+    if (p) {
+      occlusion.cam.copy(camera.position);
+      occlusion.target.set(p.x / 256, 0.9, p.y / 256);
+    }
+    // feel: sprint widens the view and bobs it, your shots kick it back, hits shake it
+    const cam = camera as THREE.PerspectiveCamera;
+    const t = performance.now() / 1000;
+    const sprinting = !!playing && session.sprinting;
+    const fovWant = prefs.fov + (sprinting ? 8 : 0);
+    if (Math.abs(cam.fov - fovWant) > 0.05) {
+      cam.fov += (fovWant - cam.fov) * (1 - Math.pow(0.0005, dt));
+      cam.updateProjectionMatrix();
+    }
+    if (sprinting) camera.position.y += Math.sin(t * 15) * 0.045;
+    const decay = Math.pow(0.0008, dt);
+    if (feel.recoil > 0.001) {
+      camera.translateZ(feel.recoil * 0.18);
+      camera.rotateX(feel.recoil * 0.012);
+      feel.recoil *= decay;
+    }
+    if (feel.shake > 0.001) {
+      const s = prefs.shake ? feel.shake * 0.11 : 0;
+      camera.position.x += (Math.random() - 0.5) * s;
+      camera.position.y += (Math.random() - 0.5) * s;
+      camera.rotateZ((Math.random() - 0.5) * s * 0.15);
+      feel.shake *= Math.pow(0.002, dt);
+    }
     // shooter view: put the crosshair where your bullets actually go (6 tiles out, gun height)
     if (playing && controls.view === "chase") {
       controls.cursorX = ((controls.vcx + 1) / 2) * window.innerWidth;
@@ -641,7 +686,9 @@ function InputController({ session }: { session: Session }) {
       dy /= m;
     }
     const now = performance.now();
-    const buttons = (controls.fire || controls.touchFire || now < controls.fireUntil ? 1 : 0) | (controls.reload || now < controls.reloadUntil ? 2 : 0);
+    const sprint = controls.keys.has("shift") || controls.touchSprint;
+    const buttons =
+      (controls.fire || controls.touchFire || now < controls.fireUntil ? 1 : 0) | (controls.reload || now < controls.reloadUntil ? 2 : 0) | (sprint ? 4 : 0);
     session.setInput(dx * 127, dy * 127, aim, buttons);
     session.frame();
   });
@@ -684,11 +731,6 @@ function DisplayPrefs() {
   const p = usePrefs();
   useEffect(() => {
     gl.toneMappingExposure = p.exposure;
-    const cam = camera as THREE.PerspectiveCamera;
-    if (cam.fov !== p.fov) {
-      cam.fov = p.fov;
-      cam.updateProjectionMatrix();
-    }
     const shadows = p.quality === "high";
     if (gl.shadowMap.enabled !== shadows) {
       gl.shadowMap.enabled = shadows;
@@ -696,7 +738,7 @@ function DisplayPrefs() {
         if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m: any) => (m.needsUpdate = true));
       });
     }
-  }, [p.exposure, p.fov, p.quality]);
+  }, [p.exposure, p.quality]);
   return null;
 }
 
@@ -721,7 +763,7 @@ export const GameScene = memo(function GameScene({ session }: { session: Session
       <Arena />
       <MyPlayer session={session} />
       <Others session={session} />
-      <Bullets session={session} />
+      <Effects session={session} />
       <LootCrates session={session} />
       <Zone session={session} />
       <Fx session={session} />

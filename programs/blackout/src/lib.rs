@@ -503,6 +503,16 @@ pub mod blackout {
         Ok(())
     }
 
+    /// Host picks the night's length: 0 = standard 2:15, 1 = quick 1:30, 2 = long 3:30.
+    /// The zone schedule stretches to fit (see sim::seed_match).
+    pub fn set_length(ctx: Context<Heartbeat>, level: u8) -> Result<()> {
+        let mut room = ctx.accounts.room.load_mut()?;
+        require!(room.status == ST_LOBBY, BlackoutError::NotInLobby);
+        require!(room.host == ctx.accounts.player.key(), BlackoutError::NotHost);
+        room.cfg = (room.cfg & !(3 << 11)) | ((level as u32 & 3).min(2) << 11);
+        Ok(())
+    }
+
     /// Host resizes the room (seats beyond the new size must be empty).
     pub fn set_size(ctx: Context<Heartbeat>, max_players: u8) -> Result<()> {
         let mut room = ctx.accounts.room.load_mut()?;

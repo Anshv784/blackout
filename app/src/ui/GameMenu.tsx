@@ -3,20 +3,13 @@ import { useEffect, useRef, useState } from "react";
 import type { Session } from "../game/session";
 import type { Room } from "../chain/layout";
 import { ST_LIVE } from "../chain/layout";
-import { angleToRad, COUNTDOWN_TICKS } from "../game/sim";
+import { angleToRad, COUNTDOWN_TICKS, matchTicks, zoneSchedule } from "../game/sim";
 import { MAP_ROWS } from "../game/gen";
 import { SEAT_COLORS } from "../scene/Avatar";
 import { controls, setLaser, setSetting, toggleView } from "../game/controls";
 import { DEFAULT_PREFS, resetPrefs, setPref, usePrefs } from "../game/prefs";
 import { audio } from "../game/audio";
 
-// Mirrors sim.rs: the zone timings are fixed, only where it closes is random.
-export const MATCH_TICKS = 2700;
-const ZONE = [
-  { start: 500, end: 900 },
-  { start: 1200, end: 1600 },
-  { start: 1800, end: 2200 },
-];
 
 const mmss = (ticks: number) => {
   const s = Math.max(0, Math.ceil(ticks / 20));
@@ -26,7 +19,8 @@ const mmss = (ticks: number) => {
 /** Counts down to the end of the night, with what the zone does next underneath. */
 export function MatchClock({ room }: { room: Room }) {
   const t = room.status === ST_LIVE ? Math.max(0, room.tick - COUNTDOWN_TICKS) : 0;
-  const left = MATCH_TICKS - t;
+  const left = matchTicks(room.matchLen) - t;
+  const ZONE = zoneSchedule(room.matchLen);
   let zone = "FINAL ZONE";
   let urgent = false;
   for (const ph of ZONE) {
@@ -298,6 +292,7 @@ function Settings({ onClose }: { onClose: () => void }) {
                 {toggle("Camera follows aim", p.autoTurn, (v) => setPref("autoTurn", v), "swings round when you aim off to the side")}
                 <div className="set-keys">
                   <span><b>W A S D</b> move</span>
+                  <span><b>Shift</b> sprint (loud)</span>
                   <span><b>Mouse</b> aim</span>
                   <span><b>Click / Space</b> fire</span>
                   <span><b>R</b> reload</span>
@@ -319,6 +314,7 @@ function Settings({ onClose }: { onClose: () => void }) {
                 {range("Field of view", p.fov, 35, 80, 1, (v) => setPref("fov", v), (v) => `${v}°`)}
                 {range("Smoothing", p.camSmooth, 0, 1, 0.05, (v) => setPref("camSmooth", v), (v) => (v < 0.3 ? "snappy" : v > 0.75 ? "floaty" : "normal"))}
                 {toggle("Hit flash", p.hitFlash, (v) => setPref("hitFlash", v), "screen distortion when you take a hit")}
+                {toggle("Screen shake", p.shake, (v) => setPref("shake", v), "when you're hit")}
               </>
             )}
             {tab === "crosshair" && (
@@ -350,6 +346,7 @@ function Settings({ onClose }: { onClose: () => void }) {
             {tab === "display" && (
               <>
                 {choice("Graphics", p.quality, [["high", "High"], ["low", "Low (faster)"]], (v) => setPref("quality", v))}
+                {toggle("Storm", p.weather, (v) => setPref("weather", v), "rain, lightning and thunder over the Yard")}
                 {range("Brightness", p.exposure, 0.7, 1.8, 0.05, (v) => setPref("exposure", v), (v) => `${Math.round((v / 1.1) * 100)}%`)}
                 {toggle("Player names", p.names, (v) => setPref("names", v))}
                 {toggle("Network bar", p.netStats, (v) => setPref("netStats", v), "TEE tick rate, ping and fps")}

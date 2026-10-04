@@ -11,6 +11,8 @@ export interface Prefs {
   fov: number;
   camSmooth: number; // 0 = snappy, 1 = floaty
   hitFlash: boolean;
+  shake: boolean;
+  weather: boolean;
   // crosshair
   xStyle: "cross" | "dot" | "circle";
   xColor: string;
@@ -33,6 +35,8 @@ export const DEFAULT_PREFS: Prefs = {
   fov: 46,
   camSmooth: 0.55,
   hitFlash: true,
+  shake: true,
+  weather: true,
   xStyle: "cross",
   xColor: "#ffd166",
   xSize: 1,

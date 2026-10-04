@@ -7,6 +7,7 @@ export const controls = {
   touchMove: null as [number, number] | null,
   touchAim: null as number | null,
   touchFire: false,
+  touchSprint: false, // left stick pushed to the rim
   fireUntil: 0, // a click always fires for >= 3 server ticks
   reloadUntil: 0,
   fps: 0,

@@ -150,16 +150,47 @@ pub fn circle_hits_wall(x: i32, y: i32, r: i32) -> bool {
 
 /// Velocity for an analog input in -127..127. Mirrored in sim.ts.
 pub fn input_velocity(dx: i32, dy: i32) -> (i32, i32) {
+    input_velocity_at(dx, dy, SPEED)
+}
+
+pub fn input_velocity_at(dx: i32, dy: i32, speed: i32) -> (i32, i32) {
     let m2 = dx * dx + dy * dy;
     if m2 == 0 {
         return (0, 0);
     }
     if m2 <= 127 * 127 {
-        (dx * SPEED / 127, dy * SPEED / 127)
+        (dx * speed / 127, dy * speed / 127)
     } else {
         let m = isqrt(m2 as u64) as i32;
-        (dx * SPEED / m, dy * SPEED / m)
+        (dx * speed / m, dy * speed / m)
     }
+}
+
+// ---- sprint. `moved` packs: bit 0 = moved this tick, bit 1 = sprinting, bit 2 = winded,
+// bits 8.. = fatigue (0 = fresh, FATIGUE_MAX = empty). Mirrored in sim.ts.
+pub const SPRINT_SPEED: i32 = 84;
+pub const FATIGUE_MAX: u32 = 100;
+pub const FATIGUE_RECOVERED: u32 = 30;
+pub const BTN_SPRINT: u32 = 4;
+
+/// One tick of stamina: returns (sprinting, new fatigue, winded).
+pub fn sprint_step(moved: u32, buttons: u32, dx: i32, dy: i32) -> (bool, u32, bool) {
+    let mut fatigue = moved >> 8;
+    let mut winded = moved & 4 != 0;
+    let wants = buttons & BTN_SPRINT != 0 && buttons & 1 == 0 && (dx != 0 || dy != 0);
+    let sprinting = wants && !winded;
+    if sprinting {
+        fatigue = (fatigue + 2).min(FATIGUE_MAX);
+        if fatigue >= FATIGUE_MAX {
+            winded = true;
+        }
+    } else if fatigue > 0 {
+        fatigue -= 1;
+    }
+    if winded && fatigue <= FATIGUE_RECOVERED {
+        winded = false;
+    }
+    (sprinting, fatigue, winded)
 }
 
 /// Axis-separated move with wall sliding. Mirrored in sim.ts.
@@ -320,11 +351,14 @@ pub fn seed_match(room: &mut Room, w: &mut World, seed: [u8; 32]) {
     w.start_x = c;
     w.start_y = c;
     w.start_r = 23 * UNIT;
+    // the schedule is written for a 2:15 night and stretched to the length the host picked
+    let k = room.match_ticks();
+    let sc = |v: u32| v * k / MATCH_TICKS;
     w.zone = [
-        ZonePhase { reveal: 100, start: 500, end: 900, dmg: 2, x: c1x, y: c1y, r: 13 * UNIT, _pad: 0 },
-        ZonePhase { reveal: 900, start: 1200, end: 1600, dmg: 4, x: c2x, y: c2y, r: 6 * UNIT, _pad: 0 },
-        ZonePhase { reveal: 1600, start: 1800, end: 2200, dmg: 8, x: c3x, y: c3y, r: UNIT, _pad: 0 },
-        ZonePhase { reveal: 2200, start: 2200, end: 2200, dmg: 12, x: c3x, y: c3y, r: UNIT, _pad: 0 },
+        ZonePhase { reveal: sc(100), start: sc(500), end: sc(900), dmg: 2, x: c1x, y: c1y, r: 13 * UNIT, _pad: 0 },
+        ZonePhase { reveal: sc(900), start: sc(1200), end: sc(1600), dmg: 4, x: c2x, y: c2y, r: 6 * UNIT, _pad: 0 },
+        ZonePhase { reveal: sc(1600), start: sc(1800), end: sc(2200), dmg: 8, x: c3x, y: c3y, r: UNIT, _pad: 0 },
+        ZonePhase { reveal: sc(2200), start: sc(2200), end: sc(2200), dmg: 12, x: c3x, y: c3y, r: UNIT, _pad: 0 },
     ];
 
     room.zone_x = w.start_x;
@@ -552,10 +586,12 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
             if p.alive == 0 {
                 continue;
             }
-            let (vx, vy) = input_velocity(p.in_dx, p.in_dy);
+            let (sprinting, fatigue, winded) = sprint_step(p.moved, p.buttons, p.in_dx, p.in_dy);
+            let (vx, vy) = input_velocity_at(p.in_dx, p.in_dy, if sprinting { SPRINT_SPEED } else { SPEED });
             let (ox, oy) = (p.x, p.y);
             move_body(&mut p.x, &mut p.y, vx, vy);
-            p.moved = (ox != p.x || oy != p.y) as u32;
+            let moved = ox != p.x || oy != p.y;
+            p.moved = moved as u32 | ((sprinting && moved) as u32) << 1 | (winded as u32) << 2 | fatigue << 8;
             if p.flare > 0 {
                 p.flare -= 1;
             }
@@ -737,7 +773,7 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
                 && w.players[i].alive == 1
                 && (t < IDLE_TICKS || tick.saturating_sub(w.players[i].last_input_tick) <= IDLE_TICKS)
         });
-        if room.alive_count <= 1 || t >= MATCH_TICKS || (humans_in && !humans_alive) {
+        if room.alive_count <= 1 || t >= room.match_ticks() || (humans_in && !humans_alive) {
             // rank survivors by hp+armor, then kills
             let mut survivors: [(u32, u32, usize); MAXP] = [(0, 0, 0); MAXP];
             let mut n = 0;
@@ -827,7 +863,8 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
                     continue;
                 }
                 let d2 = dist2(pv.x, pv.y, pq.x, pq.y);
-                if (pq.last_shot == tick + 1 && d2 <= (SHOT_R as i64).pow(2)) || (pq.moved == 1 && d2 <= (STEP_R as i64).pow(2) / 2) {
+                if (pq.last_shot == tick + 1 && d2 <= (SHOT_R as i64).pow(2)) || (pq.moved & 1 == 1 && d2 <= (STEP_R as i64).pow(2) / 2)
+                    || (pq.moved & 2 != 0 && d2 <= (STEP_R as i64 * 3 / 2).pow(2)) {
                     b.ping_angle = atan2(pq.y - pv.y, pq.x - pv.x);
                     b.ping_tick = tick;
                 }
@@ -870,7 +907,10 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
             let ang = atan2(pq.y - pv.y, pq.x - pv.x);
             if pq.last_shot == tick + 1 && d2 <= (SHOT_R as i64).pow(2) {
                 push_ping(view, tick, ang & !0x7ff, PING_SHOT, dist);
-            } else if pq.moved == 1 && d2 <= (STEP_R as i64).pow(2) && (tick + q as u32) % 8 == 0 {
+            } else if pq.moved & 2 != 0 && d2 <= (STEP_R as i64 * 3 / 2).pow(2) && (tick + q as u32) % 4 == 0 {
+                // sprinting is loud: heard further away, twice as often
+                push_ping(view, tick, ang & !0xfff, PING_STEP, dist);
+            } else if pq.moved & 1 == 1 && d2 <= (STEP_R as i64).pow(2) && (tick + q as u32) % 8 == 0 {
                 push_ping(view, tick, ang & !0xfff, PING_STEP, dist);
             } else if pq.reload > 0 && pq.reload == WEAPONS[pq.weapon as usize].reload - 1 && d2 <= (RELOAD_R as i64).pow(2) {
                 push_ping(view, tick, ang & !0xfff, PING_RELOAD, dist);
@@ -922,8 +962,9 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
 
     // ---- flight recorder (10 Hz)
     if live || out.ended {
-        if t % REC_EVERY == 0 || out.ended {
-            let frame = (t / REC_EVERY) as usize;
+        let every = room.rec_every();
+        if t % every == 0 || out.ended {
+            let frame = (t / every) as usize;
             let hdr_len = core::mem::size_of::<RecHeader>();
             if frame < REC_FRAMES {
                 let chunk = frame / REC_PER_CHUNK;
@@ -951,7 +992,7 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
                 let hdr: &mut RecHeader = bytemuck::from_bytes_mut(&mut rec[..hdr_len]);
                 hdr.frames = local as u32 + 1;
                 hdr.match_no = room.match_no;
-                hdr.every = REC_EVERY;
+                hdr.every = every;
             }
         }
     }
@@ -1079,14 +1120,21 @@ mod mirror {
         let mut out = String::new();
         for &(sx, sy) in SPAWNS.iter().take(5) {
             let (mut x, mut y) = (tile_center(sx), tile_center(sy));
+            let mut moved = 0u32;
             for _ in 0..400 {
                 s = s.wrapping_mul(1103515245).wrapping_add(12345);
                 let dx = ((s >> 16) % 255) as i32 - 127;
                 s = s.wrapping_mul(1103515245).wrapping_add(12345);
                 let dy = ((s >> 16) % 255) as i32 - 127;
-                let (vx, vy) = input_velocity(dx, dy);
+                // every 7th stretch holds sprint, some of it while firing
+                let buttons = if (s >> 9) % 7 < 3 { BTN_SPRINT | ((s >> 12) & 1) } else { 0 };
+                let (sprinting, fatigue, winded) = sprint_step(moved, buttons, dx, dy);
+                let (vx, vy) = input_velocity_at(dx, dy, if sprinting { SPRINT_SPEED } else { SPEED });
+                let (ox, oy) = (x, y);
                 move_body(&mut x, &mut y, vx, vy);
-                out.push_str(&format!("{x},{y};"));
+                let m = ox != x || oy != y;
+                moved = m as u32 | ((sprinting && m) as u32) << 1 | (winded as u32) << 2 | fatigue << 8;
+                out.push_str(&format!("{x},{y},{fatigue};"));
             }
         }
         std::fs::write("/tmp/blackout-mirror-rust.txt", out).unwrap();

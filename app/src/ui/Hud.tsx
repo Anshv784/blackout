@@ -5,6 +5,8 @@ import { ST_COUNTDOWN, ST_ENDED, ST_LIVE, ST_STARTING, WEAPON_NAME } from "../ch
 import { angleToRad } from "../game/sim";
 import { SEAT_COLORS } from "../scene/Avatar";
 import { GameMenu, MatchClock } from "./GameMenu";
+import { onBanner, type Banner } from "../game/feel";
+import { FATIGUE_MAX } from "../game/sim";
 
 const MAX_MAG = [10, 30, 5];
 const PING_GLYPH = ["", "👣", "💥", "✦", "⟳"];
@@ -146,7 +148,10 @@ export function Hud({ session }: { session: Session }) {
       {lost && room.status === ST_LIVE && me.alive ? <div className="lost-hint">{lost} slipped into the dark</div> : null}
       {me.flare > 0 && <div className="flare-banner">FLARE · YOU SEE EVERYONE · {Math.ceil(me.flare / 20)}s</div>}
 
+      {me.alive && me.hp <= 35 && room.status === ST_LIVE && <div className="low-hp" style={{ ["--k" as any]: String(1 - me.hp / 35) }} />}
+      <Banners />
       <div className="hud-bottom-left">
+        <Stamina session={session} />
         <div className="bar hp">
           <i style={{ width: `${me.hp}%` }} />
           <span>{me.hp}</span>
@@ -175,3 +180,53 @@ export function Hud({ session }: { session: Session }) {
 
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
+
+/** Big centre-screen moments: kills, streaks, the zone moving, the final few. */
+function Banners() {
+  const [list, setList] = useState<Banner[]>([]);
+  useEffect(() => {
+    const off = onBanner((b) => setList((l) => [...l.slice(-2), b]));
+    const t = setInterval(() => setList((l) => l.filter((b) => performance.now() - b.at < 2600)), 300);
+    return () => {
+      off();
+      clearInterval(t);
+    };
+  }, []);
+  return (
+    <div className="banners">
+      {list.map((b) => (
+        <div key={b.id} className={`banner ${b.tone}`}>
+          <b>{b.text}</b>
+          {b.sub && <small>{b.sub}</small>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Sprint stamina: only shows while it isn't full. Smooth: read from the prediction every frame. */
+function Stamina({ session }: { session: Session }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    let raf = 0;
+    const loop = () => {
+      raf = requestAnimationFrame(loop);
+      const el = ref.current;
+      if (!el) return;
+      const fat = session.predMoved >>> 8;
+      const winded = (session.predMoved & 4) !== 0;
+      const left = 1 - fat / FATIGUE_MAX;
+      el.style.opacity = fat > 0 ? "1" : "0";
+      el.classList.toggle("winded", winded);
+      (el.firstChild as HTMLElement).style.width = `${left * 100}%`;
+    };
+    loop();
+    return () => cancelAnimationFrame(raf);
+  }, [session]);
+  return (
+    <div className="bar stamina" ref={ref}>
+      <i />
+      <span>SPRINT</span>
+    </div>
+  );
+}

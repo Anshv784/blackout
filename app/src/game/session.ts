@@ -17,7 +17,8 @@ import {
   type View,
   type VisPlayer,
 } from "../chain/layout";
-import { inputVelocity, moveBody, UNIT } from "./sim";
+import { inputVelocity, moveBody, packMoved, sprintStep, SPEED, SPRINT_SPEED, UNIT } from "./sim";
+import { banner, feel } from "./feel";
 import { audio } from "./audio";
 import { controls } from "./controls";
 
@@ -69,6 +70,11 @@ export class Session {
   private predPrev = { x: 0, y: 0 };
   predValid = false;
   private predAcc = 0;
+  /** predicted stamina word (see sim.ts sprintStep) and whether you're sprinting right now */
+  predMoved = 0;
+  private streak = 0;
+  private lastKillAt = 0;
+  sprinting = false;
   private lastFrame = performance.now();
 
   // input
@@ -212,10 +218,26 @@ export class Session {
         const victim = r.names[e.victim] || `#${e.victim}`;
         const mine = e.killer === this.mySeat || e.victim === this.mySeat;
         useStore.getState().toast(`${killer} ✕ ${victim}`, mine);
-        if (e.killer === this.mySeat) audio.kill();
+        if (h === 0 && e.killer !== NO_SEAT) banner("FIRST BLOOD", "kill", `${killer} ✕ ${victim}`);
+        if (e.killer === this.mySeat && e.victim !== this.mySeat) {
+          const now = performance.now();
+          this.streak = now - this.lastKillAt < 12000 ? this.streak + 1 : 1;
+          this.lastKillAt = now;
+          feel.killAt = now;
+          audio.kill();
+          if (this.streak > 1) audio.streak(this.streak);
+          const title = ["", "", "DOUBLE KILL", "TRIPLE KILL", "RAMPAGE", "UNSTOPPABLE"][Math.min(this.streak, 5)];
+          banner(title || `☠ ${victim}`, "kill", title ? `☠ ${victim}` : "eliminated");
+        }
       }
     }
     this.lastFeedHead = r.feedHead;
+    // match beats everyone feels
+    if (prev && r.status === ST_LIVE && prev.status === ST_LIVE) {
+      if (r.zonePhase > prev.zonePhase) banner(r.zonePhase >= 3 ? "FINAL CIRCLE" : "THE ZONE IS MOVING", "danger", "get inside the dashed ring");
+      if (prev.aliveCount > 3 && r.aliveCount === 3) banner("FINAL THREE", "event");
+      else if (prev.aliveCount > 2 && r.aliveCount === 2) banner("LAST TWO STANDING", "event", "one of you walks out");
+    }
     if (prev && prev.status !== r.status) {
       if (r.status === ST_STARTING || r.status === ST_COUNTDOWN) {
         // new match: forget the previous one's view, hits and pings
@@ -285,10 +307,13 @@ export class Session {
         this.input.aim = v.me.aim;
         this.pred = { x: v.me.x, y: v.me.y };
         this.predPrev = { ...this.pred };
+        this.predMoved = v.me.moved;
         this.predValid = true;
       } else {
         const lagTicks = Math.min(6, Math.max(1, Math.round(this.rtt / 2 / 50)));
-        const [vx, vy] = inputVelocity(this.input.dx, this.input.dy);
+        // stamina follows the chain (it only gates sprint, so a little lag is harmless)
+        this.predMoved = (v.me.moved & ~3) | (this.predMoved & 3);
+        const [vx, vy] = inputVelocity(this.input.dx, this.input.dy, this.sprinting ? SPRINT_SPEED : SPEED);
         const tx = v.me.x + (v.status === ST_LIVE ? vx * lagTicks : 0);
         const ty = v.me.y + (v.status === ST_LIVE ? vy * lagTicks : 0);
         const ex = tx - this.pred.x;
@@ -391,10 +416,18 @@ export class Session {
       while (this.predAcc >= 50) {
         this.predAcc -= 50;
         this.predPrev = { ...this.pred };
-        const [vx, vy] = inputVelocity(this.input.dx, this.input.dy);
+        const [sp, fat, winded] = sprintStep(this.predMoved, this.input.buttons, this.input.dx, this.input.dy);
+        const [vx, vy] = inputVelocity(this.input.dx, this.input.dy, sp ? SPRINT_SPEED : SPEED);
+        const ox = this.pred.x;
+        const oy = this.pred.y;
         moveBody(this.pred, vx, vy);
+        this.predMoved = packMoved(ox !== this.pred.x || oy !== this.pred.y, sp, winded, fat);
+        this.sprinting = sp;
       }
-    } else this.predAcc = 0;
+    } else {
+      this.predAcc = 0;
+      this.sprinting = false;
+    }
     this.maybeSendInput(now);
   }
 
@@ -516,6 +549,11 @@ export class Session {
   /** Host only. A private room gets a fresh code so the kicked player can't walk back in. */
   async kick(seat: number, newCode = 0) {
     await client.sendEr([client.kickIx(this.roomId, seat, newCode)]);
+    await this.poll();
+  }
+
+  async setLength(level: number) {
+    await client.sendEr([client.setLengthIx(this.roomId, level)]);
     await this.poll();
   }
 

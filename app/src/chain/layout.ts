@@ -102,6 +102,8 @@ export interface Room {
   unlisted: boolean;
   /** 0 = medium, 1 = easy, 2 = hard */
   botLevel: number;
+  /** 0 = standard 2:15, 1 = quick 1:30, 2 = long 3:30 */
+  matchLen: number;
 }
 
 export const READY_ALL = 1 | (0b11111 << 1) | (0xff << 8);
@@ -152,6 +154,7 @@ export function decodeRoom(data: Uint8Array): Room {
     maxPlayers: cfg & 0xff ? Math.min(8, Math.max(2, cfg & 0xff)) : 8,
     unlisted: (cfg & 0x100) !== 0,
     botLevel: (cfg >>> 9) & 3,
+    matchLen: (cfg >>> 11) & 3,
   };
 }
 

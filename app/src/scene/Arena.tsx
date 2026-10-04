@@ -299,6 +299,30 @@ function Beacons({ boxes }: { boxes: WallBox[] }) {
   );
 }
 
+/** Set by the match camera: walls between it and you fade so you never lose your own body. */
+export const occlusion = { active: false, cam: new THREE.Vector3(), target: new THREE.Vector3() };
+
+/** Does the segment a→b pass through the box? (slab test) */
+function segHitsBox(a: THREE.Vector3, b: THREE.Vector3, min: [number, number, number], max: [number, number, number]) {
+  let t0 = 0;
+  let t1 = 1;
+  const d = [b.x - a.x, b.y - a.y, b.z - a.z];
+  const o = [a.x, a.y, a.z];
+  for (let i = 0; i < 3; i++) {
+    if (Math.abs(d[i]) < 1e-6) {
+      if (o[i] < min[i] || o[i] > max[i]) return false;
+      continue;
+    }
+    let ta = (min[i] - o[i]) / d[i];
+    let tb = (max[i] - o[i]) / d[i];
+    if (ta > tb) [ta, tb] = [tb, ta];
+    t0 = Math.max(t0, ta);
+    t1 = Math.min(t1, tb);
+    if (t0 > t1) return false;
+  }
+  return true;
+}
+
 export function Arena({ lit = false }: { lit?: boolean }) {
   const boxes = useMemo(wallBoxes, []);
   const floor = useMemo(floorTexture, []);
@@ -337,6 +361,33 @@ export function Arena({ lit = false }: { lit?: boolean }) {
     g.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
     return g;
   }, [boxes]);
+
+  const fade = useRef<number[]>(boxes.map(() => 1));
+  useFrame((_, dt) => {
+    if (!occlusion.active && fade.current.every((f) => f === 1)) return;
+    const k = 1 - Math.pow(0.0001, dt);
+    boxes.forEach((b, i) => {
+      if (b.kind === "border") return;
+      const blocked =
+        occlusion.active && segHitsBox(occlusion.cam, occlusion.target, [b.x + 0.05, 0, b.y + 0.05], [b.x + b.w - 0.05, b.height, b.y + b.h - 0.05]);
+      const want = blocked ? 0.18 : 1;
+      const cur = fade.current[i];
+      if (Math.abs(cur - want) < 0.01) {
+        if (cur !== want) fade.current[i] = want;
+        else return;
+      } else fade.current[i] = cur + (want - cur) * k;
+      const f = fade.current[i];
+      for (const m of new Set(materials[i])) {
+        const see = f < 0.999;
+        if (m.transparent !== see) {
+          m.transparent = see;
+          m.depthWrite = !see;
+          m.needsUpdate = true;
+        }
+        m.opacity = f;
+      }
+    });
+  });
 
   return (
     <group>

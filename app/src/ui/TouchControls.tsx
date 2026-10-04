@@ -15,7 +15,13 @@ export function TouchControls() {
   if (!touch) return null;
   return (
     <>
-      <Stick side="left" onMove={(x, y) => (controls.touchMove = x === 0 && y === 0 ? null : [x, y])} />
+      <Stick
+        side="left"
+        onMove={(x, y) => {
+          controls.touchMove = x === 0 && y === 0 ? null : [x, y];
+          controls.touchSprint = x * x + y * y > 0.92; // push to the rim to run
+        }}
+      />
       <Stick
         side="right"
         onMove={(x, y, m) => {

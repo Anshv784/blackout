@@ -12,6 +12,20 @@ export const AMBIENT_R = 2 * UNIT + 64;
 export const CONE_HALF = 7000;
 export const FLARE_TICKS = 100;
 
+// Night length (mirror of Room::match_ticks): the zone schedule stretches with it.
+export const BASE_MATCH_TICKS = 2700;
+export const MATCH_LENGTHS = [2700, 1800, 4200];
+export const matchTicks = (len: number) => MATCH_LENGTHS[len] ?? 2700;
+export function zoneSchedule(len: number) {
+  const k = matchTicks(len);
+  const sc = (v: number) => Math.floor((v * k) / BASE_MATCH_TICKS);
+  return [
+    { reveal: sc(100), start: sc(500), end: sc(900) },
+    { reveal: sc(900), start: sc(1200), end: sc(1600) },
+    { reveal: sc(1600), start: sc(1800), end: sc(2200) },
+  ];
+}
+
 const tdiv = (a: number, b: number) => Math.trunc(a / b);
 
 export function isWall(tx: number, ty: number) {
@@ -49,13 +63,35 @@ export function isqrt(v: number) {
   return x;
 }
 
-export function inputVelocity(dx: number, dy: number): [number, number] {
+export function inputVelocity(dx: number, dy: number, speed = SPEED): [number, number] {
   const m2 = dx * dx + dy * dy;
   if (m2 === 0) return [0, 0];
-  if (m2 <= 127 * 127) return [tdiv(dx * SPEED, 127), tdiv(dy * SPEED, 127)];
+  if (m2 <= 127 * 127) return [tdiv(dx * speed, 127), tdiv(dy * speed, 127)];
   const m = isqrt(m2);
-  return [tdiv(dx * SPEED, m), tdiv(dy * SPEED, m)];
+  return [tdiv(dx * speed, m), tdiv(dy * speed, m)];
 }
+
+// sprint (mirror of sim.rs): `moved` packs bit 0 moved, bit 1 sprinting, bit 2 winded, bits 8.. fatigue
+export const SPRINT_SPEED = 84;
+export const FATIGUE_MAX = 100;
+export const FATIGUE_RECOVERED = 30;
+export const BTN_SPRINT = 4;
+
+export function sprintStep(moved: number, buttons: number, dx: number, dy: number): [boolean, number, boolean] {
+  let fatigue = moved >>> 8;
+  let winded = (moved & 4) !== 0;
+  const wants = (buttons & BTN_SPRINT) !== 0 && (buttons & 1) === 0 && (dx !== 0 || dy !== 0);
+  const sprinting = wants && !winded;
+  if (sprinting) {
+    fatigue = Math.min(FATIGUE_MAX, fatigue + 2);
+    if (fatigue >= FATIGUE_MAX) winded = true;
+  } else if (fatigue > 0) fatigue -= 1;
+  if (winded && fatigue <= FATIGUE_RECOVERED) winded = false;
+  return [sprinting, fatigue, winded];
+}
+
+export const packMoved = (moved: boolean, sprinting: boolean, winded: boolean, fatigue: number) =>
+  (moved ? 1 : 0) | (sprinting && moved ? 2 : 0) | (winded ? 4 : 0) | (fatigue << 8);
 
 export function moveBody(p: { x: number; y: number }, vx: number, vy: number) {
   if (vx !== 0) {

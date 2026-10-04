@@ -435,6 +435,57 @@ class Audio {
     this.tone(1760, 0.08, "square", 0.05, 0, undefined, 0.05, 0.3);
   }
 
+  /** Distant thunder, rolling in `delay` seconds after the flash. */
+  thunder(delay = 1) {
+    const c = this.ensure();
+    if (!c || this.muted) return;
+    setTimeout(() => {
+      this.burst(2.6, 90, 0.4, 0.9, (Math.random() - 0.5) * 0.6, "lowpass", 0.9);
+      this.burst(1.2, 220, 0.6, 0.35, 0, "lowpass", 0.8);
+      this.tone(42, 2.4, "sine", 0.35, 0, 30, 0.05, 0.7);
+    }, delay * 1000);
+  }
+
+  /** Steady rain bed (filtered noise), 0..1. */
+  private rain: { gain: GainNode } | null = null;
+  setRain(level: number) {
+    const c = this.ensure();
+    if (!c) return;
+    if (!this.rain) {
+      const len = c.sampleRate * 2;
+      const buf = c.createBuffer(1, len, c.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      const src = c.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      const hp = c.createBiquadFilter();
+      hp.type = "highpass";
+      hp.frequency.value = 900;
+      const lp = c.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.value = 6500;
+      const gain = c.createGain();
+      gain.gain.value = 0;
+      src.connect(hp).connect(lp).connect(gain).connect(this.dry!);
+      src.start();
+      this.rain = { gain };
+    }
+    this.rain.gain.gain.setTargetAtTime(this.muted ? 0 : level * 0.05, c.currentTime, 0.8);
+  }
+
+  /** Your bullet landed. */
+  hitmark() {
+    this.tone(1800, 0.05, "square", 0.05, 0, 1400, 0, 0.1);
+  }
+
+  /** Kill streak sting: higher for every extra kill. */
+  streak(n: number) {
+    const base = 220 * Math.pow(1.26, Math.min(n, 5));
+    this.tone(base, 0.35, "triangle", 0.12, 0, base * 1.5, 0, 0.6);
+    this.tone(base * 1.5, 0.45, "triangle", 0.08, 0, base * 2, 0.08, 0.6);
+  }
+
   /** Low hum that rises while you're outside the zone. */
   setZoneDanger(level: number) {
     const c = this.ensure();

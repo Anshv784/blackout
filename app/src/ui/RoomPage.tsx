@@ -500,11 +500,26 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
               </small>
             </>
           )}
+          <div className="bot-level len">
+            <span>NIGHT</span>
+            {[1, 0, 2].map((lv) => (
+              <button
+                key={lv}
+                className={room.matchLen === lv ? "on lv-0" : ""}
+                disabled={!canStart || !!busy}
+                title={["Standard night: zone closes three times", "Quick night: everything happens faster", "Long night: more time to hunt, slower zone"][lv]}
+                onClick={() => room.matchLen !== lv && run("len", () => session.setLength(lv))}
+              >
+                {["2:15", "1:30", "3:30"][lv]}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
       <div className="keys-hint">
         <span>click to aim</span>
         <span>W A S D move</span>
+        <span>Shift sprint</span>
         <span>Q / E turn</span>
         <span>click fire</span>
         <span>R reload</span>

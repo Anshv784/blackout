@@ -1398,6 +1398,39 @@
       ]
     },
     {
+      "name": "set_length",
+      "docs": [
+        "Host picks the night's length: 0 = standard 2:15, 1 = quick 1:30, 2 = long 3:30.",
+        "The zone schedule stretches to fit (see sim::seed_match)."
+      ],
+      "discriminator": [
+        180,
+        58,
+        143,
+        102,
+        0,
+        61,
+        51,
+        60
+      ],
+      "accounts": [
+        {
+          "name": "player",
+          "signer": true
+        },
+        {
+          "name": "room",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "level",
+          "type": "u8"
+        }
+      ]
+    },
+    {
       "name": "set_size",
       "docs": [
         "Host resizes the room (seats beyond the new size must be empty)."
@@ -2414,7 +2447,7 @@
           {
             "name": "cfg",
             "docs": [
-              "room config set by its creator: bits 0-7 = seats (2..8, 0 = 8), bit 8 = unlisted, bits 9-10 = bot level"
+              "room config set by its creator: bits 0-7 = seats (2..8, 0 = 8), bit 8 = unlisted, bits 9-10 = bot level, bits 11-12 = match length"
             ],
             "type": "u32"
           },

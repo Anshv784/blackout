@@ -78,7 +78,7 @@ pub struct Room {
     pub zone_phase: u32,
     pub private_code: u32, // 0 = public room
     pub seed_revealed: u32,
-    /// room config set by its creator: bits 0-7 = seats (2..8, 0 = 8), bit 8 = unlisted, bits 9-10 = bot level
+    /// room config set by its creator: bits 0-7 = seats (2..8, 0 = 8), bit 8 = unlisted, bits 9-10 = bot level, bits 11-12 = match length
     pub cfg: u32,
     pub ready_mask: u32,
     pub last_seen: [u32; MAXP], // ER slot (truncated) of each seat's last lobby heartbeat
@@ -118,6 +118,20 @@ impl Room {
 
     /// The host is whoever created the room. No hand-offs: if they're gone, the room is closed.
     pub fn fix_host(&mut self, _slot: u64) {}
+
+    /// cfg bits 11-12: match length. 0 = standard 2:15, 1 = quick 1:30, 2 = long 3:30
+    pub fn match_ticks(&self) -> u32 {
+        match (self.cfg >> 11) & 3 {
+            1 => 1800,
+            2 => 4200,
+            _ => 2700,
+        }
+    }
+
+    /// Recorder stride: 10 Hz when it fits, slower for long nights (the buffer is fixed).
+    pub fn rec_every(&self) -> u32 {
+        ((self.match_ticks() + 40) / REC_FRAMES as u32 + 1).max(2)
+    }
 
     /// cfg bits 9-10: 0 = medium (default), 1 = easy, 2 = hard
     pub fn bot_level(&self) -> u32 {

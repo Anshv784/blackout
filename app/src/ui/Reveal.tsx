@@ -341,7 +341,7 @@ export function Reveal({ session }: { session: Session }) {
             </div>
           </div>
           <span className="time">
-            {Math.floor((t / 10) / 60)}:{String(Math.floor((t / 10) % 60)).padStart(2, "0")}
+            {Math.floor((t * rec.every / 20) / 60)}:{String(Math.floor((t * rec.every / 20) % 60)).padStart(2, "0")}
           </span>
           {[1, 2, 4].map((s) => (
             <button key={s} className={`chip ${ctl.current.speed === s ? "on" : ""}`} onClick={() => (ctl.current.speed = s)}>
