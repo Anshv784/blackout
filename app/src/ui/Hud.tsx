@@ -299,3 +299,36 @@ function CameraSettings() {
     </div>
   );
 }
+
+function ExitMatch() {
+  const [ask, setAsk] = useState(false);
+  return (
+    <>
+      <button className="exit-match" onPointerDown={(e) => e.stopPropagation()} onClick={() => setAsk(true)}>
+        EXIT
+      </button>
+      {ask && (
+        <div className="exit-confirm" onPointerDown={(e) => e.stopPropagation()}>
+          <div className="exit-card">
+            <h3>Leave the night?</h3>
+            <p>You'll vanish from the Yard and count as eliminated.</p>
+            <div className="row">
+              <button className="btn" onClick={() => setAsk(false)}>
+                STAY
+              </button>
+              <button
+                className="btn danger"
+                onClick={() => {
+                  if (document.pointerLockElement) document.exitPointerLock();
+                  window.location.hash = "/";
+                }}
+              >
+                LEAVE
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

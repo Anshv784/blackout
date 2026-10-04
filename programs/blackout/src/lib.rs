@@ -406,6 +406,10 @@ pub mod blackout {
             require!(room.private_code == 0 || room.private_code == code, BlackoutError::WrongCode);
             require!(room.seat_of(&player).is_none(), BlackoutError::AlreadySeated);
             require!(s < room.max_players(), BlackoutError::RoomFull);
+            if room.stake > 0 && !room.host_present(slot) {
+                room.host = player; // staked tables: the first staker hosts
+            }
+            require!(room.host_present(slot) || room.host == player, BlackoutError::NoHost);
             if room.is_stale(s, slot) && room.stake == 0 {
                 room.clear_seat(s);
             }
@@ -451,7 +455,7 @@ pub mod blackout {
         let mut room = ctx.accounts.room.load_mut()?;
         require!(room.status == ST_LOBBY, BlackoutError::NotInLobby);
         require!(room.ready_mask == READY_ALL && room.stake == 0, BlackoutError::NotReady);
-        require!(room.live_humans(slot) == 0, BlackoutError::RoomTaken);
+        require!(room.live_humans(slot) == 0 || !room.host_present(slot), BlackoutError::RoomTaken);
         for i in 0..MAXP {
             if room.players[i] != Pubkey::default() && room.is_bot[i] == 0 {
                 room.clear_seat(i);
@@ -495,8 +499,15 @@ pub mod blackout {
             require!(room.status == ST_LOBBY, BlackoutError::NotInLobby);
             require!(s < MAXP && room.players[s] == player, BlackoutError::BadSeat);
             room.clear_seat(s);
-            let slot = Clock::get()?.slot;
-            room.fix_host(slot);
+            if room.host == player {
+                // the host walked out: the room closes, everyone is unseated
+                for i in 0..MAXP {
+                    if room.players[i] != Pubkey::default() && room.is_bot[i] == 0 {
+                        room.clear_seat(i);
+                    }
+                }
+                room.host = Pubkey::default();
+            }
             room.room_id.to_le_bytes()
         };
         let room_seeds: &[&[u8]] = &[ROOM_SEED, &rid_bytes, &[ctx.bumps.room]];
@@ -531,8 +542,7 @@ pub mod blackout {
                     }
                 }
             }
-            room.fix_host(slot);
-            require!(room.host == player, BlackoutError::NotHost);
+            require!(room.host == player && room.host_present(slot), BlackoutError::NotHost);
             // bots fill free seats (free rooms only)
             let humans = (0..MAXP).filter(|&i| room.players[i] != Pubkey::default() && room.is_bot[i] == 0).count();
             let mut total = humans;
@@ -1354,4 +1364,6 @@ pub enum BlackoutError {
     RoomTaken,
     #[msg("Room is full")]
     RoomFull,
+    #[msg("This room has no host — create your own")]
+    NoHost,
 }

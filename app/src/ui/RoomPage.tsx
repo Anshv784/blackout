@@ -119,9 +119,12 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
   // mirror the on-chain host rule: a host who stopped heart-beating is replaced by the first live seat
   const nowSlot = Math.max(...room.lastSeen);
   const fresh = (i: number) => room.players[i].toBase58() !== EMPTY && room.isBot[i] === 0 && nowSlot - room.lastSeen[i] <= 4500;
-  const hostIdx = room.players.findIndex((p, i) => room.isBot[i] === 0 && p.equals(room.host));
-  const effectiveHost = hostIdx >= 0 && fresh(hostIdx) ? hostIdx : [0, 1, 2, 3, 4, 5, 6, 7].find(fresh) ?? -1;
-  const canStart = mySeat !== null && effectiveHost === mySeat;
+  // the host is the room's creator; no hand-offs — if they're gone the room is closed
+  const hostIdx = room.players.findIndex((p, i) => room.isBot[i] === 0 && room.host.toBase58() !== EMPTY && p.equals(room.host));
+  const hostPresent = hostIdx >= 0 && fresh(hostIdx);
+  const effectiveHost = hostPresent ? hostIdx : -1;
+  const canStart = mySeat !== null && hostIdx === mySeat;
+  const closed = !hostPresent && room.stake === 0n && !canStart && room.players.some((p, i) => room.isBot[i] === 0 && p.toBase58() !== EMPTY);
   // only people still here count (stale seats are cleared on-chain when the night starts)
   const humans = [0, 1, 2, 3, 4, 5, 6, 7].filter(fresh).length;
   const staked = room.stake > 0n;
@@ -171,6 +174,12 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
     }
   }, [mySeat, busy]);
 
+  const exit = () =>
+    run("leave", async () => {
+      if (mySeat !== null) await session.leave().catch(() => {});
+      go("/");
+    });
+
   const copy = () => {
     navigator.clipboard?.writeText(link);
     setCopied(true);
@@ -198,6 +207,21 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
         {quick.current && <p className="sub">Opening the gate for you…</p>}
       </div>
 
+      <button className="exit-room" onClick={exit} disabled={busy === "leave"}>
+        ← EXIT ROOM
+      </button>
+      {closed && (
+        <div className="room-closed">
+          <div className="room-closed-card">
+            <div className="vc-kicker">ROOM CLOSED</div>
+            <h2>The host left the Yard.</h2>
+            <p>A night can only start with its host in the room. Create your own room — you'll be the host.</p>
+            <button className="btn primary huge" onClick={exit}>
+              BACK TO THE GATE
+            </button>
+          </div>
+        </div>
+      )}
       <div className="dock">
         <div className="dock-cell invite">
           <label>INVITE</label>
@@ -232,8 +256,8 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
             </div>
           )}
           {mySeat !== null && (
-            <a className="dock-leave" onClick={() => run("leave", () => session.leave())}>
-              leave seat
+            <a className="dock-leave" onClick={exit}>
+              exit room
             </a>
           )}
         </div>

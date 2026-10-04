@@ -23,7 +23,11 @@ export async function createRoom(maxPlayers: number, unlisted: boolean): Promise
   const mine = myRoom(rooms);
   if (mine !== null) return mine;
   const slot = await (await client.teeConn()).getSlot().catch(() => 0);
-  const free = rooms.filter(([, r]) => r && r.status === ST_LOBBY && r.readyMask === READY_ALL && liveHumansAt(r, slot) === 0);
+  const hostGone = (r: Room) => {
+    const i = r.players.findIndex((p, k) => r.isBot[k] === 0 && p.toBase58() !== EMPTY && p.equals(r.host));
+    return i < 0 || ((slot >>> 0) - r.lastSeen[i]) >>> 0 > 4500;
+  };
+  const free = rooms.filter(([, r]) => r && r.status === ST_LOBBY && r.readyMask === READY_ALL && r.stake === 0n && (liveHumansAt(r, slot) === 0 || hostGone(r)));
   if (!free.length) throw new Error("Every room is in use right now — try again in a minute");
   // shuffle so two people creating at once rarely collide
   free.sort(() => Math.random() - 0.5);

@@ -113,15 +113,11 @@ impl Room {
         self.n_players = self.n_players.saturating_sub(1);
     }
 
-    pub fn fix_host(&mut self, slot: u64) {
-        let host = self.host;
-        let ok = self.seat_of(&host).map(|i| !self.is_stale(i, slot)).unwrap_or(false);
-        if !ok {
-            self.host = (0..MAXP)
-                .find(|&i| self.players[i] != Pubkey::default() && self.is_bot[i] == 0 && !self.is_stale(i, slot))
-                .map(|i| self.players[i])
-                .unwrap_or_default();
-        }
+    /// The host is whoever created the room. No hand-offs: if they're gone, the room is closed.
+    pub fn fix_host(&mut self, _slot: u64) {}
+
+    pub fn host_present(&self, slot: u64) -> bool {
+        self.seat_of(&self.host).map(|i| !self.is_stale(i, slot)).unwrap_or(false)
     }
 }
 

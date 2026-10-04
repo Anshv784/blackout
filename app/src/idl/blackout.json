@@ -1926,6 +1926,11 @@
       "code": 6016,
       "name": "RoomFull",
       "msg": "Room is full"
+    },
+    {
+      "code": 6017,
+      "name": "NoHost",
+      "msg": "This room has no host — create your own"
     }
   ],
   "types": [

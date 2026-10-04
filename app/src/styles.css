@@ -1432,3 +1432,17 @@ button {
 .room-row{grid-template-columns:12px minmax(0,1fr) auto auto!important}
 .room-row .rr-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .room-row .rr-seats{margin:0 4px}
+
+.exit-room{position:absolute;top:74px;left:20px;z-index:6;background:rgba(10,12,20,.85);border:1px solid var(--line);color:var(--fg);font-family:inherit;font-weight:700;letter-spacing:.12em;font-size:12px;padding:9px 14px;border-radius:10px;cursor:pointer}
+.exit-room:hover{border-color:#ff7a90;color:#ff7a90}
+.room-closed{position:absolute;inset:0;z-index:20;display:grid;place-items:center;background:rgba(0,0,0,.65);backdrop-filter:blur(4px)}
+.room-closed-card{width:min(460px,calc(100vw - 32px));background:rgba(8,10,16,.95);border:1px solid var(--line);border-radius:20px;padding:28px;text-align:center;display:flex;flex-direction:column;gap:12px}
+.room-closed-card h2{margin:0}
+.room-closed-card p{margin:0;color:#aab2c6}
+.exit-match{position:absolute;left:16px;top:118px;pointer-events:auto;background:rgba(10,12,20,.8);border:1px solid var(--line);color:var(--dim);font-family:var(--mono);font-size:11px;letter-spacing:.14em;padding:6px 10px;border-radius:8px;cursor:pointer}
+.exit-match:hover{color:#ff7a90;border-color:#ff7a90}
+.exit-confirm{position:absolute;inset:0;z-index:30;display:grid;place-items:center;background:rgba(0,0,0,.55);pointer-events:auto}
+.exit-card{background:rgba(8,10,16,.96);border:1px solid var(--line);border-radius:16px;padding:22px 24px;text-align:center;min-width:300px}
+.exit-card h3{margin:0 0 6px}.exit-card p{margin:0 0 14px;color:#aab2c6;font-size:14px}
+.exit-card .row{display:flex;gap:10px;justify-content:center}
+.btn.danger{background:#3a0e18;border-color:#ff4d6d;color:#ffb3c0}

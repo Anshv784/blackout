@@ -69,7 +69,11 @@ export function Home() {
   };
 
   const entries = Object.entries(rooms).filter(([id, r]) => r && !STAKED_ROOMS.includes(Number(id))) as [string, Room][];
-  const openRooms = entries.filter(([, r]) => r.status === ST_LOBBY && !r.unlisted && slot > 0 && liveHumans(r, slot) > 0 && liveHumans(r, slot) < r.maxPlayers);
+  const hostHere = (r: Room) => {
+    const i = r.players.findIndex((p, k) => r.isBot[k] === 0 && p.toBase58() !== EMPTY && p.equals(r.host));
+    return i >= 0 && ((slot >>> 0) - r.lastSeen[i]) >>> 0 <= 4500;
+  };
+  const openRooms = entries.filter(([, r]) => r.status === ST_LOBBY && !r.unlisted && slot > 0 && hostHere(r) && liveHumans(r, slot) < r.maxPlayers);
   const liveMatches = entries.filter(([, r]) => r.status === ST_LIVE || r.status === ST_COUNTDOWN);
   const mine = myRoom(Object.entries(rooms).map(([id, r]) => [Number(id), r] as const));
   const live = Object.values(rooms).filter((r) => r && (r.status === ST_LIVE || r.status === ST_COUNTDOWN)).length;
