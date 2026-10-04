@@ -1,81 +1,215 @@
-# BLACKOUT
+<p align="center">
+  <img src="docs/assets/banner.png" alt="BLACKOUT" width="760">
+</p>
 
-**A real-time fog-of-war battle royale where nobody can see you — not the other players, not the RPC, not even the chain.**
+<h2 align="center">A real-time fog-of-war battle royale on MagicBlock</h2>
 
-Built for MagicBlock Solana Blitz v9. Every position, bullet, loot roll and zone plan lives inside a **MagicBlock Private Ephemeral Rollup** (Intel TDX TEE) in an account with **zero readers**. Each player only ever receives what their own flashlight hits. When the last player falls, the lights come on: the hidden World is flipped public, the full replay unlocks, and a **Magic Action** settles the match on Solana.
+<p align="center">
+  Nobody can see you: not the other players, not the RPC, not even the chain.<br>
+  Every position lives in a sealed account inside MagicBlock's TEE rollup, and each player only receives what their own flashlight hits.
+</p>
 
-- Program (devnet): `VWHcbCSH4kATcuPJgjZ6QC56W3NBQ53U6fxJNtGknh3`
-- TEE validator: `MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo` (`devnet-tee.magicblock.app`)
-- No wallet, no gas, no sign-up: open a room link and you're playing.
+<p align="center">
+  <a href="https://blackout.anshverma.tech"><img src="https://img.shields.io/badge/play-blackout.anshverma.tech-ffd166?style=for-the-badge" alt="Play"></a>
+  <a href="https://explorer.solana.com/address/VWHcbCSH4kATcuPJgjZ6QC56W3NBQ53U6fxJNtGknh3?cluster=devnet"><img src="https://img.shields.io/badge/program-Solana%20devnet-1f6feb?style=for-the-badge" alt="Program on devnet"></a>
+  <a href="#how-it-uses-magicblock"><img src="https://img.shields.io/badge/MagicBlock-8%20building%20blocks-a64dff?style=for-the-badge" alt="8 MagicBlock building blocks"></a>
+</p>
 
-## Why this needs MagicBlock
+<p align="center">
+  <img src="https://img.shields.io/badge/MagicBlock-Private%20ER%20(TEE)-a64dff" alt="Private ER">
+  <img src="https://img.shields.io/badge/Anchor-1.0-512bd4" alt="Anchor">
+  <img src="https://img.shields.io/badge/Rust-sim%20%2B%20tests-b7410e?logo=rust" alt="Rust">
+  <img src="https://img.shields.io/badge/React-Three.js-61dafb?logo=react&logoColor=black" alt="React + Three.js">
+  <img src="https://img.shields.io/badge/TypeScript-client-3178c6?logo=typescript&logoColor=white" alt="TypeScript">
+  <img src="https://img.shields.io/badge/Built%20for-Solana%20Blitz%20v9-14f195" alt="Solana Blitz v9">
+</p>
 
-Fog of war is the classic thing a public blockchain cannot do: if state is on-chain, anyone can read where everyone is standing. Dark Forest needed zero-knowledge proofs and was still turn-based. BLACKOUT does it in real time at **20 ticks per second** by combining every piece of the MagicBlock stack in one mechanic:
+<p align="center">
+  <img src="docs/assets/home.jpg" alt="BLACKOUT landing page" width="100%">
+</p>
 
-| MagicBlock feature | What it does in BLACKOUT |
+On a normal blockchain, fog of war is impossible: every account is public, so a wallhack is one RPC call. Dark Forest needed zero-knowledge proofs and was still turn-based. BLACKOUT runs each night at **20 ticks a second** inside a **MagicBlock Private Ephemeral Rollup** (an Intel TDX enclave), and uses **ephemeral permissions** to decide, account by account, who may read what. When the last player falls, the lights come on: the sealed World is flipped public, the full replay unlocks, and a **Magic Action** settles the night on Solana.
+
+| | |
 |---|---|
-| **Private Ephemeral Rollup** (TEE) | Runs the whole match. The World account has a permission with *no members*, so it is unreadable — even to spectators, the RPC and the room creator. |
-| **Ephemeral permissions** | Each seat has a View account whose permission is rewritten on `join` so only that player's session key can read it. Recorder + World flip `private → public` at the end and back on `reset`. |
-| **Ephemeral accounts** | World, 8 Views and 5 Recorder chunks are created *inside* the rollup, sponsored by the room PDA (32 lamports/byte), so nothing private ever touches the base layer. |
-| **Crank (scheduled tasks)** | `start_match` schedules `tick` every 50 ms inside the TEE. There is no game server anywhere. |
-| **VRF** | One VRF request per match seeds spawns, loot contents and every zone centre — derived straight into the sealed World, so even the next circle is secret until announced. |
-| **Gasless ER transactions** | Players are in-browser session keys with 0 SOL. Movement/aim/fire are ~15 tx/s per player. |
-| **Commit + Magic Action** | `finish` commits the room to Solana with a post-commit action `settle` that updates the global leaderboard and pays staked pots — atomically, no extra user transaction. Commits are paid from the delegated room PDA via `magic_fee_vault`. |
-| **Delegation** | Room PDAs are delegated to the TEE validator; the bank, tickets and leaderboard stay on the base layer. |
+| Play | **[blackout.anshverma.tech](https://blackout.anshverma.tech)**: free, gasless, no wallet needed |
+| Program (devnet) | [`VWHcbCSH4kATcuPJgjZ6QC56W3NBQ53U6fxJNtGknh3`](https://explorer.solana.com/address/VWHcbCSH4kATcuPJgjZ6QC56W3NBQ53U6fxJNtGknh3?cluster=devnet) |
+| TEE validator | [`MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo`](https://explorer.solana.com/address/MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo?cluster=devnet) (`devnet-tee.magicblock.app`) |
+| Live proof | The **How it works** page has a *Try to cheat* button that asks the TEE for a real room's sealed accounts and shows the denial |
 
-## How a match works
+---
 
-1. **Join** — `join(seat, name)` (ER, gasless). The seat's View permission becomes `[your session key]`. Lobby presence is a gasless `heartbeat`; abandoned seats are reclaimed automatically.
-2. **Start** — the host calls `start_match(fill_to)`: empty seats become on-chain bots, a VRF request is made, and a 20 Hz crank is scheduled.
-3. **Seed** — the VRF callback `on_seed` rolls spawns (max-spread), 10 loot crates, and a 3-phase zone plan, all into the sealed World.
-4. **Tick** — every 50 ms, inside the TEE: inputs → movement/collision → weapons → bullets → pickups → zone → deaths → placements. Then for each seat it computes **vision** (38° flashlight cone + walls via line-of-sight, a 2-tile "feel" circle, muzzle flashes that give shooters away, flares that reveal everyone) and **sound** (directional pings for footsteps, gunshots, reloads and loot you *can't* see) and writes only that into the seat's private View. Bots use the exact same vision rules — they can't see through walls either.
-5. **Lights on** — at the final kill, anyone calls `finish`: World + Recorder become public (the seed becomes verifiable, the 10 Hz replay unlocks), and the room is committed to Solana with the `settle` Magic Action.
-6. **Reset** — `reset` re-seals everything for the next match on the same accounts.
+## How it works
 
-No ghosting: dead players' views are emptied, and spectators see nothing until the reveal.
+```mermaid
+flowchart LR
+    subgraph Browser
+      P[Player<br/>session key, 0 SOL]
+      W[Wallet<br/>optional]
+    end
+    subgraph TEE["MagicBlock Private ER · Intel TDX"]
+      R[(Room<br/>public)]
+      WO[(World<br/>0 readers)]
+      V[(View × 8<br/>1 reader each)]
+      REC[(Recorder × 5<br/>sealed)]
+      CR[Crank · 50 ms]
+      VRF[VRF]
+    end
+    subgraph Solana
+      B[(Bank + Tickets)]
+      LB[(Leaderboard)]
+    end
 
-## Accounts
-
+    P -- "join · input ×20/s (gasless)" --> R
+    VRF -- "seed: spawns, loot, zone" --> WO
+    CR -- "tick: sim + vision" --> WO
+    WO -- "only what your light hits" --> V
+    V -- "websocket, your key only" --> P
+    W -- "buy_ticket (staked)" --> B
+    R -- "finish: commit + settle (Magic Action)" --> LB
+    R -. "pays the pot" .-> B
 ```
-Room      [room, id]          delegated PDA, public permission       lobby, names, kill feed, zone circle
-World     [world, id]         ephemeral, permission with 0 members   positions, bullets, loot, VRF seed, zone plan, bot brains
-View[i]   [view, id, i]       ephemeral, readable by seat i only     what seat i may know this tick (968 bytes)
-Rec[c]    [rec, id, c] x5     ephemeral, sealed → public             10 Hz flight recorder (1,595 frames)
-Bank      [bank, id]          base layer                             staked pot escrow
-Ticket    [ticket, id, m, k]  base layer                             proof a seat paid the stake
-Board     [board]             base layer                             global leaderboard, updated by the Magic Action
+
+1. **Create or join a room.** The creator claims a free room and becomes its host. Public rooms are listed on the gate; private rooms get a 6-character code. Taking a seat calls `join`, which rewrites that seat's View permission so only your browser's session key can read it.
+2. **The host sets the night.** Seats (2–8, empty seats become on-chain bots), bot skill (easy / medium / hard) and length (1:30, 2:15 or 3:30, and the zone schedule stretches to fit). The host can hand the room over or kick a player; in a private room a kick also rotates the code.
+3. **VRF rolls it.** `start_match` requests a MagicBlock VRF seed and schedules a crank. The callback derives spawns, loot contents and every zone centre straight into the sealed World.
+4. **20 ticks a second, inside the TEE.** Every 50 ms `tick` runs inputs → movement → weapons → bullets → pickups → zone → deaths, then for each seat computes **vision** (a 77° flashlight cone with line-of-sight, a 2-tile "feel" circle, muzzle flashes that give shooters away, flares that reveal everyone) and **sound** (directional pings for footsteps, sprinting, gunshots and reloads you *can't* see), and writes only that into the seat's private View.
+5. **Lights on.** At the final kill, anyone calls `finish`: World and Recorder flip public, the seed becomes verifiable, the replay unlocks, and the room commits to Solana with the `settle` Magic Action, which pays the staked pot and writes the leaderboard.
+6. **Reset.** `reset` re-seals everything for the next night on the same accounts.
+
+### Inside one tick
+
+```mermaid
+sequenceDiagram
+    participant Crank
+    participant Program as BLACKOUT program (in TEE)
+    participant World as World (sealed)
+    participant View as View[i] (seat i only)
+    Crank->>Program: tick(room)
+    Program->>World: bots think · move · shoot · bullets · loot · zone · deaths
+    loop each seat i
+      Program->>Program: cone + walls + feel circle + flashes → visible set
+      Program->>View: me, players I can see, bullets, loot, sound pings
+    end
+    Program->>World: flight recorder frame (10 Hz)
+    Note over View: the player's browser is subscribed<br/>to its own View over the TEE websocket
 ```
+
+---
+
+## How it uses MagicBlock
+
+Take any one of these out and the game stops working.
+
+| Building block | What it does in BLACKOUT |
+|---|---|
+| **Private Ephemeral Rollup** (TEE) | Runs the whole night: physics, bullets, bots, vision. Without it every position would be public state. |
+| **Ephemeral permissions** | World has *zero* readers, each View has exactly one (its seat's key), Room has everyone. `join`, `kick` and `leave` rewrite View permissions; `finish` flips World + Recorder public and `reset` seals them again. |
+| **Ephemeral accounts** | World, 8 Views and 5 Recorder chunks exist only inside the rollup, rent sponsored by the room PDA. Over 50 KB of per-night state never touches the base layer. |
+| **Crank** | `start_match` schedules `tick` every 50 ms. There is no game server anywhere. |
+| **VRF** | One seed per night rolls spawns, loot and every zone centre, sealed until each circle is announced, published at lights-on. |
+| **Magic Action** | `finish` commits the room with a post-commit `settle` action that pays the pot from the room's bank and writes the leaderboard, with no extra user transaction. |
+| **Gasless session keys** | Your browser makes a key with 0 SOL; every move, shot and heartbeat is signed silently, about 20 a second, with no wallet popup. |
+| **Delegation + commit** | Room PDAs live on Solana, are delegated to the TEE validator for play and committed back after each night. Bank, tickets and leaderboard stay on L1. |
+
+### Who can read what
+
+| | You | Other players | Spectators · RPC | After lights-on |
+|---|:-:|:-:|:-:|:-:|
+| Room: names, alive count, kill feed, current zone | ✓ | ✓ | ✓ | ✓ |
+| Your View: you + what your flashlight hits | ✓ | ✕ | ✕ | ✓ |
+| World: every position, bullet and loot crate | ✕ | ✕ | ✕ | ✓ |
+| VRF seed and future zone circles | ✕ | ✕ | ✕ | ✓ |
+| Flight recorder (the replay) | ✕ | ✕ | ✕ | ✓ |
+
+No ghosting: when you die your View is emptied. Bots follow the same vision rules, inside the TEE.
+
+---
+
+## The game
+
+<p align="center">
+  <img src="docs/assets/storm.jpg" alt="A night in the Yard: rain, lightning, the zone moving" width="100%">
+</p>
+
+| | |
+|---|---|
+| **Stealth first** | You see only your flashlight cone. Shooting lights you up for everyone nearby; footsteps, reloads and loot pickups make directional sound pings. |
+| **Sprint** | Hold Shift to run 1.5× faster for ~2.5 s. It's loud: footsteps carry further and twice as often. Stamina is simulated on-chain and mirrored bit-for-bit for prediction. |
+| **Loot** | Medkits, armor, SMG, shotgun, and the flare, which lets you see everyone for 5 seconds. |
+| **The zone** | Three shrinking circles with rising damage, timed to the night's length. The next circle is sealed until it's announced. |
+| **Bots** | Empty seats become on-chain bots with the same vision and hearing as you. The host picks easy, medium or hard. |
+| **Storm** | Rain, and lightning that lights up the walls (never the players). Thunder rolls in a second later. |
+| **Feel** | Tracers, sparks and blood, hit markers, kill streak banners, recoil and hit shake, a sprint camera, walls that fade when they block your view. |
+| **Replay** | After lights-on, scrub the whole night from your own view or everyone's, follow any player, and export a clip. |
+
+<p align="center">
+  <img src="docs/assets/lobby.jpg" alt="Lobby" width="49%">
+  <img src="docs/assets/map.jpg" alt="Full map" width="49%">
+</p>
+<p align="center">
+  <img src="docs/assets/settings.jpg" alt="Settings" width="49%">
+  <img src="docs/assets/verdict.jpg" alt="Verdict and replay" width="49%">
+</p>
+
+| Screen | What's there |
+|---|---|
+| Gate | Create a room, a private room with a code, join by code, the staked table, open rooms to join |
+| Lobby | 3D pedestals per seat, host controls (seats, bot skill, night length, make host, kick), invite link or room code |
+| Match | Countdown clock with the zone schedule, minimap and full map (Tab), settings (Esc): sensitivity, invert, arrow-key camera, FOV, smoothing, crosshair style/colour/size, laser sight, graphics, storm, volume |
+| Verdict | Results, replay, clip export, and a VERIFY tab that re-derives the night from its VRF seed in your browser |
+| Leaderboard | Staked nights only: wins and SOL won, written by the `settle` Magic Action |
+| How it works | The live *Try to cheat* console, every building block, the timeline and the permission matrix |
+
+**Wallet optional.** Guests play free and gasless with a browser key; nothing is saved and they never appear on the leaderboard. Connecting Phantom, Solflare or Backpack keeps your callsign and lets you play **staked nights**: every staker pays 0.01 SOL into the room's bank, there are no bots, and the winner's wallet is paid by the Magic Action.
+
+---
 
 ## Verified on devnet
 
-`scripts/e2e.ts` plays full matches against the live TEE and checks, end to end:
+- `scripts/e2e.ts` plays full nights against the live TEE and checks that a player can read its own View but not another's, a spectator can't read the World, VRF seeds the match, the crank holds 20 ticks/s, and after `finish` the World and Recorder are readable and `settle` runs.
+- `scripts/e2e_stake.ts`: two funded players buy tickets on Solana, play a staked night, and the winner's wallet receives the pot from the `settle` Magic Action.
+- `scripts/mirror.ts`: 2,000 random movement steps, sprint and stamina included, give identical results in the Rust program and the TypeScript prediction.
+- `cargo test`: 40 full 8-bot nights end with valid placements; 30 more check bots actually fight.
+- After every night, the VERIFY tab re-derives every spawn, loot roll and zone circle from the revealed VRF seed and checks them against the unsealed World.
+- `scripts/ui/`: Playwright runs of the full flows: guest play, private rooms with codes and kicks, closing a room, settings, the map, sprint.
 
-- player A can read its own View but not player B's; a spectator cannot read the World
-- VRF seeds the match (~0.2 s), the crank ticks at **20.0 ticks/s**, Views stream over the TEE websocket every tick
-- after `finish`, the World and Recorder become readable by anyone, the seed and zone plan are verifiable
-- the room is committed to Solana and the `settle` Magic Action updates the leaderboard
-- `reset` re-seals the World
-- `scripts/e2e_stake.ts`: two funded players buy tickets on Solana, play a staked match, and the winner's wallet receives the 0.02 SOL pot from the `settle` Magic Action
+## Repository
 
-After every match the reveal screen **re-derives spawns, loot rolls and every zone centre from the VRF seed in your browser** (`app/src/game/verify.ts`) and checks them against the unsealed World, so anyone can confirm the match wasn't rigged.
-
-The simulation is deterministic integer math (`programs/blackout/src/sim.rs`) mirrored bit-for-bit in TypeScript (`app/src/game/sim.ts`) for client-side prediction — `scripts/mirror.ts` checks 2,000 random movement steps produce identical positions in both. `cargo test` plays 40 full 8-bot matches to check every one ends with valid placements.
+```
+programs/blackout/       Anchor program
+  src/lib.rs             26 instructions: rooms, lobby, match, settle (Magic Action)
+  src/sim.rs             deterministic integer simulation + vision + bots + recorder, with tests
+  src/state.rs           Room, World, View, Recorder, Board layouts
+  src/gen.rs             map and trig tables (generated)
+app/                     Vite + React + react-three-fiber client
+  src/chain/             instruction builders and account decoders
+  src/game/              session (prediction, reconcile), sim.ts mirror, audio, settings
+  src/scene/             the Yard, players, effects, replay
+  src/ui/                gate, lobby, HUD, verdict, leaderboard, how it works
+scripts/                 devnet tooling: deploy, admin, e2e, mirror, verify
+scripts/ui/              Playwright flow tests and screenshots
+```
 
 ## Run it
 
 ```bash
-# program
+# program (devnet)
 anchor build && ./scripts/deploy.sh
 npx tsx scripts/admin.ts board
-npx tsx scripts/admin.ts rooms 1 2 3 4 10 11 12 13
+npx tsx scripts/admin.ts rooms 1 2 3 4 6 7 8 9 10 11 12 13
 
-# end-to-end check against the live TEE
+# checks
+cd programs/blackout && cargo test && cd ../..
+npx tsx scripts/mirror.ts
 npx tsx scripts/e2e.ts 1
 
-# frontend
-cd app && npm i && npm run dev
+# client
+cd app && npm install && npm run dev
 ```
 
-## Stack
+## Limits
 
-Anchor 1.0 · ephemeral-rollups-sdk 0.17 (access-control, crank, vrf) · React + Three.js (react-three-fiber) with real-time shadows from your flashlight · synthesized positional audio · twin-stick touch controls.
+- **Devnet only.** Staked nights use devnet SOL.
+- **The TEE is the trust anchor.** Privacy rests on MagicBlock's TDX validator and its permission checks; the program can't prove privacy by itself.
+- **Fixed room pool.** Rooms are pre-created slots that players claim; a room with nobody in it is finished and reset by the next visitor.

@@ -113,7 +113,10 @@ export function Home() {
       <main className="gate-main">
         <section className="gate-hero">
           <div className="kicker">
-            <span className="dot" /> THE WARDEN IS WATCHING · {live} {live === 1 ? "match" : "matches"} in the dark · {players} survivors
+            <span className="dot" /> THE WARDEN IS WATCHING ·{" "}
+            {live > 0
+              ? `${live} ${live === 1 ? "night" : "nights"} in the dark · ${players} still alive`
+              : `${openRooms.length ? `${openRooms.length} open ${openRooms.length === 1 ? "room" : "rooms"}` : "every room is free"} · sealed in a MagicBlock TEE`}
           </div>
           <h1 className="gate-title">BLACKOUT</h1>
           <p className="gate-tag">
