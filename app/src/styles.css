@@ -1403,3 +1403,28 @@ button {
 .board-cta{display:flex;align-items:center;gap:14px;background:rgba(8,10,16,.8);border:1px solid var(--line);border-radius:14px;padding:12px 16px}
 .board-foot a{font-size:12px}
 @media (max-width:720px){.podium{grid-template-columns:1fr;}.pod.empty{display:none}.bt-row{grid-template-columns:30px minmax(0,1fr) 44px 44px;font-size:13px}.bt-row>span:nth-child(5),.bt-row>span:nth-child(6),.bt-row>span:nth-child(7){display:none}}
+
+.chip-btn.connect{border-color:rgba(255,209,102,.6);color:var(--gold)}
+.wm-profile{display:flex;flex-direction:column;gap:2px;padding:8px 10px 10px;border-bottom:1px solid var(--line);margin-bottom:4px}
+.wm-profile b{letter-spacing:.08em}
+.wm-profile span{font-size:11px;color:var(--dim)}
+.wgate{position:fixed;inset:0;z-index:90;display:grid;place-items:center;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);animation:fadein .3s}
+.wgate-card{width:min(460px,calc(100vw - 32px));background:rgba(8,10,16,.96);border:1px solid var(--line);border-radius:22px;padding:28px;text-align:center;display:flex;flex-direction:column;gap:12px;align-items:stretch;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+.wgate-eye{width:64px;height:64px;margin:0 auto 4px;border-radius:50%;background:radial-gradient(circle,#ffe9b0 0 10%,#3a2a10 22%,#000 62%);box-shadow:0 0 40px rgba(166,77,255,.35),inset 0 0 0 1px rgba(166,77,255,.5);animation:pulse 3s infinite}
+.wgate-card h2{margin:0;font-size:24px}
+.wgate-card p{margin:0;color:#aab2c6;font-size:14px;line-height:1.5}
+.wgate-list{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+.wgate-wallet{display:flex;justify-content:space-between;align-items:center;background:#0c0e16;border:1px solid var(--line);color:var(--fg);padding:14px 16px;border-radius:12px;cursor:pointer;font-family:inherit;font-weight:700;font-size:15px;letter-spacing:.04em}
+.wgate-wallet:hover{border-color:var(--gold)}
+.wgate-wallet em{font-style:normal;font-size:11px;color:var(--green);font-family:var(--mono);font-weight:400}
+.wgate-wallet.off{opacity:.6}
+.wgate-wallet.off em{color:var(--dim)}
+.wgate-err{color:#ff7a90;font-size:13px}
+.wgate-card small{color:var(--dim);font-size:11px}
+.wgate-input{background:#070910;border:1px solid var(--gold);color:var(--fg);padding:14px;border-radius:12px;font-family:var(--mono);font-size:20px;letter-spacing:.12em;text-align:center}
+.wgate-addr{font-size:10px;color:var(--dim);word-break:break-all}
+
+.side-empty{color:var(--dim);font-size:13px;line-height:1.45;padding:4px 8px}
+.side-live{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dim);padding:8px 8px 2px;border-top:1px solid var(--line);margin-top:6px}
+
+.stage-open{display:flex;flex-direction:column;align-items:center;gap:2px}.stage-open small{font-size:8px;letter-spacing:.14em;opacity:.65}

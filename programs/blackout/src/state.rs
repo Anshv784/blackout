@@ -20,7 +20,9 @@ pub const VIEW_SEED: &[u8] = b"view";
 pub const REC_SEED: &[u8] = b"rec";
 pub const BANK_SEED: &[u8] = b"bank";
 pub const TICKET_SEED: &[u8] = b"ticket";
-pub const BOARD_SEED: &[u8] = b"board";
+/// v2: entries carry the callsign, so a wallet's profile lives on Solana
+pub const BOARD_SEED: &[u8] = b"board2";
+pub const BOARD_SLOTS: usize = 64;
 
 // Room status
 pub const ST_LOBBY: u32 = 0;
@@ -73,7 +75,8 @@ pub struct Room {
     pub zone_phase: u32,
     pub private_code: u32, // 0 = public room
     pub seed_revealed: u32,
-    pub settled_match: u32,
+    /// room config set by its creator: bits 0-7 = seats (2..8, 0 = 8), bit 8 = unlisted
+    pub cfg: u32,
     pub ready_mask: u32,
     pub last_seen: [u32; MAXP], // ER slot (truncated) of each seat's last lobby heartbeat
 }
@@ -84,6 +87,15 @@ impl Room {
             return None;
         }
         (0..MAXP).find(|&i| self.players[i] == *key && self.is_bot[i] == 0)
+    }
+
+    pub fn max_players(&self) -> usize {
+        let m = (self.cfg & 0xff) as usize;
+        if m == 0 { MAXP } else { m.clamp(2, MAXP) }
+    }
+
+    pub fn live_humans(&self, slot: u64) -> usize {
+        (0..MAXP).filter(|&i| self.is_bot[i] == 0 && self.players[i] != Pubkey::default() && !self.is_stale(i, slot)).count()
     }
 
     /// A human seat whose browser stopped sending lobby heartbeats.
@@ -129,13 +141,14 @@ pub struct Board {
     pub matches: u64,
     pub count: u32,
     pub _pad: u32,
-    pub entries: [BoardEntry; 32],
+    pub entries: [BoardEntry; BOARD_SLOTS],
 }
 
 #[zero_copy]
 #[repr(C)]
 pub struct BoardEntry {
     pub key: Pubkey,
+    pub name: [u8; 16],
     pub wins: u32,
     pub kills: u32,
     pub games: u32,

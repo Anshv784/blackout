@@ -13,7 +13,7 @@ import { Crosshair } from "./Crosshair";
 import { roomLink } from "../config";
 import { go } from "../App";
 import { audio } from "../game/audio";
-import { connectWallet } from "../game/wallet";
+import { connectWallet, requireWallet } from "../game/wallet";
 import { TopBar } from "./TopBar";
 import type { SeatInfo } from "../scene/LobbyStage";
 
@@ -118,7 +118,8 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
   const staked = room.stake > 0n;
   const link = roomLink(room.roomId);
 
-  const seats: SeatInfo[] = Array.from({ length: 8 }, (_, i) => {
+  const size = room.maxPlayers;
+  const seats: SeatInfo[] = Array.from({ length: staked ? 8 : size }, (_, i) => {
     const taken = room.players[i].toBase58() !== EMPTY || room.isBot[i] === 1;
     return { name: room.names[i], taken, bot: room.isBot[i] === 1, me: i === mySeat, host: taken && i === effectiveHost, away: taken && room.isBot[i] === 0 && !fresh(i) };
   });
@@ -136,6 +137,8 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
   };
 
   const take = (seat?: number) =>
+    new Promise<void>((resolve) => requireWallet(() => resolve(doTake(seat))));
+  const doTake = (seat?: number) =>
     run("join", async () => {
       if (staked) {
         const { provider } = await import("../game/wallet");
@@ -144,23 +147,20 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
         const pk = await connectWallet();
         await session.buyTicket(sol);
         await session.join(name || "GHOST", new PublicKey(pk), 0, seat);
-      } else await session.join(name || "GHOST", wallet ? new PublicKey(wallet) : null, 0, seat);
+      } else {
+        const w = useStore.getState().wallet;
+        await session.join(useStore.getState().name || name || "GHOST", w ? new PublicKey(w) : null, 0, seat);
+      }
     });
 
-  // PLAY NOW: sit down and, if nobody else is here, start straight away against bots
+  // arriving from an invite link: sit down right away (wallet gate first if needed)
   useEffect(() => {
-    if (!quick.current || autoDone.current || staked) return;
-    if (mySeat === null && !busy) {
+    if (autoDone.current || staked || mySeat !== null || busy) return;
+    if (quick.current || invite) {
       autoDone.current = true;
-      take().then(() => (autoDone.current = false));
-      return;
+      take();
     }
-    if (mySeat !== null && canStart && humans === 1 && !busy) {
-      autoDone.current = true;
-      quick.current = false;
-      run("start", () => session.startMatch(6));
-    }
-  }, [mySeat, canStart, humans, busy]);
+  }, [mySeat, busy]);
 
   const copy = () => {
     navigator.clipboard?.writeText(link);
@@ -178,7 +178,13 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
         <div className="kicker">
           <span className="dot" /> {invite ? "PRIVATE ROOM" : `ROOM ${room.roomId}`} · NIGHT {room.matchNo + 1} {staked ? `· ${(Number(room.stake) / 1e9).toFixed(2)} SOL STAKE` : ""}
         </div>
-        <h2>{mySeat === null ? "Take a seat in the dark." : canStart ? "You're the host. Fill the Yard." : `Waiting for ${room.names[effectiveHost] || "the host"}…`}</h2>
+        <h2>
+          {mySeat === null
+            ? `${room.names[effectiveHost] || "Someone"}'s room — take a seat.`
+            : canStart
+              ? "Your room. Pick the seats, then start the night."
+              : `Waiting for ${room.names[effectiveHost] || "the host"} to start…`}
+        </h2>
         {staked && <p className="sub">Pot {(Number(room.pot) / 1e9).toFixed(2)} SOL · winner is paid on Solana by a Magic Action the moment the match commits.</p>}
         {quick.current && <p className="sub">Opening the gate for you…</p>}
       </div>
@@ -208,7 +214,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
               {busy === "join" ? (staked ? "BUYING TICKET…" : "SITTING DOWN…") : staked ? `STAKE ${(Number(room.stake) / 1e9).toFixed(2)} SOL & SIT` : "TAKE A SEAT"}
             </button>
           ) : canStart ? (
-            <button className="btn primary huge" disabled={!!busy || (staked ? humans < 2 : Math.max(humans, fill) < 2)} onClick={() => run("start", () => session.startMatch(staked ? 0 : fill))}>
+            <button className="btn primary huge" disabled={!!busy || (staked ? humans < 2 : size < 2)} onClick={() => run("start", () => session.startMatch(staked ? 0 : size))}>
               {busy === "start" ? "WAKING THE WARDEN…" : staked && humans < 2 ? `WAITING FOR ${2 - humans} MORE STAKER` : "START THE NIGHT"}
             </button>
           ) : (
@@ -226,17 +232,20 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
         <div className="dock-cell bots">
           {!staked ? (
             <>
-              <label>FILL WITH BOTS TO</label>
+              <label>SEATS</label>
               <div className="stepper">
-                <button onClick={() => setFill(Math.max(2, fill - 1))} disabled={!canStart}>
+                <button onClick={() => run("size", () => session.setSize(size - 1))} disabled={!canStart || !!busy || size <= Math.max(2, humans)}>
                   −
                 </button>
-                <b>{fill}</b>
-                <button onClick={() => setFill(Math.min(8, fill + 1))} disabled={!canStart}>
+                <b>{size}</b>
+                <button onClick={() => run("size", () => session.setSize(size + 1))} disabled={!canStart || !!busy || size >= 8}>
                   +
                 </button>
               </div>
-              <small>bots see only their own flashlight too</small>
+              <small>
+                {humans} {humans === 1 ? "player" : "players"} + {Math.max(0, size - humans)} {size - humans === 1 ? "bot" : "bots"}
+                {canStart ? "" : " · host decides"}
+              </small>
             </>
           ) : (
             <>

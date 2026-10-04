@@ -6,6 +6,8 @@ import { go } from "../App";
 import { useStore } from "../game/store";
 import { audio } from "../game/audio";
 import { TopBar } from "./TopBar";
+import { requireWallet } from "../game/wallet";
+import { createRoom } from "../game/rooms";
 
 const Backdrop = lazy(() => import("../scene/Backdrop").then((m) => ({ default: m.Backdrop })));
 
@@ -53,41 +55,22 @@ export function Home() {
     };
   }, []);
 
-  /** One click: an empty room, auto-seat, start against bots. */
-  const quickPlay = async () => {
+  const create = async (unlisted: boolean) => {
     audio.unlock();
-    setBusy("quick");
+    setBusy(unlisted ? "friends" : "create");
     try {
-      const fresh = await Promise.all(QUICK_ROOMS.map(async (id) => [id, await client.fetchRoom(id).catch(() => null)] as const));
-      const slot = await (await client.teeConn()).getSlot().catch(() => 0);
-      const empty = fresh.filter(([, r]) => r && r.status === ST_LOBBY && liveHumans(r, slot) === 0);
-      const pick = empty[Math.floor(Math.random() * empty.length)] ?? fresh.find(([, r]) => r && r.status === ST_LOBBY);
-      if (!pick) throw new Error("Every room is mid-match — try again in a minute");
-      go(`/r/${pick[0]}?quick=1`);
+      const id = await createRoom(6, unlisted);
+      go(`/r/${id}${unlisted ? "?invite=1" : ""}`);
     } catch (e: any) {
-      toast(e.message ?? String(e));
+      toast(String(e?.message ?? e).replace(/\(.*\)$/, "").slice(0, 140));
     } finally {
       setBusy(null);
     }
   };
 
-  const withFriends = async () => {
-    audio.unlock();
-    setBusy("friends");
-    try {
-      const all = await Promise.all(PRIVATE_POOL.map(async (id) => [id, await client.fetchRoom(id).catch(() => null)] as const));
-      const slot = await (await client.teeConn()).getSlot().catch(() => 0);
-      const free = all.filter(([, r]) => r && r.status === ST_LOBBY && liveHumans(r, slot) === 0);
-      const pick = free[Math.floor(Math.random() * free.length)] ?? all.find(([, r]) => r && r.status === ST_LOBBY);
-      if (!pick) throw new Error("All private rooms are busy — try a public room");
-      go(`/r/${pick[0]}?invite=1`);
-    } catch (e: any) {
-      toast(e.message ?? String(e));
-    } finally {
-      setBusy(null);
-    }
-  };
-
+  const entries = Object.entries(rooms).filter(([id, r]) => r && !STAKED_ROOMS.includes(Number(id))) as [string, Room][];
+  const openRooms = entries.filter(([, r]) => r.status === ST_LOBBY && !r.unlisted && slot > 0 && liveHumans(r, slot) > 0 && liveHumans(r, slot) < r.maxPlayers);
+  const liveMatches = entries.filter(([, r]) => r.status === ST_LIVE || r.status === ST_COUNTDOWN);
   const live = Object.values(rooms).filter((r) => r && (r.status === ST_LIVE || r.status === ST_COUNTDOWN)).length;
   const players = Object.values(rooms).reduce((n, r) => n + (r ? (slot ? liveHumans(r, slot) : humansIn(r)) : 0), 0);
 
@@ -109,15 +92,15 @@ export function Home() {
             A real-time battle royale where <b>nobody can see you</b> — not the other players, not the RPC, <b>not even the chain</b>.
           </p>
           <div className="gate-cta">
-            <button className="btn primary huge" onClick={quickPlay} disabled={!!busy}>
-              {busy === "quick" ? "OPENING THE GATE…" : "PLAY NOW"}
-              <small>solo vs bots · drop in seconds · no wallet</small>
+            <button className="btn primary huge" onClick={() => requireWallet(() => create(false))} disabled={!!busy}>
+              {busy === "create" ? "OPENING A ROOM…" : "CREATE A ROOM"}
+              <small>you're the host · pick your seats · bots fill the rest</small>
             </button>
             <div className="gate-alt">
-              <button className="btn" onClick={withFriends} disabled={!!busy}>
-                {busy === "friends" ? "FINDING A ROOM…" : "PLAY WITH FRIENDS"}
+              <button className="btn" onClick={() => requireWallet(() => create(true))} disabled={!!busy}>
+                {busy === "friends" ? "OPENING…" : "PRIVATE ROOM FOR FRIENDS"}
               </button>
-              <button className="btn gold-outline" onClick={() => go(`/r/${STAKED_ROOMS[0]}`)}>
+              <button className="btn gold-outline" onClick={() => requireWallet(() => go(`/r/${STAKED_ROOMS[0]}`))}>
                 STAKED NIGHT · 0.01 SOL
               </button>
             </div>
@@ -132,24 +115,28 @@ export function Home() {
 
         <aside className="gate-side">
           <div className="side-card">
-            <label>LIVE IN THE YARD</label>
-            {PUBLIC_ROOMS.map((id) => {
-              const r = rooms[id];
-              const st = r?.status ?? -1;
-              return (
-                <button key={id} className="room-row" onClick={() => go(`/r/${id}`)}>
-                  <span className={`pulse st-${st}`} />
-                  <span className="rr-name">Room {id}</span>
-                  <span className="rr-seats">
-                    {Array.from({ length: 8 }, (_, i) => {
-                      const on = r && (r.isBot[i] === 1 || (r.players[i].toBase58() !== EMPTY && (!slot || ((slot >>> 0) - r.lastSeen[i]) >>> 0 <= 4500 || r.status !== ST_LOBBY)));
-                      return <i key={i} className={on ? (r!.isBot[i] ? "bot" : "on") : ""} />;
-                    })}
-                  </span>
-                  <span className="rr-st">{r ? statusLine(r, slot) : "waking…"}</span>
-                </button>
-              );
-            })}
+            <label>OPEN ROOMS · JOIN SOMEONE</label>
+            {openRooms.length === 0 && <div className="side-empty">No one is waiting right now. Create a room — friends can join from your link.</div>}
+            {openRooms.map(([id, r]) => (
+              <button key={id} className="room-row" onClick={() => requireWallet(() => go(`/r/${id}`))}>
+                <span className="pulse st-0" />
+                <span className="rr-name">{r.names[r.players.findIndex((p) => p.equals(r.host))] || "ROOM"}'s</span>
+                <span className="rr-seats">
+                  {Array.from({ length: r.maxPlayers }, (_, i) => (
+                    <i key={i} className={r.players[i].toBase58() !== EMPTY ? "on" : ""} />
+                  ))}
+                </span>
+                <span className="rr-st">
+                  {liveHumans(r, slot)}/{r.maxPlayers} · join
+                </span>
+              </button>
+            ))}
+            {liveMatches.length > 0 && (
+              <div className="side-live">
+                <span className="pulse st-3" /> {liveMatches.length} {liveMatches.length === 1 ? "night" : "nights"} in progress ·{" "}
+                {liveMatches.reduce((n, [, r]) => n + r.aliveCount, 0)} alive in the dark
+              </div>
+            )}
           </div>
           {board.length > 0 && (
             <div className="side-card">

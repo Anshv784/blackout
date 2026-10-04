@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Room, View, World, Recording } from "../chain/layout";
+import type { Room, View, World, Recording, BoardEntry } from "../chain/layout";
 
 export type Route = { page: "home" } | { page: "room"; roomId: bigint } | { page: "how" } | { page: "board" };
 
@@ -24,6 +24,8 @@ interface State {
   route: Route;
   name: string;
   wallet: string | null;
+  profile: BoardEntry | null;
+  walletGate: { then: () => void } | null;
   room: Room | null;
   view: View | null;
   mySeat: number | null;
@@ -47,6 +49,8 @@ export const useStore = create<State>((set, get) => ({
       return null;
     }
   })(),
+  profile: null,
+  walletGate: null,
   room: null,
   view: null,
   mySeat: null,

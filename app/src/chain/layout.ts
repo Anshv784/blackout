@@ -98,6 +98,8 @@ export interface Room {
   seedRevealed: number;
   readyMask: number;
   lastSeen: number[];
+  maxPlayers: number;
+  unlisted: boolean;
 }
 
 export const READY_ALL = 1 | (0b11111 << 1) | (0xff << 8);
@@ -138,13 +140,15 @@ export function decodeRoom(data: Uint8Array): Room {
   const zonePhase = r.u32();
   const privateCode = r.u32();
   const seedRevealed = r.u32();
-  r.u32(); // settled_match
+  const cfg = r.u32();
   const readyMask = r.u32();
   const lastSeen = r.arr(MAXP, () => r.u32());
   return {
     roomId, stake, pot, startSlot, lastTickSlot, taskId, host, players, payout, names, status, matchNo, tick,
     endTick, nPlayers, nBots, isBot, alive, kills, place, winner, aliveCount, feedHead, feed, zone, next, zonePhase,
     privateCode, seedRevealed, readyMask, lastSeen,
+    maxPlayers: cfg & 0xff ? Math.min(8, Math.max(2, cfg & 0xff)) : 8,
+    unlisted: (cfg & 0x100) !== 0,
   };
 }
 
@@ -322,6 +326,7 @@ function decodeChunk(dv: DataView, frames: number, out: RecFrame[][]) {
 
 export interface BoardEntry {
   key: PublicKey;
+  name: string;
   wins: number;
   kills: number;
   games: number;
@@ -333,6 +338,6 @@ export function decodeBoard(data: Uint8Array): { matches: bigint; entries: Board
   const matches = r.u64();
   const count = r.u32();
   r.u32();
-  const entries = r.arr(32, () => ({ key: r.key(), wins: r.u32(), kills: r.u32(), games: r.u32(), bestPlace: r.u32() })).slice(0, count);
+  const entries = r.arr(64, () => ({ key: r.key(), name: decodeName(r.bytes(16)), wins: r.u32(), kills: r.u32(), games: r.u32(), bestPlace: r.u32() })).slice(0, count);
   return { matches, entries };
 }

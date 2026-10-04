@@ -63,7 +63,7 @@ export const recPda = (roomId: bigint | number, chunk: number) => pda([Buffer.fr
 export const recPdas = (roomId: bigint | number) => Array.from({ length: REC_CHUNKS }, (_, c) => recPda(roomId, c));
 export const viewPda = (roomId: bigint | number, seat: number) => pda([Buffer.from("view"), u64le(roomId), Buffer.from([seat])]);
 export const bankPda = (roomId: bigint | number) => pda([Buffer.from("bank"), u64le(roomId)]);
-export const boardPda = () => pda([Buffer.from("board")]);
+export const boardPda = () => pda([Buffer.from("board2")]);
 export const programIdentityPda = () => pda([Buffer.from("identity")]);
 export const ticketPda = (roomId: bigint | number, matchNo: number, player: PublicKey) => {
   const m = Buffer.alloc(4);
@@ -326,6 +326,14 @@ export class BlackoutClient {
 
   linkWalletIx(wallet: PublicKey) {
     return ix("link_wallet", {}, [w(boardPda()), r(this.publicKey, true), w(wallet, true)]);
+  }
+
+  claimIx(roomId: bigint, maxPlayers: number, unlisted: boolean) {
+    return ix("claim_room", { max_players: maxPlayers, unlisted }, [r(this.publicKey, true), w(roomPda(roomId))]);
+  }
+
+  setSizeIx(roomId: bigint, maxPlayers: number) {
+    return ix("set_size", { max_players: maxPlayers }, [r(this.publicKey, true), w(roomPda(roomId))]);
   }
 
   heartbeatIx(roomId: bigint) {

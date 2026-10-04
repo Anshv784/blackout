@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../game/store";
 import { saveName } from "../game/identity";
-import { connectWallet, disconnectWallet } from "../game/wallet";
+import { disconnectWallet, requireWallet, saveWalletName } from "../game/wallet";
 import { SoundToggle } from "./SoundToggle";
 import { go } from "../App";
 
@@ -34,6 +34,8 @@ function Callsign() {
       onChange={(e) => {
         const v = e.target.value.toUpperCase().replace(/[^A-Z0-9_\-]/g, "").slice(0, 12);
         saveName(v);
+        const w = useStore.getState().wallet;
+        if (w) saveWalletName(w, v);
         set({ name: v });
       }}
       onBlur={() => setEdit(false)}
@@ -49,6 +51,7 @@ function Callsign() {
 function Wallet() {
   const wallet = useStore((s) => s.wallet);
   const toast = useStore((s) => s.toast);
+  const profile = useStore((s) => s.profile);
   const [open, setOpen] = useState(false);
   return wallet ? (
     <div className="wallet-menu" onMouseLeave={() => setOpen(false)}>
@@ -57,6 +60,12 @@ function Wallet() {
       </button>
       {open && (
         <div className="wm-pop">
+          <div className="wm-profile">
+            <b>{useStore.getState().name}</b>
+            <span>
+              {profile ? `${profile.wins} wins · ${profile.kills} kills · ${profile.games} nights` : "no nights on record yet"}
+            </span>
+          </div>
           <button
             onClick={() => {
               navigator.clipboard?.writeText(wallet);
@@ -80,12 +89,8 @@ function Wallet() {
       )}
     </div>
   ) : (
-    <button
-      className="chip-btn ghost"
-      onClick={() => connectWallet().catch((e) => toast(String(e?.message ?? e)))}
-      title="Optional: save your wins to the leaderboard"
-    >
-      ◎ connect
+    <button className="chip-btn connect" onClick={() => requireWallet(() => {})} title="Your wallet is your identity in the Yard">
+      ◎ connect wallet
     </button>
   );
 }

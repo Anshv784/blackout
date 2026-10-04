@@ -9,6 +9,8 @@ import { RoomPage } from "./ui/RoomPage";
 import { Board } from "./ui/Board";
 import { How } from "./ui/How";
 import { Toasts } from "./ui/Toasts";
+import { WalletGate } from "./ui/WalletGate";
+import { loadProfile, localNameFor, provider } from "./game/wallet";
 
 function parseHash(): Route {
   const h = window.location.hash.replace(/^#\/?/, "");
@@ -44,6 +46,16 @@ export function App() {
     window.addEventListener("pointerdown", start, { once: true });
     window.addEventListener("keydown", start, { once: true });
     (window as any).__replayIntro = () => setIntro(true);
+    // restore a previously connected wallet + its on-chain profile, silently
+    const saved = useStore.getState().wallet;
+    if (saved) {
+      provider()?.connect?.({ onlyIfTrusted: true }).catch(() => {});
+      const local = localNameFor(saved);
+      if (local) useStore.getState().set({ name: local });
+      loadProfile(saved).then((prof) => {
+        if (prof) useStore.getState().set({ profile: prof, ...(prof.name ? { name: prof.name } : {}) });
+      });
+    }
   }, []);
   useEffect(() => {
     installKeyboard();
@@ -60,6 +72,7 @@ export function App() {
       {route.page === "board" && <Board />}
       {route.page === "how" && <How />}
       <Toasts />
+      <WalletGate />
     </>
   );
 }

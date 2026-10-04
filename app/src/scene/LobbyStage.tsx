@@ -16,12 +16,12 @@ export interface SeatInfo {
   away: boolean;
 }
 
-const seatPos = (i: number): [number, number, number] => {
-  const x = (i - 3.5) * 2.05;
+const seatPos = (i: number, n: number): [number, number, number] => {
+  const x = (i - (n - 1) / 2) * 2.05;
   return [x, 0, -(x * x) / 16];
 };
 
-function Pedestal({ i, seat, onTake }: { i: number; seat: SeatInfo; onTake: (i: number) => void }) {
+function Pedestal({ i, n, seat, onTake }: { i: number; n: number; seat: SeatInfo; onTake: (i: number) => void }) {
   const ring = useRef<THREE.Mesh>(null);
   const g = useRef<THREE.Group>(null);
   const spot = useRef<THREE.SpotLight>(null);
@@ -29,7 +29,7 @@ function Pedestal({ i, seat, onTake }: { i: number; seat: SeatInfo; onTake: (i: 
   useEffect(() => {
     if (spot.current && aimAt.current) spot.current.target = aimAt.current;
   }, []);
-  const [x, , z] = seatPos(i);
+  const [x, , z] = seatPos(i, n);
   const color = SEAT_COLORS[i];
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
@@ -82,6 +82,7 @@ function Pedestal({ i, seat, onTake }: { i: number; seat: SeatInfo; onTake: (i: 
         ) : (
           <button className="stage-open" style={{ ["--c" as any]: color }} onClick={() => onTake(i)}>
             OPEN SEAT
+            <small>bot if empty</small>
           </button>
         )}
       </Html>
@@ -133,7 +134,7 @@ export const LobbyStage = memo(function LobbyStage({ seats, onTake }: { seats: S
           <meshStandardMaterial map={floor} roughness={0.6} metalness={0.3} />
         </mesh>
         {seats.map((s, i) => (
-          <Pedestal key={i} i={i} seat={s} onTake={onTake} />
+          <Pedestal key={i} i={i} n={seats.length} seat={s} onTake={onTake} />
         ))}
         <EffectComposer multisampling={0}>
           <Bloom intensity={1.0} luminanceThreshold={0.25} mipmapBlur />

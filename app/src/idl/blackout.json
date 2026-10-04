@@ -122,6 +122,43 @@
       ]
     },
     {
+      "name": "claim_room",
+      "docs": [
+        "\"Create a room\": claim a free room (no live humans), become its host and",
+        "choose how many seats it has. Bots fill whatever seats humans don't."
+      ],
+      "discriminator": [
+        62,
+        51,
+        97,
+        121,
+        144,
+        160,
+        43,
+        85
+      ],
+      "accounts": [
+        {
+          "name": "player",
+          "signer": true
+        },
+        {
+          "name": "room",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "max_players",
+          "type": "u8"
+        },
+        {
+          "name": "unlisted",
+          "type": "bool"
+        }
+      ]
+    },
+    {
       "name": "create_room",
       "docs": [
         "Create a room and pre-fund it: the room PDA sponsors its ephemeral",
@@ -549,7 +586,8 @@
                   111,
                   97,
                   114,
-                  100
+                  100,
+                  50
                 ]
               }
             ]
@@ -656,7 +694,8 @@
                   111,
                   97,
                   114,
-                  100
+                  100,
+                  50
                 ]
               }
             ]
@@ -915,7 +954,8 @@
                   111,
                   97,
                   114,
-                  100
+                  100,
+                  50
                 ]
               }
             ]
@@ -1167,6 +1207,38 @@
       "args": []
     },
     {
+      "name": "set_size",
+      "docs": [
+        "Host resizes the room (seats beyond the new size must be empty)."
+      ],
+      "discriminator": [
+        30,
+        213,
+        4,
+        38,
+        180,
+        241,
+        157,
+        114
+      ],
+      "accounts": [
+        {
+          "name": "player",
+          "signer": true
+        },
+        {
+          "name": "room",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "max_players",
+          "type": "u8"
+        }
+      ]
+    },
+    {
       "name": "settle",
       "docs": [
         "Magic Action: runs on Solana right after the ER commits the finished",
@@ -1195,7 +1267,8 @@
                   111,
                   97,
                   114,
-                  100
+                  100,
+                  50
                 ]
               }
             ]
@@ -1796,6 +1869,16 @@
       "code": 6014,
       "name": "NotReady",
       "msg": "Room setup is not finished"
+    },
+    {
+      "code": 6015,
+      "name": "RoomTaken",
+      "msg": "Someone is already using this room"
+    },
+    {
+      "code": 6016,
+      "name": "RoomFull",
+      "msg": "Room is full"
     }
   ],
   "types": [
@@ -1855,7 +1938,7 @@
                     "name": "BoardEntry"
                   }
                 },
-                32
+                64
               ]
             }
           }
@@ -1874,6 +1957,15 @@
           {
             "name": "key",
             "type": "pubkey"
+          },
+          {
+            "name": "name",
+            "type": {
+              "array": [
+                "u8",
+                16
+              ]
+            }
           },
           {
             "name": "wins",
@@ -2117,7 +2209,10 @@
             "type": "u32"
           },
           {
-            "name": "settled_match",
+            "name": "cfg",
+            "docs": [
+              "room config set by its creator: bits 0-7 = seats (2..8, 0 = 8), bit 8 = unlisted"
+            ],
             "type": "u32"
           },
           {

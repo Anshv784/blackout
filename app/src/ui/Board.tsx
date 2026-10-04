@@ -78,7 +78,7 @@ export function Board() {
                 <div key={k} className={`pod p${i + 1} ${mine.has(k) ? "me" : ""}`} style={{ ["--m" as any]: MEDAL[i] }}>
                   <div className="pod-rank">{["I", "II", "III"][i]}</div>
                   <div className="pod-orb" />
-                  <div className="pod-name">{aliasFor(k)}</div>
+                  <div className="pod-name">{e.name || aliasFor(k)}</div>
                   <code>{short(k)}</code>
                   <div className="pod-stats">
                     <span>
@@ -115,7 +115,7 @@ export function Board() {
                     {i + 1}
                   </span>
                   <span className="bt-name">
-                    <b>{aliasFor(k)}</b>
+                    <b>{e.name || aliasFor(k)}</b>
                     <code>{short(k)}</code>
                     {mine.has(k) && <em>YOU</em>}
                   </span>

@@ -166,20 +166,21 @@ pub mod blackout {
             let n = board.count as usize;
             let idx = match board.entries[..n].iter().position(|e| e.key == key) {
                 Some(i) => Some(i),
-                None if n < 32 => {
-                    board.entries[n] = BoardEntry { key, wins: 0, kills: 0, games: 0, best_place: 99 };
+                None if n < BOARD_SLOTS => {
+                    board.entries[n] = BoardEntry { key, name: [0; 16], wins: 0, kills: 0, games: 0, best_place: 99 };
                     board.count += 1;
                     Some(n)
                 }
                 None if won => {
                     let (i, _) = board.entries.iter().enumerate().min_by_key(|(_, e)| (e.wins, e.kills)).unwrap();
-                    board.entries[i] = BoardEntry { key, wins: 0, kills: 0, games: 0, best_place: 99 };
+                    board.entries[i] = BoardEntry { key, name: [0; 16], wins: 0, kills: 0, games: 0, best_place: 99 };
                     Some(i)
                 }
                 None => None,
             };
             if let Some(i) = idx {
                 let e = &mut board.entries[i];
+                e.name = room.names[s]; // the callsign you played under is your profile name
                 e.games += 1;
                 e.kills += room.kills[s];
                 if won {
@@ -231,7 +232,7 @@ pub mod blackout {
                 e.best_place = e.best_place.min(src.best_place);
                 // remove the session entry (swap with last)
                 board.entries[si] = board.entries[n - 1];
-                board.entries[n - 1] = BoardEntry { key: Pubkey::default(), wins: 0, kills: 0, games: 0, best_place: 0 };
+                board.entries[n - 1] = BoardEntry { key: Pubkey::default(), name: [0; 16], wins: 0, kills: 0, games: 0, best_place: 0 };
                 board.count -= 1;
             }
             None => board.entries[si].key = wallet,
@@ -388,6 +389,7 @@ pub mod blackout {
             require!(room.ready_mask == READY_ALL, BlackoutError::NotReady);
             require!(room.private_code == 0 || room.private_code == code, BlackoutError::WrongCode);
             require!(room.seat_of(&player).is_none(), BlackoutError::AlreadySeated);
+            require!(s < room.max_players(), BlackoutError::RoomFull);
             if room.is_stale(s, slot) && room.stake == 0 {
                 room.clear_seat(s);
             }
@@ -423,6 +425,38 @@ pub mod blackout {
             args: EphemeralMembersArgs { is_private: true, members: members_for(player) },
         }
         .invoke_signed(&[room_seeds, view_seeds])?;
+        Ok(())
+    }
+
+    /// "Create a room": claim a free room (no live humans), become its host and
+    /// choose how many seats it has. Bots fill whatever seats humans don't.
+    pub fn claim_room(ctx: Context<ClaimRoom>, max_players: u8, unlisted: bool) -> Result<()> {
+        let slot = Clock::get()?.slot;
+        let mut room = ctx.accounts.room.load_mut()?;
+        require!(room.status == ST_LOBBY, BlackoutError::NotInLobby);
+        require!(room.ready_mask == READY_ALL && room.stake == 0, BlackoutError::NotReady);
+        require!(room.live_humans(slot) == 0, BlackoutError::RoomTaken);
+        for i in 0..MAXP {
+            if room.players[i] != Pubkey::default() && room.is_bot[i] == 0 {
+                room.clear_seat(i);
+            }
+        }
+        let m = (max_players as u32).clamp(2, MAXP as u32);
+        room.cfg = m | if unlisted { 1 << 8 } else { 0 };
+        room.host = ctx.accounts.player.key();
+        Ok(())
+    }
+
+    /// Host resizes the room (seats beyond the new size must be empty).
+    pub fn set_size(ctx: Context<Heartbeat>, max_players: u8) -> Result<()> {
+        let mut room = ctx.accounts.room.load_mut()?;
+        require!(room.status == ST_LOBBY, BlackoutError::NotInLobby);
+        require!(room.host == ctx.accounts.player.key(), BlackoutError::NotHost);
+        let m = (max_players as usize).clamp(2, MAXP);
+        for i in m..MAXP {
+            require!(room.players[i] == Pubkey::default() || room.is_bot[i] == 1, BlackoutError::SeatTaken);
+        }
+        room.cfg = (room.cfg & !0xff) | m as u32;
         Ok(())
     }
 
@@ -487,8 +521,8 @@ pub mod blackout {
             let humans = (0..MAXP).filter(|&i| room.players[i] != Pubkey::default() && room.is_bot[i] == 0).count();
             let mut total = humans;
             if room.stake == 0 {
-                let want = (fill_to as usize).min(MAXP);
-                for i in 0..MAXP {
+                let want = if room.cfg & 0xff != 0 { room.max_players() } else { (fill_to as usize).min(MAXP) };
+                for i in 0..want {
                     if total >= want {
                         break;
                     }
@@ -1069,6 +1103,13 @@ pub struct Join<'info> {
 }
 
 #[derive(Accounts)]
+pub struct ClaimRoom<'info> {
+    pub player: Signer<'info>,
+    #[account(mut)]
+    pub room: AccountLoader<'info, Room>,
+}
+
+#[derive(Accounts)]
 pub struct Heartbeat<'info> {
     pub player: Signer<'info>,
     #[account(mut)]
@@ -1286,4 +1327,8 @@ pub enum BlackoutError {
     NotEnded,
     #[msg("Room setup is not finished")]
     NotReady,
+    #[msg("Someone is already using this room")]
+    RoomTaken,
+    #[msg("Room is full")]
+    RoomFull,
 }

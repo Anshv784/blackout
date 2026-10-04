@@ -485,7 +485,7 @@ export class Session {
     const r = this.room ?? (await client.fetchRoom(this.roomId));
     if (!r) throw new Error("Room not found");
     if (r.status !== ST_LOBBY) throw new Error("Match in progress — wait for the lobby");
-    const free = [0, 1, 2, 3, 4, 5, 6, 7].filter((i) => r.players[i].toBase58() === DEFAULT_KEY && r.isBot[i] === 0);
+    const free = [0, 1, 2, 3, 4, 5, 6, 7].filter((i) => i < r.maxPlayers && r.players[i].toBase58() === DEFAULT_KEY && r.isBot[i] === 0);
     if (!free.length) throw new Error("Room is full");
     let lastErr: unknown = null;
     const order = preferSeat !== undefined && free.includes(preferSeat) ? [preferSeat, ...free.filter((x) => x !== preferSeat)] : free;
@@ -505,6 +505,11 @@ export class Session {
   async leave() {
     if (this.mySeat === null) return;
     await client.sendEr([client.leaveIx(this.roomId, this.mySeat)]);
+    await this.poll();
+  }
+
+  async setSize(n: number) {
+    await client.sendEr([client.setSizeIx(this.roomId, n)]);
     await this.poll();
   }
 
