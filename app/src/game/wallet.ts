@@ -1,6 +1,6 @@
-// Wallet = your identity. Play still runs on a gasless in-browser session key, but every
-// seat is tied to your wallet, and your callsign + stats live on Solana (board2, written
-// by the settle Magic Action after each night).
+// Wallet is optional. Connected players get their callsign + stats saved on Solana (board2,
+// written by the settle Magic Action after each night). Guests play on the same gasless
+// in-browser session key, but settle skips them, so nothing is saved or ranked.
 import { PublicKey, Transaction } from "@solana/web3.js";
 import { client } from "./identity";
 import { useStore } from "./store";
@@ -74,7 +74,12 @@ export async function connectWallet(id?: WalletOption["id"]): Promise<string> {
   // restore the profile: on-chain name first, then this browser's copy
   const prof = await loadProfile(pk);
   const name = prof?.name || localNameFor(pk);
-  useStore.getState().set({ wallet: pk, profile: prof ?? null, ...(name ? { name } : {}) });
+  try {
+    localStorage.removeItem("bo-guest");
+  } catch {
+    /* ignore */
+  }
+  useStore.getState().set({ wallet: pk, guest: false, profile: prof ?? null, ...(name ? { name } : {}) });
   if (name) saveWalletName(pk, name);
   return pk;
 }
@@ -94,10 +99,28 @@ export async function disconnectWallet() {
   useStore.getState().set({ wallet: null, profile: null });
 }
 
-/** Run `then` once a wallet is connected and a callsign chosen; otherwise open the gate. */
+export const isGuest = () => {
+  try {
+    return !useStore.getState().wallet && localStorage.getItem("bo-guest") === "1";
+  } catch {
+    return false;
+  }
+};
+
+export function setGuest(on: boolean) {
+  try {
+    if (on) localStorage.setItem("bo-guest", "1");
+    else localStorage.removeItem("bo-guest");
+  } catch {
+    /* ignore */
+  }
+  useStore.getState().set({ guest: on });
+}
+
+/** Run `then` once the player has an identity (wallet + callsign, or guest); otherwise open the gate. */
 export function requireWallet(then: () => void) {
   const st = useStore.getState();
-  if (st.wallet && localNameFor(st.wallet)) then();
+  if ((st.wallet && localNameFor(st.wallet)) || isGuest()) then();
   else st.set({ walletGate: { then } });
 }
 

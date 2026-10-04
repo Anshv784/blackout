@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../game/store";
-import { WALLETS, connectWallet, localNameFor, saveWalletName } from "../game/wallet";
+import { WALLETS, connectWallet, localNameFor, saveWalletName, setGuest } from "../game/wallet";
 import { saveName } from "../game/identity";
 import { aliasFor } from "./Board";
 
-/** "Who goes there?" — connect a wallet and pick a callsign before entering the Yard. */
+/** "Who goes there?": connect a wallet (saved + ranked) or play as a guest (nothing saved). */
 export function WalletGate() {
   const gate = useStore((s) => s.walletGate);
   const wallet = useStore((s) => s.wallet);
@@ -13,6 +13,8 @@ export function WalletGate() {
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [name, setName] = useState("");
+  const [guestStep, setGuestStep] = useState(false);
+  const curName = useStore((s) => s.name);
   const [, rerender] = useState(0);
 
   useEffect(() => {
@@ -26,7 +28,18 @@ export function WalletGate() {
   }, [wallet, profile]);
 
   if (!gate) return null;
-  const close = () => set({ walletGate: null });
+  const close = () => {
+    setGuestStep(false);
+    set({ walletGate: null });
+  };
+  const enterAsGuest = () => {
+    const n = (name || curName || "GHOST").toUpperCase().replace(/[^A-Z0-9_\-]/g, "").slice(0, 12) || "GHOST";
+    saveName(n);
+    setGuest(true);
+    set({ name: n, walletGate: null });
+    setGuestStep(false);
+    gate.then();
+  };
   const needsName = wallet && !localNameFor(wallet);
 
   const finish = () => {
@@ -41,11 +54,33 @@ export function WalletGate() {
     <div className="wgate" onClick={close}>
       <div className="wgate-card" onClick={(e) => e.stopPropagation()}>
         <div className="wgate-eye" />
-        {!wallet ? (
+        {!wallet && guestStep ? (
+          <>
+            <div className="vc-kicker">PLAYING AS A GUEST</div>
+            <h2>Pick a callsign</h2>
+            <input
+              className="wgate-input"
+              autoFocus
+              value={name || curName}
+              maxLength={12}
+              onChange={(e) => setName(e.target.value.toUpperCase().replace(/[^A-Z0-9_\-]/g, "").slice(0, 12))}
+              onKeyDown={(e) => e.key === "Enter" && enterAsGuest()}
+            />
+            <div className="guest-warn">
+              ⚠ As a guest, your nights <b>aren't saved</b> and you <b>won't appear on the leaderboard</b>. Staked rooms need a wallet. You can connect one any time.
+            </div>
+            <button className="btn primary huge" onClick={enterAsGuest}>
+              ENTER AS GUEST
+            </button>
+            <a className="side-link" onClick={() => setGuestStep(false)}>
+              ← connect a wallet instead
+            </a>
+          </>
+        ) : !wallet ? (
           <>
             <div className="vc-kicker">WHO GOES THERE?</div>
-            <h2>Connect your wallet to enter the Yard</h2>
-            <p>Your wallet is your identity: your callsign, wins and kills are saved to Solana and follow you to any device. Playing is still free and gasless — no popups mid-match.</p>
+            <h2>Enter the Yard</h2>
+            <p>Connect a wallet to save your callsign, wins and kills on Solana and get ranked on the leaderboard. Or jump straight in as a guest. Either way, playing is free and gasless, with no popups mid-match.</p>
             <div className="wgate-list">
               {WALLETS.map((w) => {
                 const installed = !!w.get();
@@ -82,7 +117,13 @@ export function WalletGate() {
               })}
             </div>
             {err && <div className="wgate-err">{err}</div>}
-            <small>Devnet only. We never ask you to sign a payment to play.</small>
+            <div className="wgate-or">
+              <span>or</span>
+            </div>
+            <button className="btn wide" onClick={() => setGuestStep(true)}>
+              PLAY AS GUEST
+            </button>
+            <small>Guests play the same game — but nothing is saved and you're not ranked. Devnet only; we never ask you to sign a payment to play.</small>
           </>
         ) : needsName ? (
           <>

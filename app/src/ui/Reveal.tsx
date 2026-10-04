@@ -8,7 +8,7 @@ import { explorerAddr, roomLink } from "../config";
 import { audio } from "../game/audio";
 import { go } from "../App";
 import { verifyMatch } from "../game/verify";
-import { linkStats } from "../game/wallet";
+import { connectWallet } from "../game/wallet";
 
 const EMPTY = "11111111111111111111111111111111";
 
@@ -344,17 +344,17 @@ export function Reveal({ session }: { session: Session }) {
         </div>
         {mySeat !== null && !wallet && linking !== "done" && (
           <div className="panel nudge">
-            <label>{room.winner === mySeat ? "SAVE THIS WIN" : "SAVE YOUR STATS"}</label>
-            <div>This match is on the leaderboard under a throwaway browser key. Connect a wallet to move it — and every future match — to you.</div>
+            <label>{room.winner === mySeat ? "THIS WIN WASN'T SAVED" : "PLAYING AS A GUEST"}</label>
+            <div>You played as a guest, so this night wasn't saved and you're not on the leaderboard. Connect a wallet to keep your callsign and stats from the next night on.</div>
             <button
               className="btn primary wide"
               disabled={linking === "busy"}
               onClick={async () => {
                 setLinking("busy");
                 try {
-                  await linkStats();
+                  await connectWallet();
                   setLinking("done");
-                  toast("Stats saved to your wallet", true);
+                  toast("Wallet connected — your next nights will be saved", true);
                 } catch (e: any) {
                   setLinking("idle");
                   toast(String(e?.message ?? e).slice(0, 120));

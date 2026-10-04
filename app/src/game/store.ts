@@ -25,6 +25,7 @@ interface State {
   name: string;
   wallet: string | null;
   profile: BoardEntry | null;
+  guest: boolean;
   walletGate: { then: () => void } | null;
   room: Room | null;
   view: View | null;
@@ -50,6 +51,13 @@ export const useStore = create<State>((set, get) => ({
     }
   })(),
   profile: null,
+  guest: (() => {
+    try {
+      return localStorage.getItem("bo-guest") === "1" && !localStorage.getItem("bo-wallet");
+    } catch {
+      return false;
+    }
+  })(),
   walletGate: null,
   room: null,
   view: null,

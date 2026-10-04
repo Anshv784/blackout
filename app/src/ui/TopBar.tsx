@@ -89,10 +89,26 @@ function Wallet() {
       )}
     </div>
   ) : (
-    <button className="chip-btn connect" onClick={() => requireWallet(() => {})} title="Your wallet is your identity in the Yard">
-      ◎ connect wallet
-    </button>
+    <>
+      <GuestTag />
+      <button
+        className="chip-btn connect"
+        onClick={() => useStore.getState().set({ walletGate: { then: () => {} } })}
+        title="Connect to save your nights and appear on the leaderboard"
+      >
+        ◎ connect wallet
+      </button>
+    </>
   );
+}
+
+function GuestTag() {
+  const guest = useStore((s) => s.guest);
+  return guest ? (
+    <span className="chip-btn static guest-tag" title="Guest: your nights aren't saved and you're not on the leaderboard">
+      GUEST · not saved
+    </span>
+  ) : null;
 }
 
 export function TopBar({ active }: { active?: "play" | "board" | "how" }) {

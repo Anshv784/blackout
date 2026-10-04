@@ -1,0 +1,20 @@
+import { chromium } from "playwright";
+const URL = process.env.URL ?? "http://127.0.0.1:5173/";
+(async () => {
+  const b = await chromium.launch({ args: ["--use-gl=swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"] });
+  const p = await b.newPage({ viewport: { width: 1400, height: 860 } });
+  const errs: string[] = [];
+  p.on("pageerror", (e) => errs.push(String(e)));
+  await p.addInitScript("localStorage.setItem('bo-intro-seen','1')");
+  await p.goto(URL);
+  await p.getByRole("button", { name: /CREATE A ROOM/ }).click({ timeout: 30000 });
+  await p.getByRole("button", { name: "PLAY AS GUEST" }).click();
+  await p.screenshot({ path: "demo/guest-gate.png" });
+  await p.getByRole("button", { name: "ENTER AS GUEST" }).click();
+  await p.waitForURL(/\/r\//, { timeout: 60000 });
+  await p.getByText("GUEST · not saved").waitFor({ timeout: 10000 });
+  await p.waitForTimeout(4000);
+  await p.screenshot({ path: "demo/guest-lobby.png" });
+  console.log("url", p.url(), "guest", await p.evaluate(() => localStorage.getItem("bo-guest")), "errors", errs);
+  await b.close();
+})();
