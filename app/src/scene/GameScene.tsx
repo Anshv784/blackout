@@ -9,6 +9,7 @@ import { Avatar, SEAT_COLORS, aimToRotY } from "./Avatar";
 import type { Session } from "../game/session";
 import { ST_COUNTDOWN, ST_LIVE, ST_ENDED } from "../chain/layout";
 import { controls, wheelZoom } from "../game/controls";
+import { prefs, usePrefs } from "../game/prefs";
 import { radToAngle, angleToRad, isWall } from "../game/sim";
 import { audio } from "../game/audio";
 
@@ -403,7 +404,7 @@ function CameraRig({ session }: { session: Session }) {
       const h = controls.chaseHeight;
       wantLook = new THREE.Vector3(px + Math.cos(a) * 3.2, 0.6, pz + Math.sin(a) * 3.2);
       wantPos = new THREE.Vector3(px - Math.cos(a) * d, Math.max(h, 2.2), pz - Math.sin(a) * d);
-      const k = 1 - Math.pow(0.000002, dt);
+      const k = 1 - Math.pow(10 ** (-9 + 6 * prefs.camSmooth), dt);
       pos.current.lerp(wantPos, k);
       look.current.lerp(wantLook, k);
     } else {
@@ -550,7 +551,7 @@ function InputController({ session }: { session: Session }) {
         // locked: a virtual crosshair moves freely; past the side edges it turns you
         const k = controls.sens / 18000;
         controls.vcx += e.movementX * k;
-        controls.vcy -= e.movementY * k;
+        controls.vcy -= e.movementY * k * (prefs.invertY ? -1 : 1);
         const lim = 0.62;
         if (Math.abs(controls.vcx) > lim) {
           const over = controls.vcx - Math.sign(controls.vcx) * lim;
@@ -590,12 +591,20 @@ function InputController({ session }: { session: Session }) {
     const p = session.myPos();
     let aim = session.input.aim;
     // Q/E swing the behind-view camera
-    const turn = (controls.keys.has("e") ? 1 : 0) - (controls.keys.has("q") ? 1 : 0);
-    if (turn) controls.camYaw += turn * 0.045;
+    const camArrows = prefs.arrows === "camera";
+    const turn =
+      (controls.keys.has("e") || (camArrows && controls.keys.has("arrowright")) ? 1 : 0) -
+      (controls.keys.has("q") || (camArrows && controls.keys.has("arrowleft")) ? 1 : 0);
+    if (turn) controls.camYaw += turn * 0.045 * prefs.turnSpeed;
+    if (camArrows) {
+      // up/down tilt the crosshair (aim further out or closer in)
+      const tilt = (controls.keys.has("arrowup") ? 1 : 0) - (controls.keys.has("arrowdown") ? 1 : 0);
+      if (tilt) controls.vcy = Math.max(-0.35, Math.min(0.85, controls.vcy + tilt * 0.012 * prefs.turnSpeed));
+    }
     if (controls.touchAim !== null) aim = controls.touchAim;
     else if (controls.view === "chase" && p) {
       // unlocked cursor near the side edges turns the camera
-      if (!controls.locked && Math.abs(controls.vcx) > 0.82) controls.camYaw += Math.sign(controls.vcx) * (Math.abs(controls.vcx) - 0.82) * 0.25;
+      if (prefs.autoTurn && !controls.locked && Math.abs(controls.vcx) > 0.82) controls.camYaw += Math.sign(controls.vcx) * (Math.abs(controls.vcx) - 0.82) * 0.25;
       ray.setFromCamera(new THREE.Vector2(controls.vcx, controls.vcy), camera);
       if (ray.ray.intersectPlane(plane, hit) && hit.distanceTo(ray.ray.origin) < 60) {
         const dx = hit.x - p.x / 256;
@@ -605,7 +614,7 @@ function InputController({ session }: { session: Session }) {
       // the camera eases round to follow your aim once it's well off-centre
       let d = angleToRad(aim) - controls.camYaw;
       d = Math.atan2(Math.sin(d), Math.cos(d));
-      if (Math.abs(d) > 0.45) controls.camYaw += (d - Math.sign(d) * 0.45) * 0.04;
+      if (prefs.autoTurn && Math.abs(d) > 0.45) controls.camYaw += (d - Math.sign(d) * 0.45) * 0.04;
     }
     else if (p && controls.mouseActive) {
       ray.setFromCamera(mouse.current, camera);
@@ -614,8 +623,9 @@ function InputController({ session }: { session: Session }) {
     }
     const k = controls.keys;
     // aim-relative: W walks toward the mouse, S backs off, A/D strafe around it
-    const fwd = (k.has("w") || k.has("arrowup") ? 1 : 0) - (k.has("s") || k.has("arrowdown") ? 1 : 0);
-    const side = (k.has("d") || k.has("arrowright") ? 1 : 0) - (k.has("a") || k.has("arrowleft") ? 1 : 0);
+    const ar_ = !camArrows;
+    const fwd = (k.has("w") || (ar_ && k.has("arrowup")) ? 1 : 0) - (k.has("s") || (ar_ && k.has("arrowdown")) ? 1 : 0);
+    const side = (k.has("d") || (ar_ && k.has("arrowright")) ? 1 : 0) - (k.has("a") || (ar_ && k.has("arrowleft")) ? 1 : 0);
     const ar = angleToRad(aim);
     const fx = Math.cos(ar);
     const fy = Math.sin(ar);
@@ -645,7 +655,7 @@ function Post({ session }: { session: Session }) {
     const now = performance.now();
     let hit: (typeof session.fx)[number] | undefined;
     for (let i = session.fx.length - 1; i >= 0; i--) if (session.fx[i].kind === "hit") { hit = session.fx[i]; break; }
-    const k = hit ? Math.max(0, 1 - (now - hit.at) / 350) : 0;
+    const k = hit && prefs.hitFlash ? Math.max(0, 1 - (now - hit.at) / 350) : 0;
     offset.set(0.004 * k, 0.003 * k);
   });
   return (
@@ -668,11 +678,34 @@ function FlareLight({ session }: { session: Session }) {
   return <ambientLight ref={l} color="#ff9ed8" intensity={0.025} />;
 }
 
+/** Applies display settings that live on the renderer/camera. */
+function DisplayPrefs() {
+  const { gl, camera, scene } = useThree();
+  const p = usePrefs();
+  useEffect(() => {
+    gl.toneMappingExposure = p.exposure;
+    const cam = camera as THREE.PerspectiveCamera;
+    if (cam.fov !== p.fov) {
+      cam.fov = p.fov;
+      cam.updateProjectionMatrix();
+    }
+    const shadows = p.quality === "high";
+    if (gl.shadowMap.enabled !== shadows) {
+      gl.shadowMap.enabled = shadows;
+      scene.traverse((o: any) => {
+        if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m: any) => (m.needsUpdate = true));
+      });
+    }
+  }, [p.exposure, p.fov, p.quality]);
+  return null;
+}
+
 export const GameScene = memo(function GameScene({ session }: { session: Session }) {
+  const p = usePrefs();
   return (
     <Canvas
       shadows
-      dpr={[1, 1.5]}
+      dpr={p.quality === "high" ? [1, 1.5] : 1}
       camera={{ fov: 46, position: [16, 30, 30], near: 0.1, far: 120 }}
       gl={{ antialias: true, powerPreference: "high-performance" }}
       onCreated={({ gl }) => {
@@ -696,7 +729,8 @@ export const GameScene = memo(function GameScene({ session }: { session: Session
       <InputController session={session} />
       <FpsMeter />
       <LaserSight session={session} />
-      <Post session={session} />
+      <DisplayPrefs />
+      {p.quality === "high" && <Post session={session} />}
     </Canvas>
   );
 });

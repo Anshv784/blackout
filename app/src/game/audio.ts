@@ -2,6 +2,8 @@
 // Everything runs through a shared reverb so the Yard feels huge and empty.
 // Directional cues are panned relative to where you're aiming.
 
+import { prefs, setPref } from "./prefs";
+
 class Audio {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
@@ -20,6 +22,11 @@ class Audio {
     this.listeners.add(f);
     return () => this.listeners.delete(f);
   }
+  /** Master volume from the settings menu (0..1). */
+  setVolume(v: number) {
+    setPref("volume", v);
+    if (this.master && !this.muted) this.master.gain.setTargetAtTime(v, this.ctx!.currentTime, 0.05);
+  }
   toggleMute() {
     this.setMuted(!this.muted);
   }
@@ -36,7 +43,7 @@ class Audio {
       const c = new Ctx();
       this.ctx = c;
       this.master = c.createGain();
-      this.master.gain.value = this.muted ? 0 : 0.7;
+      this.master.gain.value = this.muted ? 0 : prefs.volume;
       const comp = c.createDynamicsCompressor();
       comp.threshold.value = -16;
       comp.ratio.value = 4;
@@ -74,7 +81,7 @@ class Audio {
 
   setMuted(m: boolean) {
     this.muted = m;
-    if (this.master) this.master.gain.setTargetAtTime(m ? 0 : 0.7, this.ctx!.currentTime, 0.05);
+    if (this.master) this.master.gain.setTargetAtTime(m ? 0 : prefs.volume, this.ctx!.currentTime, 0.05);
     // hard stop: pause the whole audio graph (loops, heartbeat, hum) — not just the volume
     if (this.ctx) {
       if (m) setTimeout(() => this.muted && this.ctx?.suspend().catch(() => {}), 80);

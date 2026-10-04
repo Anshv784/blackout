@@ -3,10 +3,8 @@ import { useStore } from "../game/store";
 import type { Session } from "../game/session";
 import { ST_COUNTDOWN, ST_ENDED, ST_LIVE, ST_STARTING, WEAPON_NAME } from "../chain/layout";
 import { angleToRad } from "../game/sim";
-import { MAP_ROWS } from "../game/gen";
 import { SEAT_COLORS } from "../scene/Avatar";
-import { controls, toggleView, setSetting, setLaser } from "../game/controls";
-import { SoundToggle } from "./SoundToggle";
+import { GameMenu, MatchClock } from "./GameMenu";
 
 const MAX_MAG = [10, 30, 5];
 const PING_GLYPH = ["", "👣", "💥", "✦", "⟳"];
@@ -40,8 +38,6 @@ export function Hud({ session }: { session: Session }) {
   const me = view.me;
   const aim = session.input.aim;
   const countdown = room.status === ST_COUNTDOWN ? Math.max(1, Math.ceil((60 - room.tick) / 20)) : null;
-  const t = Math.max(0, room.tick - 60);
-  const secs = Math.floor(t / 20);
   const hitAge = hit ? (performance.now() - hit.at) / 900 : 1;
   const myPos = session.myPos();
   const death = room.feed.slice(0, Math.min(16, room.feedHead)).find((f) => f.victim === session.mySeat) ?? null;
@@ -57,13 +53,8 @@ export function Hud({ session }: { session: Session }) {
         </div>
         <div className="kills">☠ {view.kills} kills</div>
       </div>
-      <div className="hud-clock">
-        <b>
-          {Math.floor(secs / 60)}:{String(secs % 60).padStart(2, "0")}
-        </b>
-        <span>ZONE {room.zonePhase > 0 ? `PHASE ${room.zonePhase}` : "STABLE"}</span>
-      </div>
-      <Minimap session={session} />
+      <MatchClock room={room} />
+      <GameMenu session={session} room={room} />
 
       {room.status === ST_STARTING && (
         <div className="center-msg">
@@ -184,154 +175,3 @@ export function Hud({ session }: { session: Session }) {
 
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
-function Minimap({ session }: { session: Session }) {
-  const ref = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    let raf = 0;
-    const draw = () => {
-      raf = requestAnimationFrame(draw);
-      const c = ref.current;
-      const r = session.room;
-      if (!c || !r) return;
-      const g = c.getContext("2d")!;
-      const s = c.width / 32;
-      g.clearRect(0, 0, c.width, c.height);
-      g.fillStyle = "rgba(5,6,10,0.75)";
-      g.fillRect(0, 0, c.width, c.height);
-      g.fillStyle = "#273454";
-      for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) if (MAP_ROWS[y][x] === "#") g.fillRect(x * s, y * s, s, s);
-      g.strokeStyle = "#a64dff";
-      g.lineWidth = 2;
-      g.beginPath();
-      g.arc((r.zone.x / 256) * s, (r.zone.y / 256) * s, (r.zone.r / 256) * s, 0, Math.PI * 2);
-      g.stroke();
-      if (r.next.r < r.zone.r - 10) {
-        g.strokeStyle = "rgba(255,255,255,0.7)";
-        g.setLineDash([3, 3]);
-        g.beginPath();
-        g.arc((r.next.x / 256) * s, (r.next.y / 256) * s, (r.next.r / 256) * s, 0, Math.PI * 2);
-        g.stroke();
-        g.setLineDash([]);
-      }
-      const p = session.myPos();
-      if (p) {
-        const a = angleToRad(session.input.aim);
-        g.fillStyle = "rgba(255,240,200,0.18)";
-        g.beginPath();
-        g.moveTo((p.x / 256) * s, (p.y / 256) * s);
-        g.arc((p.x / 256) * s, (p.y / 256) * s, 10 * s, a - 0.67, a + 0.67);
-        g.fill();
-        g.fillStyle = SEAT_COLORS[session.mySeat ?? 0];
-        g.beginPath();
-        g.arc((p.x / 256) * s, (p.y / 256) * s, 3, 0, Math.PI * 2);
-        g.fill();
-      }
-      // enemies only if currently in your view
-      for (const [seat, tr] of session.tracks) {
-        if (!tr.visible || !tr.samples.length) continue;
-        const sm = tr.samples[tr.samples.length - 1];
-        g.fillStyle = SEAT_COLORS[seat];
-        g.fillRect((sm.x / 256) * s - 2, (sm.y / 256) * s - 2, 4, 4);
-      }
-    };
-    draw();
-    return () => cancelAnimationFrame(raf);
-  }, [session]);
-  return <canvas className="minimap" ref={ref} width={160} height={160} />;
-}
-
-function CameraSettings() {
-  const [open, setOpen] = useState(false);
-  const [, bump] = useState(0);
-  const slider = (label: string, k: "chaseDist" | "chaseHeight" | "topZoom" | "sens", min: number, max: number, step: number) => (
-    <label className="cam-row">
-      <span>{label}</span>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={controls[k]}
-        onChange={(e) => {
-          setSetting(k, Number(e.target.value));
-          bump((x) => x + 1);
-        }}
-      />
-    </label>
-  );
-  return (
-    <div className="cam" onPointerDown={(e) => e.stopPropagation()}>
-      <div className="cam-buttons">
-        <button
-          onClick={() => {
-            toggleView();
-            bump((x) => x + 1);
-          }}
-        >
-          {controls.view === "chase" ? "VIEW: BEHIND" : "VIEW: TOP"} <i>V</i>
-        </button>
-        <button onClick={() => setOpen(!open)}>⚙</button>
-        <SoundToggle className="inline" />
-      </div>
-      {open && (
-        <div className="cam-panel">
-          {controls.view === "chase" ? (
-            <>
-              {slider("Distance", "chaseDist", 2.5, 14, 0.1)}
-              {slider("Height", "chaseHeight", 1.8, 10, 0.1)}
-              {slider("Mouse speed", "sens", 8, 120, 1)}
-            </>
-          ) : (
-            slider("Zoom", "topZoom", 7, 28, 0.5)
-          )}
-          <label className="cam-row check">
-            <span>Laser sight</span>
-            <button
-              className={`chip ${controls.laser ? "on" : ""}`}
-              onClick={() => {
-                setLaser(!controls.laser);
-                bump((x) => x + 1);
-              }}
-            >
-              {controls.laser ? "ON" : "OFF"}
-            </button>
-          </label>
-          <small>Mouse wheel zooms · Q/E turn · M sound</small>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ExitMatch() {
-  const [ask, setAsk] = useState(false);
-  return (
-    <>
-      <button className="exit-match" onPointerDown={(e) => e.stopPropagation()} onClick={() => setAsk(true)}>
-        EXIT
-      </button>
-      {ask && (
-        <div className="exit-confirm" onPointerDown={(e) => e.stopPropagation()}>
-          <div className="exit-card">
-            <h3>Leave the night?</h3>
-            <p>You'll vanish from the Yard and count as eliminated.</p>
-            <div className="row">
-              <button className="btn" onClick={() => setAsk(false)}>
-                STAY
-              </button>
-              <button
-                className="btn danger"
-                onClick={() => {
-                  if (document.pointerLockElement) document.exitPointerLock();
-                  window.location.hash = "/";
-                }}
-              >
-                LEAVE
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  );
-}

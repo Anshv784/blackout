@@ -20,6 +20,7 @@ export const controls = {
   cursorX: -100,
   cursorY: -100,
   locked: false,
+  menu: false, // a settings/map overlay is open: game keys are ignored
   // player-tunable camera (persisted)
   chaseDist: num("bo-chase-dist-v2", 7.5),
   chaseHeight: num("bo-chase-height-v2", 5.5),
@@ -88,6 +89,7 @@ export function installKeyboard() {
   const norm = (k: string) => k.toLowerCase();
   window.addEventListener("keydown", (e) => {
     if ((e.target as HTMLElement)?.tagName === "INPUT") return;
+    if (controls.menu) return;
     const k = norm(e.key);
     controls.keys.add(k);
     if (k === "v") toggleView();
