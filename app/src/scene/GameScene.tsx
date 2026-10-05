@@ -6,6 +6,7 @@ import { BlendFunction } from "postprocessing";
 import * as THREE from "three";
 import { Arena, occlusion } from "./Arena";
 import { Avatar, Gun, SEAT_COLORS, aimToRotY } from "./Avatar";
+import { stillMotion, type Motion } from "./Soldier";
 import type { Session } from "../game/session";
 import { ST_COUNTDOWN, ST_LIVE, ST_ENDED } from "../chain/layout";
 import { controls, wheelZoom } from "../game/controls";
@@ -50,6 +51,8 @@ function MyPlayer({ session }: { session: Session }) {
   const lastShot = useRef(0);
   const lastPos = useRef({ x: 0, y: 0 });
   const myWeapon = useStore((s) => s.view?.me.weapon ?? 0);
+  const motion = useRef<Motion>(stillMotion());
+  const lastCount = useRef(0);
   const gait = useRef(0);
   const { scene } = useThree();
   useEffect(() => {
@@ -77,12 +80,21 @@ function MyPlayer({ session }: { session: Session }) {
     const step = Math.hypot(pos.x - lastPos.current.x, pos.y - lastPos.current.y);
     lastPos.current = { x: pos.x, y: pos.y };
     gait.current += ((step > 0.5 ? 1 : 0) - gait.current) * 0.15;
-    const freq = session.sprinting ? 16 : 11;
-    g.position.set(pos.x / 256, Math.abs(Math.sin(t * freq)) * 0.07 * gait.current, pos.y / 256);
+    void t;
+    g.position.set(pos.x / 256, 0, pos.y / 256);
+    // what the soldier's body does this frame
+    const mo = motion.current;
+    mo.speed = gait.current < 0.5 ? 0 : session.sprinting ? 2 : 1;
+    mo.firing = (session.input.buttons & 1) === 1 && alive && v.me.reload === 0 && v.me.mag > 0;
+    mo.reloading = v.me.reload > 0;
+    mo.downed = v.me.alive === 2;
+    const cnt = v.inv?.count ?? 0;
+    if (cnt < lastCount.current && (v.inv?.gadget ?? 0) !== 6) mo.throwAt = performance.now();
+    lastCount.current = cnt;
     const aim = session.input.aim;
     if (aimGroup.current) {
       aimGroup.current.rotation.y = aimToRotY(aim);
-      aimGroup.current.rotation.z = v.me.alive === 2 ? -1.35 : -gait.current * (session.sprinting ? 0.16 : 0.06);
+      aimGroup.current.rotation.z = 0;
     }
     const a = angleToRad(aim);
     target.position.set(pos.x / 256 + Math.cos(a) * 6, 0.2, pos.y / 256 + Math.sin(a) * 6);
@@ -126,7 +138,7 @@ function MyPlayer({ session }: { session: Session }) {
   return (
     <group ref={group}>
       <group ref={aimGroup}>
-        <Avatar color={SEAT_COLORS[session.mySeat ?? 0]} me weapon={myWeapon} />
+        <Avatar color={SEAT_COLORS[session.mySeat ?? 0]} me weapon={myWeapon} motion={motion} />
         {/* volumetric beam: a cone lying along +x */}
         <mesh position={[VISION_TILES / 2 + 0.3, 0.75, 0]} rotation-z={Math.PI / 2} material={beam}>
           <coneGeometry args={[Math.tan(CONE_RAD) * VISION_TILES, VISION_TILES, 48, 1, true]} />
@@ -162,6 +174,9 @@ function Others({ session }: { session: Session }) {
   const room = session.room;
   const lastAt = useRef<({ x: number; y: number } | null)[]>(Array(8).fill(null));
   const gaits = useRef<number[]>(Array(8).fill(0));
+  const motions = useRef<Motion[]>(Array.from({ length: 8 }, stillMotion));
+  const lastT = useRef<number[]>(Array(8).fill(0));
+  const motionRefs = useMemo(() => Array.from({ length: 8 }, (_, i) => ({ get current() { return motions.current[i]; }, set current(v: Motion) { motions.current[i] = v; } })), []);
   // re-render only when someone's gun changes
   const seen = useStore((st) => st.view?.players.map((p) => `${p.seat}:${p.weapon}`).join(",") ?? "");
   const lastWeapon = useRef<number[]>(Array(8).fill(0));
@@ -196,11 +211,18 @@ function Others({ session }: { session: Session }) {
         const lp = lastAt.current[s];
         const moving = lp ? Math.hypot(smp.x - lp.x, smp.y - lp.y) > 0.5 : false;
         lastAt.current[s] = { x: smp.x, y: smp.y };
+        // units per second, so it doesn't depend on frame rate (walk ≈ 1120, sprint ≈ 1680)
+        const dtS = Math.max(1e-3, (now - (lastT.current[s] || now - 16)) / 1000);
+        lastT.current[s] = now;
+        const spd = lp ? Math.hypot(smp.x - lp.x, smp.y - lp.y) / dtS : 0;
         gaits.current[s] += ((moving ? 1 : 0) - gaits.current[s]) * 0.15;
-        g.position.set(smp.x / 256, Math.abs(Math.sin(now / 1000 * 11 + s)) * 0.07 * gaits.current[s], smp.y / 256);
+        g.position.set(smp.x / 256, 0, smp.y / 256);
         g.rotation.y = aimToRotY(smp.aim);
-        // partners get their own tag; the downed lie on the floor
-        g.rotation.z = smp.flags & 16 ? -1.35 : 0;
+        const mo = motions.current[s];
+        mo.speed = gaits.current[s] < 0.5 ? 0 : spd > 1400 ? 2 : 1;
+        mo.firing = (smp.flags & 4) !== 0;
+        mo.downed = (smp.flags & 16) !== 0;
+        // partners get their own tag
         if (lab) lab.classList.toggle("mate", (smp.flags & 32) !== 0);
         const hp = hpBars.current[s];
         if (hp) hp.style.width = `${Math.max(0, smp.hp)}%`;
@@ -230,7 +252,7 @@ function Others({ session }: { session: Session }) {
       {Array.from({ length: 8 }, (_, s) => (
         <group key={s}>
           <group ref={(el) => (refs.current[s] = el)} visible={false}>
-            <Avatar color={SEAT_COLORS[s]} weapon={weapons[s]} />
+            <Avatar color={SEAT_COLORS[s]} weapon={weapons[s]} motion={motionRefs[s]} />
             <Html position={[0, 1.6, 0]} center zIndexRange={[4, 0]} style={{ pointerEvents: "none" }}>
               <div className="tag" ref={(el) => (labels.current[s] = el)} style={{ ["--c" as any]: SEAT_COLORS[s] }}>
                 <span>{room?.names[s] || `#${s}`}</span>

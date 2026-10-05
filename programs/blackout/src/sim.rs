@@ -1493,17 +1493,19 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
                 let rec: &mut [u8] = &mut *recs[chunk];
                 for s in 0..MAXP {
                     let p = w.players[s];
-                    let x = ((p.x.max(0) / 4) as u32).min(2047);
-                    let y = ((p.y.max(0) / 4) as u32).min(2047);
+                    // 11 bits per axis at 6 units a step covers the whole 48-tile Yard (mirrored in layout.ts)
+                    let x = ((p.x.max(0) / 6) as u32).min(2047);
+                    let y = ((p.y.max(0) / 6) as u32).min(2047);
                     let aim = p.aim >> 10;
                     let mut fl = p.alive & 1;
-                    if p.last_shot != 0 && p.last_shot + REC_EVERY >= tick + 1 {
+                    // any shot since the last frame (frames are `every` ticks apart)
+                    if p.last_shot != 0 && p.last_shot + every >= tick + 1 {
                         fl |= 2;
                     }
                     if p.flare > 0 {
                         fl |= 4;
                     }
-                    if p.hit_tick != 0 && p.hit_tick + REC_EVERY >= tick {
+                    if p.hit_tick != 0 && p.hit_tick + every >= tick {
                         fl |= 8;
                     }
                     let packed = x | (y << 11) | (aim << 22) | (fl << 28);

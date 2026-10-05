@@ -40,7 +40,8 @@ function Pedestal({ i, n, seat, onTake, onMakeHost, onKick }: { i: number; n: nu
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
     if (ring.current) (ring.current.material as THREE.MeshBasicMaterial).opacity = seat.taken ? 0.9 : 0.25 + 0.2 * Math.sin(t * 2 + i);
-    if (g.current) g.current.rotation.y = Math.PI / 2 - Math.atan2(-z - 9, -x) + Math.sin(t * 0.7 + i) * 0.15;
+    // face the camera (at 0, 10.5), with a little idle sway; soldiers face +x in their own frame
+    if (g.current) g.current.rotation.y = -Math.atan2(10.5 - z, 0 - x) + Math.sin(t * 0.7 + i) * 0.15;
   });
   return (
     <group position={[x, 0, z]}>
@@ -57,10 +58,9 @@ function Pedestal({ i, n, seat, onTake, onMakeHost, onKick }: { i: number; n: nu
           <Avatar color={color} me={seat.me} />
         </group>
       ) : (
-        <mesh position={[0, 1.0, 0]}>
-          <capsuleGeometry args={[0.3, 0.6, 6, 12]} />
-          <meshBasicMaterial color={color} transparent opacity={0.07} toneMapped={false} wireframe />
-        </mesh>
+        <group ref={g} position={[0, 0.3, 0]} scale={1.15}>
+          <Avatar color={color} ghost />
+        </group>
       )}
       <object3D ref={aimAt} position={[0, 0.3, 0]} />
       <spotLight

@@ -348,8 +348,8 @@ function decodeChunk(dv: DataView, frames: number, out: RecFrame[][]) {
       const v = dv.getUint32(REC_HEADER + (f * MAXP + s) * 4, true);
       const fl = v >>> 28;
       row.push({
-        x: (v & 2047) * 4,
-        y: ((v >>> 11) & 2047) * 4,
+        x: (v & 2047) * 6,
+        y: ((v >>> 11) & 2047) * 6,
         aim: ((v >>> 22) & 63) << 10,
         alive: (fl & 1) === 1,
         firing: (fl & 2) === 2,

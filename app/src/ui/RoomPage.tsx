@@ -465,35 +465,49 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
 
         <div className="dock-cell bots">
           {!staked ? (
-            <>
-              <label>SEATS</label>
-              <div className="stepper">
-                <button onClick={() => resize(size - 1)} disabled={!canStart || !!busy || size <= Math.max(2, humans)}>
-                  −
-                </button>
-                <b>{size}</b>
-                <button onClick={() => resize(size + 1)} disabled={!canStart || !!busy || size >= 8}>
-                  +
-                </button>
-              </div>
-              <small>
-                {humans} {humans === 1 ? "player" : "players"} + {Math.max(0, size - humans)} {size - humans === 1 ? "bot" : "bots"}
-                {canStart ? "" : " · host decides"}
-              </small>
-              <div className="bot-level">
-                <span>BOTS</span>
-                {[1, 0, 2].map((lv) => (
-                  <button
-                    key={lv}
-                    className={`lv-${lv} ${room.botLevel === lv ? "on" : ""}`}
-                    disabled={!canStart || !!busy}
-                    onClick={() => room.botLevel !== lv && run("bots", () => session.setBots(lv))}
-                  >
-                    {LEVELS[lv]}
+            <div className="night-set">
+              <label>NIGHT SETTINGS{canStart ? "" : " · host decides"}</label>
+              <div className="ns-row">
+                <span>Seats</span>
+                <div className="ns-step">
+                  <button onClick={() => resize(size - 1)} disabled={!canStart || !!busy || size <= Math.max(2, humans)}>
+                    −
                   </button>
-                ))}
+                  <b>{size}</b>
+                  <button onClick={() => resize(size + 1)} disabled={!canStart || !!busy || size >= 8}>
+                    +
+                  </button>
+                </div>
               </div>
-            </>
+              <div className="ns-row">
+                <span>Bots</span>
+                <div className="seg">
+                  {[1, 0, 2].map((lv) => (
+                    <button key={lv} className={room.botLevel === lv ? "on" : ""} disabled={!canStart || !!busy} onClick={() => room.botLevel !== lv && run("bots", () => session.setBots(lv))}>
+                      {["Medium", "Easy", "Hard"][lv]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="ns-row">
+                <span>Mode</span>
+                <div className="seg">
+                  {[false, true].map((d) => (
+                    <button key={String(d)} className={room.duos === d ? "on" : ""} disabled={!canStart || !!busy} onClick={() => room.duos !== d && run("mode", () => session.setMode(d))}>
+                      {d ? "Duos" : "Solo"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="ns-row">
+                <span>Length</span>
+                <em>5:00</em>
+              </div>
+              <small className="ns-sum">
+                {humans} {humans === 1 ? "player" : "players"} + {Math.max(0, size - humans)} {size - humans === 1 ? "bot" : "bots"}
+                {room.duos ? " · teams of two" : ""}
+              </small>
+            </div>
           ) : (
             <>
               <label>THE POT</label>
@@ -503,31 +517,17 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
               </small>
             </>
           )}
-          {!staked && (
-            <div className="bot-level mode">
-              <span>MODE</span>
-              {[false, true].map((d) => (
-                <button key={String(d)} className={room.duos === d ? "on lv-0" : ""} disabled={!canStart || !!busy} onClick={() => room.duos !== d && run("mode", () => session.setMode(d))}>
-                  {d ? "DUOS" : "SOLO"}
-                </button>
-              ))}
-            </div>
-          )}
-          <small className="night-len">every night lasts 5:00{room.duos ? " · seats pair up: 1+2, 3+4, 5+6, 7+8" : ""}</small>
         </div>
       </div>
       <div className="keys-hint">
-        <span>click to aim</span>
-        <span>W A S D move</span>
+        <span>mouse aim</span>
+        <span>WASD move</span>
         <span>Shift sprint</span>
-        <span>right-click aim</span>
+        <span>RMB scope</span>
         <span>G gadget</span>
-        <span>X swap gun</span>
-        <span>Q / E turn</span>
-        <span>click fire</span>
+        <span>X swap</span>
         <span>R reload</span>
-        <span>V view</span>
-        <span>M sound</span>
+        <span>Tab map</span>
       </div>
     </div>
   );

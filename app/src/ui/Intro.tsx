@@ -1,16 +1,16 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { audio } from "../game/audio";
-import { INTRO_LENGTH } from "../game/colors";
+import { INTRO_LENGTH, CAST, SEAT_COLORS } from "../game/colors";
 
 const IntroScene = lazy(() => import("../scene/IntroScene").then((m) => ({ default: m.IntroScene })));
 
 const BEATS: { at: number; text: string; sub: string }[] = [
   { at: 0.6, text: "03:12. The grid failed.", sub: "Every light in the city went out at once." },
-  { at: 6, text: "The Yard.", sub: "Eight hundred containers. One gate. No light." },
-  { at: 11, text: "Eight of you woke up inside.", sub: "One flashlight each. One way out." },
+  { at: 3.2, text: "The Yard.", sub: "Eight hundred containers. One gate. No light." },
+  { at: 6.1, text: "Eight of them woke up inside.", sub: "" },
   { at: 16.6, text: "Something keeps the score.", sub: "The Warden sees every step you take — and tells no one." },
-  { at: 22, text: "Your light shows you the way.", sub: "Your gun shows them where you are." },
-  { at: 28, text: "When only one is left standing…", sub: "the lights come back on." },
+  { at: 21.8, text: "Your light shows you the way.", sub: "Your gun shows them where you are." },
+  { at: 28.4, text: "When only one is left standing…", sub: "the lights come back on. Tonight, you're the ninth." },
 ];
 const TITLE_AT = 33.6;
 
@@ -36,6 +36,8 @@ export function Intro({ onDone }: { onDone: () => void }) {
     return t >= TITLE_AT ? -2 : k;
   }, [t]);
   const beat = beatIdx >= 0 ? BEATS[beatIdx] : null;
+  // the line-up: one card per operative while their light is on
+  const castIdx = t >= 16.3 ? -1 : CAST.reduce((k, c, i) => (t >= c.at ? i : k), -1);
   const chars = beat ? Math.floor((t - beat.at) / 0.045) : 0;
 
   useEffect(() => {
@@ -78,7 +80,16 @@ export function Intro({ onDone }: { onDone: () => void }) {
       </Suspense>
       <div className="letterbox top" />
       <div className="letterbox bottom" />
-      {beat && (
+      {castIdx >= 0 && (
+        <div className="cast-card" key={castIdx} style={{ ["--c" as any]: SEAT_COLORS[castIdx] }}>
+          <small>
+            {String(castIdx + 1).padStart(2, "0")} / 08 · {CAST[castIdx].role}
+          </small>
+          <b>{CAST[castIdx].name}</b>
+          <p>{CAST[castIdx].line}</p>
+        </div>
+      )}
+      {beat && castIdx < 0 && (
         <div className="intro-beat" key={beatIdx}>
           <h2>
             {beat.text.slice(0, chars)}

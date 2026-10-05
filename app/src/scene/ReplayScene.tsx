@@ -6,6 +6,9 @@ import * as THREE from "three";
 import { MAP_W } from "../game/gen";
 import { Arena } from "./Arena";
 import { Avatar, SEAT_COLORS, aimToRotY } from "./Avatar";
+import { stillMotion, type Motion } from "./Soldier";
+import { isWall } from "../game/sim";
+import { audio } from "../game/audio";
 import type { Recording, Room, World } from "../chain/layout";
 import { lineOfSight, AMBIENT_R, VISION_R, CONE_HALF, angleToRad } from "../game/sim";
 
@@ -89,6 +92,13 @@ function Players({ rec, room, me, ctl }: { rec: Recording; room: Room; me: numbe
   useEffect(() => {
     trails.current = lines;
   }, [lines]);
+  // the soldiers' bodies, driven from the recording
+  const motions = useMemo(() => Array.from({ length: 8 }, () => ({ current: stillMotion() }) as React.MutableRefObject<Motion>), []);
+  // gunfire: a tracer per seat from the muzzle to the first wall, plus a muzzle flash and hit flash
+  const tracers = useRef<(THREE.Mesh | null)[]>([]);
+  const flashes = useRef<(THREE.Mesh | null)[]>([]);
+  const hits = useRef<(THREE.Mesh | null)[]>([]);
+  const lastShot = useRef<number[]>(Array(8).fill(-1));
   const occupied = useMemo(() => Array.from({ length: 8 }, (_, s) => rec.data[0]?.[s]?.alive || room.isBot[s] === 1 || room.players[s].toBase58() !== "11111111111111111111111111111111"), [rec, room]);
   useFrame(() => {
     const c = ctl.current;
@@ -107,11 +117,48 @@ function Players({ rec, room, me, ctl }: { rec: Recording; room: Room; me: numbe
       const f = frameAt(rec, c.t, s);
       g.position.set(f.x / 256, 0, f.y / 256);
       g.rotation.y = aimToRotY(f.aim);
+      const back = frameAt(rec, Math.max(0, c.t - 0.5), s);
+      const step = Math.hypot(f.x - back.x, f.y - back.y) / Math.max(1, rec.every); // units per tick
+      const mo = motions[s].current;
+      mo.speed = !f.alive || step < 8 ? 0 : step > 70 ? 2 : 1;
+      mo.firing = f.firing;
+      mo.downed = !f.alive;
       const seenByMe = s === me || !meF || !meF.alive ? true : wouldSee(meF, f);
       // in "your view" only what the TEE would have shown you; lights on = everyone
       const show = f.alive && (c.lights > 0.5 || seenByMe);
       g.visible = show || (!f.alive && c.lights > 0.5);
-      g.scale.setScalar(f.alive ? 1 : 0.6);
+      // shots: a tracer to the first wall, a muzzle flash, the sound (once per shot, while playing)
+      const tr2 = tracers.current[s];
+      const fl = flashes.current[s];
+      const hm = hits.current[s];
+      const shooting = f.alive && f.firing && g.visible;
+      if (tr2 && fl) {
+        tr2.visible = fl.visible = shooting;
+        if (shooting) {
+          const a = (f.aim / 65536) * Math.PI * 2;
+          const cx = Math.cos(a);
+          const cz = Math.sin(a);
+          let len = 0.6;
+          while (len < 14 && !isWall(Math.floor(f.x / 256 + cx * len), Math.floor(f.y / 256 + cz * len))) len += 0.25;
+          const mx = f.x / 256 + cx * 0.75;
+          const mz = f.y / 256 + cz * 0.75;
+          tr2.position.set(mx + (cx * (len - 0.75)) / 2, 0.95, mz + (cz * (len - 0.75)) / 2);
+          tr2.rotation.set(0, -a, 0);
+          tr2.scale.set(Math.max(0.1, len - 0.75), 1, 1);
+          (tr2.material as THREE.MeshBasicMaterial).opacity = 0.35 + Math.random() * 0.4;
+          fl.position.set(mx, 0.95, mz);
+          fl.scale.setScalar(0.6 + Math.random() * 0.6);
+          const frame = Math.floor(c.t);
+          if (c.playing && lastShot.current[s] !== frame && c.speed <= 1.5) {
+            lastShot.current[s] = frame;
+            audio.shoot(0);
+          }
+        }
+      }
+      if (hm) {
+        hm.visible = f.hit && g.visible;
+        if (hm.visible) hm.position.set(f.x / 256, 0.9, f.y / 256);
+      }
       tr.visible = c.lights > 0.5;
       const pos = trailGeos[s].getAttribute("position") as THREE.BufferAttribute;
       for (let k = 0; k < 60; k++) {
@@ -128,7 +175,7 @@ function Players({ rec, room, me, ctl }: { rec: Recording; room: Room; me: numbe
       {Array.from({ length: 8 }, (_, s) => (
         <group key={s}>
           <group ref={(el) => (groups.current[s] = el)} visible={false}>
-            <Avatar color={SEAT_COLORS[s]} me={s === me} />
+            <Avatar color={SEAT_COLORS[s]} me={s === me} motion={motions[s]} />
             <Html position={[0, 1.6, 0]} center zIndexRange={[4, 0]} style={{ pointerEvents: "none" }}>
               <div className="tag" ref={(el) => (tags.current[s] = el)} style={{ ["--c" as any]: SEAT_COLORS[s] }}>
                 <span>
@@ -140,6 +187,18 @@ function Players({ rec, room, me, ctl }: { rec: Recording; room: Room; me: numbe
             </Html>
           </group>
           <primitive object={lines[s]} />
+          <mesh ref={(el) => (tracers.current[s] = el)} visible={false}>
+            <boxGeometry args={[1, 0.035, 0.035]} />
+            <meshBasicMaterial color="#ffe6a8" transparent opacity={0.6} toneMapped={false} blending={THREE.AdditiveBlending} depthWrite={false} />
+          </mesh>
+          <mesh ref={(el) => (flashes.current[s] = el)} visible={false}>
+            <sphereGeometry args={[0.18, 10, 8]} />
+            <meshBasicMaterial color="#ffc46b" transparent opacity={0.9} toneMapped={false} blending={THREE.AdditiveBlending} depthWrite={false} />
+          </mesh>
+          <mesh ref={(el) => (hits.current[s] = el)} visible={false}>
+            <sphereGeometry args={[0.32, 10, 8]} />
+            <meshBasicMaterial color="#ff2e4d" transparent opacity={0.45} toneMapped={false} blending={THREE.AdditiveBlending} depthWrite={false} />
+          </mesh>
         </group>
       ))}
     </>
