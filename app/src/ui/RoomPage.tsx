@@ -466,7 +466,14 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
         <div className="dock-cell bots">
           {!staked ? (
             <div className="night-set">
-              <label>NIGHT SETTINGS{canStart ? "" : " · host decides"}</label>
+              <label>
+                NIGHT SETTINGS{canStart ? "" : " · host decides"}
+                <em className="ns-sum-inline">
+                  {humans} {humans === 1 ? "player" : "players"} + {Math.max(0, size - humans)} {size - humans === 1 ? "bot" : "bots"}
+                  {room.duos ? " · teams of two" : ""} · 5:00
+                </em>
+              </label>
+              <div className="ns-grid">
               <div className="ns-row">
                 <span>Seats</span>
                 <div className="ns-step">
@@ -499,14 +506,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
                   ))}
                 </div>
               </div>
-              <div className="ns-row">
-                <span>Length</span>
-                <em>5:00</em>
               </div>
-              <small className="ns-sum">
-                {humans} {humans === 1 ? "player" : "players"} + {Math.max(0, size - humans)} {size - humans === 1 ? "bot" : "bots"}
-                {room.duos ? " · teams of two" : ""}
-              </small>
             </div>
           ) : (
             <>
