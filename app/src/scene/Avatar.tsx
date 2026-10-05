@@ -8,7 +8,6 @@ export const Avatar = forwardRef<THREE.Group, { color: string; weapon?: number; 
   function Avatar({ color, weapon = 0, me = false, ghost = false }, ref) {
     const body = ghost ? "#1a1c22" : "#20232c";
     const op = ghost ? 0.35 : 1;
-    const gunLen = weapon === 2 ? 0.55 : weapon === 1 ? 0.45 : 0.32;
     return (
       <group ref={ref}>
         {/* feet ring */}
@@ -34,11 +33,9 @@ export const Avatar = forwardRef<THREE.Group, { color: string; weapon?: number; 
           <boxGeometry args={[0.1, 0.07, 0.28]} />
           <meshStandardMaterial color={color} emissive={color} emissiveIntensity={3} toneMapped={false} transparent={ghost} opacity={op} />
         </mesh>
-        {/* gun */}
-        <mesh position={[0.28 + gunLen / 2, 0.68, 0.12]} castShadow>
-          <boxGeometry args={[gunLen, 0.08, 0.08]} />
-          <meshStandardMaterial color="#0b0c10" roughness={0.4} metalness={0.8} transparent={ghost} opacity={op} />
-        </mesh>
+        <group position={[0, 0.68, 0.12]}>
+          <Gun weapon={weapon} ghost={ghost} />
+        </group>
       </group>
     );
   },
@@ -51,4 +48,68 @@ export function setAvatar(g: THREE.Object3D | null, x: number, y: number, aim: n
   if (!g) return;
   g.position.set(x / 256, 0, y / 256);
   g.rotation.y = aimToRotY(aim);
+}
+
+type Part = { p: [number, number, number]; s: [number, number, number]; c?: string; r?: number; cyl?: boolean; glow?: string };
+
+// Low-poly guns, built along +x from the hand. Index = weapon id (P92, UMP, S12K, M416, KAR98K).
+const GUNS: Part[][] = [
+  [
+    { p: [0.4, 0, 0], s: [0.26, 0.08, 0.06] },
+    { p: [0.33, -0.08, 0], s: [0.06, 0.14, 0.05], c: "#16181e" },
+  ],
+  [
+    { p: [0.46, 0, 0], s: [0.36, 0.1, 0.07] },
+    { p: [0.5, -0.11, 0], s: [0.05, 0.17, 0.045], c: "#16181e" },
+    { p: [0.69, 0.01, 0], s: [0.12, 0.035, 0.035], c: "#2a2d35" },
+    { p: [0.3, -0.03, 0], s: [0.12, 0.07, 0.05], c: "#16181e" },
+  ],
+  [
+    { p: [0.5, 0, 0], s: [0.5, 0.1, 0.08] },
+    { p: [0.85, 0.02, 0], s: [0.28, 0.045, 0.045], c: "#2a2d35" },
+    { p: [0.66, -0.06, 0], s: [0.18, 0.06, 0.09], c: "#3a2a1c" },
+    { p: [0.22, -0.02, 0], s: [0.16, 0.1, 0.06], c: "#3a2a1c" },
+  ],
+  [
+    { p: [0.48, 0, 0], s: [0.42, 0.1, 0.07] },
+    { p: [0.21, -0.01, 0], s: [0.17, 0.09, 0.06], c: "#16181e" },
+    { p: [0.52, -0.13, 0], s: [0.05, 0.19, 0.045], c: "#16181e", r: 0.28 },
+    { p: [0.8, 0.01, 0], s: [0.24, 0.035, 0.035], c: "#2a2d35" },
+    { p: [0.47, 0.08, 0], s: [0.12, 0.04, 0.035], c: "#2a2d35" },
+    { p: [0.42, 0.105, 0], s: [0.02, 0.02, 0.02], glow: "#ff3b3b" },
+  ],
+  [
+    { p: [0.56, 0, 0], s: [0.6, 0.08, 0.07], c: "#3a2a1c" },
+    { p: [0.18, -0.02, 0], s: [0.2, 0.11, 0.06], c: "#3a2a1c" },
+    { p: [1.06, 0.015, 0], s: [0.44, 0.03, 0.03], c: "#2a2d35" },
+    { p: [0.58, 0.1, 0], s: [0.3, 0.045, 0.045], c: "#101216", cyl: true },
+    { p: [0.74, 0.1, 0], s: [0.012, 0.04, 0.04], glow: "#9fd8ff" },
+  ],
+];
+
+export function Gun({ weapon, ghost = false }: { weapon: number; ghost?: boolean }) {
+  const parts = GUNS[weapon] ?? GUNS[0];
+  const op = ghost ? 0.35 : 1;
+  return (
+    <>
+      {parts.map((pt, i) =>
+        pt.glow ? (
+          <mesh key={i} position={pt.p}>
+            <boxGeometry args={pt.s} />
+            <meshBasicMaterial color={pt.glow} toneMapped={false} transparent={ghost} opacity={op} />
+          </mesh>
+        ) : pt.cyl ? (
+          <mesh key={i} position={pt.p} rotation-z={Math.PI / 2} castShadow>
+            <cylinderGeometry args={[pt.s[1], pt.s[1], pt.s[0], 12]} />
+            <meshStandardMaterial color={pt.c ?? "#0b0c10"} roughness={0.35} metalness={0.85} transparent={ghost} opacity={op} />
+          </mesh>
+        ) : (
+          <mesh key={i} position={pt.p} rotation-z={pt.r ?? 0} castShadow>
+            <boxGeometry args={pt.s} />
+            <meshStandardMaterial color={pt.c ?? "#0b0c10"} roughness={0.4} metalness={0.8} transparent={ghost} opacity={op} />
+          </mesh>
+        ),
+      )}
+    </>
+  );
 }

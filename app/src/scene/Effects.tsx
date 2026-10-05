@@ -343,7 +343,20 @@ function ZoneGround({ session }: { session: Session }) {
 // ------------------------------------------------------------------ reactions
 
 /** Watches the session for things that should be felt: your hits, getting hit, footsteps, enemy shots. */
+function floatText(x: number, y: number, text: string, kill: boolean) {
+  const host = document.querySelector(".game");
+  if (!host) return;
+  const d = document.createElement("div");
+  d.className = `dmg-float${kill ? " kill" : ""}`;
+  d.textContent = text;
+  d.style.left = `${x + (Math.random() - 0.5) * 30}px`;
+  d.style.top = `${y}px`;
+  host.appendChild(d);
+  setTimeout(() => d.remove(), 900);
+}
+
 function Reactions({ session }: { session: Session }) {
+  const { camera } = useThree();
   const lastFx = useRef(0);
   const hp = useRef<Map<number, number>>(new Map());
   const step = useRef({ x: 0, y: 0, acc: 0 });
@@ -386,6 +399,9 @@ function Reactions({ session }: { session: Session }) {
         if (now - lastFire.current < 600) {
           feel.hitAt = now;
           audio.hitmark();
+          // your damage, floating off the target
+          const v3 = new THREE.Vector3(sm.x / 256, 1.5, sm.y / 256).project(camera);
+          if (v3.z < 1) floatText(((v3.x + 1) / 2) * window.innerWidth, ((1 - v3.y) / 2) * window.innerHeight, String(before - sm.hp), sm.hp === 0);
         }
       }
     }

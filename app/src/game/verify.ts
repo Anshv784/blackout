@@ -76,7 +76,8 @@ export function verifyMatch(room: Room, world: World, rec: Recording, occupied: 
   for (let i = 0; i < 10; i++) {
     const [lx, ly] = LOOT_SPOTS[spots[i]];
     const roll = rng.next() % 100;
-    const kind = roll <= 27 ? 1 : roll <= 47 ? 2 : roll <= 67 ? 3 : roll <= 83 ? 4 : 5;
+    // mirror of sim.rs seed_match: medkit, armor, smg, shotgun, AR, sniper, flare
+    const kind = roll <= 21 ? 1 : roll <= 37 ? 2 : roll <= 51 ? 3 : roll <= 63 ? 4 : roll <= 79 ? 6 : roll <= 88 ? 7 : 5;
     loot.push({ x: tc(lx), y: tc(ly), kind });
   }
   // zone

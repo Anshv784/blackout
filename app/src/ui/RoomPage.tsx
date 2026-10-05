@@ -520,6 +520,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
         <span>click to aim</span>
         <span>W A S D move</span>
         <span>Shift sprint</span>
+        <span>right-click aim</span>
         <span>Q / E turn</span>
         <span>click fire</span>
         <span>R reload</span>

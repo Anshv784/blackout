@@ -16,6 +16,8 @@ import {
   type Room,
   type View,
   type VisPlayer,
+  WEAPON_NAME,
+  FIRE_MODE,
 } from "../chain/layout";
 import { inputVelocity, moveBody, packMoved, sprintStep, SPEED, SPRINT_SPEED, UNIT } from "./sim";
 import { banner, feel } from "./feel";
@@ -231,7 +233,9 @@ export class Session {
           audio.kill();
           if (this.streak > 1) audio.streak(this.streak);
           const title = ["", "", "DOUBLE KILL", "TRIPLE KILL", "RAMPAGE", "UNSTOPPABLE"][Math.min(this.streak, 5)];
-          banner(title || `☠ ${victim}`, "kill", title ? `☠ ${victim}` : "eliminated");
+          const gun = WEAPON_NAME[e.weapon] ?? "";
+          const total = r.kills[this.mySeat] ?? this.streak;
+          banner(title || `YOU KILLED ${victim}`, "kill", `${title ? `${victim} · ` : ""}with ${gun} · ${total} ${total === 1 ? "kill" : "kills"}`);
         }
       }
     }
@@ -388,7 +392,7 @@ export class Session {
       audio.pickup();
       const what = v.me.weapon !== prev.me.weapon ? 1 : v.me.flare > prev.me.flare + 50 ? 4 : v.me.armor > prev.me.armor + 10 ? 3 : 2;
       this.addFx({ kind: "loot", x: v.me.x, y: v.me.y, sub: what });
-      banner(["", ["PISTOL", "SMG", "SHOTGUN"][v.me.weapon] ?? "WEAPON", "+ HEALTH", "+ ARMOR", "FLARE: YOU SEE EVERYONE"][what], "event");
+      banner(["", WEAPON_NAME[v.me.weapon] ?? "WEAPON", "+ HEALTH", "+ ARMOR", "FLARE: YOU SEE EVERYONE"][what], "event", what === 1 ? FIRE_MODE[v.me.weapon] : undefined);
     }
     if (prev && prev.me.reload === 0 && v.me.reload > 0) audio.reload();
     useStore.getState().set({ view: v });
@@ -453,9 +457,12 @@ export class Session {
     const s = this.sent;
     const aimDelta = Math.min(Math.abs(i.aim - s.aim), 65536 - Math.abs(i.aim - s.aim));
     const changed = i.dx !== s.dx || i.dy !== s.dy || i.buttons !== s.buttons;
-    const aimChanged = aimDelta > 450;
+    // aim must track the crosshair closely, or shots land where you aimed a moment ago:
+    // while firing every small correction goes out, otherwise anything over ~0.8°
+    const firing = (i.buttons & 1) === 1;
+    const aimChanged = firing ? aimDelta > 30 : aimDelta > 150;
     const since = now - this.lastSendAt;
-    if ((changed && since >= 40) || (aimChanged && since >= 60) || since >= 500) {
+    if ((changed && since >= 40) || (aimChanged && since >= (firing ? 40 : 50)) || since >= 500) {
       this.lastSendAt = now;
       this.sent = { ...i };
       const seq = ++this.seq;

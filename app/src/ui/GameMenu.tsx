@@ -295,6 +295,7 @@ function Settings({ onClose }: { onClose: () => void }) {
                   <span><b>Shift</b> sprint (loud)</span>
                   <span><b>Mouse</b> aim</span>
                   <span><b>Click / Space</b> fire</span>
+                  <span><b>Right mouse</b> aim down sights</span>
                   <span><b>R</b> reload</span>
                   <span><b>Q / E</b> turn</span>
                   <span><b>V</b> view</span>

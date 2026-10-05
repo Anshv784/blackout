@@ -32,10 +32,24 @@ pub const LOOT_ARMOR: u32 = 2;
 pub const LOOT_SMG: u32 = 3;
 pub const LOOT_SHOTGUN: u32 = 4;
 pub const LOOT_FLARE: u32 = 5;
+pub const LOOT_AR: u32 = 6;
+pub const LOOT_SNIPER: u32 = 7;
 
 pub const W_PISTOL: u32 = 0;
 pub const W_SMG: u32 = 1;
 pub const W_SHOTGUN: u32 = 2;
+pub const W_AR: u32 = 3;
+pub const W_SNIPER: u32 = 4;
+
+/// Loot kind for a gun (dropped on death), and the gun a loot kind gives.
+pub fn gun_loot(weapon: u32) -> u32 {
+    match weapon {
+        W_SMG => LOOT_SMG,
+        W_SHOTGUN => LOOT_SHOTGUN,
+        W_AR => LOOT_AR,
+        _ => LOOT_SNIPER,
+    }
+}
 pub const W_ZONE: u32 = 9;
 
 pub struct Weapon {
@@ -49,10 +63,17 @@ pub struct Weapon {
     pub spread: u32,
 }
 
-pub const WEAPONS: [Weapon; 3] = [
+pub const WEAPONS: [Weapon; 5] = [
+    // P92 pistol
     Weapon { dmg: 22, cooldown: 7, mag: 10, reload: 28, speed: 280, ttl: 16, pellets: 1, spread: 0 },
+    // UMP SMG: fast, short, sprays
     Weapon { dmg: 11, cooldown: 2, mag: 30, reload: 40, speed: 300, ttl: 14, pellets: 1, spread: 900 },
+    // S12K shotgun: five pellets, close only
     Weapon { dmg: 13, cooldown: 16, mag: 5, reload: 44, speed: 260, ttl: 8, pellets: 5, spread: 2600 },
+    // M416 assault rifle: the all-rounder
+    Weapon { dmg: 15, cooldown: 3, mag: 30, reload: 42, speed: 340, ttl: 20, pellets: 1, spread: 260 },
+    // Kar98k sniper: two body shots, slow bolt, long and loud
+    Weapon { dmg: 80, cooldown: 30, mag: 5, reload: 56, speed: 460, ttl: 26, pellets: 1, spread: 0 },
 ];
 
 // ---------------------------------------------------------------- math
@@ -331,10 +352,12 @@ pub fn seed_match(room: &mut Room, w: &mut World, seed: [u8; 32]) {
         let (lx, ly) = LOOT_SPOTS[spots[i]];
         let roll = rng_next(w) % 100;
         let kind = match roll {
-            0..=27 => LOOT_MEDKIT,
-            28..=47 => LOOT_ARMOR,
-            48..=67 => LOOT_SMG,
-            68..=83 => LOOT_SHOTGUN,
+            0..=21 => LOOT_MEDKIT,
+            22..=37 => LOOT_ARMOR,
+            38..=51 => LOOT_SMG,
+            52..=63 => LOOT_SHOTGUN,
+            64..=79 => LOOT_AR,
+            80..=88 => LOOT_SNIPER,
             _ => LOOT_FLARE,
         };
         w.loot[i] = Loot { x: tile_center(lx), y: tile_center(ly), kind, active: 1 };
@@ -689,14 +712,15 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
                 match l.kind {
                     LOOT_MEDKIT => p.hp = (p.hp + 50).min(100),
                     LOOT_ARMOR => p.armor = (p.armor + 50).min(100),
-                    LOOT_SMG => {
-                        p.weapon = W_SMG;
-                        p.mag = WEAPONS[1].mag;
-                        p.reload = 0;
-                    }
-                    LOOT_SHOTGUN => {
-                        p.weapon = W_SHOTGUN;
-                        p.mag = WEAPONS[2].mag;
+                    LOOT_SMG | LOOT_SHOTGUN | LOOT_AR | LOOT_SNIPER => {
+                        let wpn = match l.kind {
+                            LOOT_SMG => W_SMG,
+                            LOOT_SHOTGUN => W_SHOTGUN,
+                            LOOT_AR => W_AR,
+                            _ => W_SNIPER,
+                        };
+                        p.weapon = wpn;
+                        p.mag = WEAPONS[wpn as usize].mag;
                         p.reload = 0;
                     }
                     LOOT_FLARE => p.flare = FLARE_TICKS,
@@ -758,7 +782,7 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
             // the dead drop their gun
             if p.weapon != W_PISTOL {
                 if let Some(slot) = w.loot.iter().position(|l| l.active == 0) {
-                    let kind = if p.weapon == W_SMG { LOOT_SMG } else { LOOT_SHOTGUN };
+                    let kind = gun_loot(p.weapon);
                     w.loot[slot] = Loot { x: p.x, y: p.y, kind, active: 1 };
                 }
             }

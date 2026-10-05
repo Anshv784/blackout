@@ -11,15 +11,18 @@ import { ST_COUNTDOWN, ST_LIVE, ST_ENDED } from "../chain/layout";
 import { controls, wheelZoom } from "../game/controls";
 import { prefs, usePrefs } from "../game/prefs";
 import { feel } from "../game/feel";
+import { useStore } from "../game/store";
 import { Effects, sparks } from "./Effects";
 import { radToAngle, angleToRad, isWall } from "../game/sim";
 import { audio } from "../game/audio";
 
 const CONE_RAD = (7000 / 65536) * Math.PI * 2; // half-angle used on chain
 const VISION_TILES = 10;
-const LOOT_COLORS = ["#fff", "#06d6a0", "#4cc9f0", "#ff8c42", "#ef476f", "#f15bb5"];
-const LOOT_LABEL = ["", "MEDKIT", "ARMOR", "SMG", "SHOTGUN", "FLARE"];
-const COOLDOWN_MS = [350, 100, 800];
+const LOOT_COLORS = ["#fff", "#06d6a0", "#4cc9f0", "#ff8c42", "#ef476f", "#f15bb5", "#ffd166", "#c77dff"];
+const LOOT_LABEL = ["", "MEDKIT", "ARMOR", "UMP", "S12K", "FLARE", "M416", "KAR98K"];
+const COOLDOWN_MS = [350, 100, 800, 150, 1500];
+// crosshair kick per shot (vertical, horizontal jitter) — PUBG-style: you pull it back down
+const RECOIL = [[0.02, 0.004], [0.009, 0.006], [0.045, 0.01], [0.013, 0.005], [0.07, 0.002]];
 
 function beamMaterial() {
   return new THREE.ShaderMaterial({
@@ -45,6 +48,7 @@ function MyPlayer({ session }: { session: Session }) {
   const beam = useMemo(beamMaterial, []);
   const lastShot = useRef(0);
   const lastPos = useRef({ x: 0, y: 0 });
+  const myWeapon = useStore((s) => s.view?.me.weapon ?? 0);
   const gait = useRef(0);
   const { scene } = useThree();
   useEffect(() => {
@@ -94,7 +98,11 @@ function MyPlayer({ session }: { session: Session }) {
       lastShot.current = now;
       audio.shoot(v.me.weapon);
       if (flash.current) flash.current.intensity = 14;
-      feel.recoil = Math.min(1.6, feel.recoil + (v.me.weapon === 2 ? 1.3 : v.me.weapon === 1 ? 0.45 : 0.8));
+      feel.recoil = Math.min(1.8, feel.recoil + [0.8, 0.45, 1.3, 0.55, 1.8][v.me.weapon]);
+      const [ky, kx] = RECOIL[v.me.weapon] ?? RECOIL[0];
+      const steady = 1 - controls.adsK * 0.4;
+      controls.vcy = Math.min(0.85, controls.vcy + ky * steady);
+      controls.vcx += (Math.random() - 0.5) * 2 * kx * steady;
       sparks(pos.x / 256 + Math.cos(a) * 0.75, 0.7, pos.y / 256 + Math.sin(a) * 0.75, "#ffd27a", v.me.weapon === 2 ? 10 : 5, {
         speed: 5,
         dir: a,
@@ -110,7 +118,7 @@ function MyPlayer({ session }: { session: Session }) {
   return (
     <group ref={group}>
       <group ref={aimGroup}>
-        <Avatar color={SEAT_COLORS[session.mySeat ?? 0]} me weapon={session.view?.me.weapon ?? 0} />
+        <Avatar color={SEAT_COLORS[session.mySeat ?? 0]} me weapon={myWeapon} />
         {/* volumetric beam: a cone lying along +x */}
         <mesh position={[VISION_TILES / 2 + 0.3, 0.75, 0]} rotation-z={Math.PI / 2} material={beam}>
           <coneGeometry args={[Math.tan(CONE_RAD) * VISION_TILES, VISION_TILES, 48, 1, true]} />
@@ -146,6 +154,14 @@ function Others({ session }: { session: Session }) {
   const room = session.room;
   const lastAt = useRef<({ x: number; y: number } | null)[]>(Array(8).fill(null));
   const gaits = useRef<number[]>(Array(8).fill(0));
+  // re-render only when someone's gun changes
+  const seen = useStore((st) => st.view?.players.map((p) => `${p.seat}:${p.weapon}`).join(",") ?? "");
+  const lastWeapon = useRef<number[]>(Array(8).fill(0));
+  for (const kv of seen.split(",")) {
+    const [a, b] = kv.split(":").map(Number);
+    if (kv && a >= 0 && a < 8) lastWeapon.current[a] = b;
+  }
+  const weapons = lastWeapon.current;
   const GRACE = 280; // ms an enemy stays solid after leaving your view (kills cone-edge flicker)
   const FADE = 2000; // ms the last-known silhouette lingers
   useFrame(() => {
@@ -203,7 +219,7 @@ function Others({ session }: { session: Session }) {
       {Array.from({ length: 8 }, (_, s) => (
         <group key={s}>
           <group ref={(el) => (refs.current[s] = el)} visible={false}>
-            <Avatar color={SEAT_COLORS[s]} />
+            <Avatar color={SEAT_COLORS[s]} weapon={weapons[s]} />
             <Html position={[0, 1.6, 0]} center zIndexRange={[4, 0]} style={{ pointerEvents: "none" }}>
               <div className="tag" ref={(el) => (labels.current[s] = el)} style={{ ["--c" as any]: SEAT_COLORS[s] }}>
                 <span>{room?.names[s] || `#${s}`}</span>
@@ -427,7 +443,9 @@ function CameraRig({ session }: { session: Session }) {
       const a = controls.camYaw;
       const px = p!.x / 256;
       const pz = p!.y / 256;
-      let d = controls.chaseDist;
+      const ads = controls.adsK;
+      const sniper = session.view?.me.weapon === 4;
+      let d = controls.chaseDist + ((sniper ? 3.0 : 3.6) - controls.chaseDist) * ads;
       // don't let a wall sit between the camera and you: walk back from the player and stop before it
       const steps = Math.ceil(d / 0.15);
       for (let i = 1; i <= steps; i++) {
@@ -441,9 +459,13 @@ function CameraRig({ session }: { session: Session }) {
         }
       }
       // keep the height: a blocked camera comes in closer and looks down over the wall
-      const h = controls.chaseHeight;
-      wantLook = new THREE.Vector3(px + Math.cos(a) * 3.2, 0.6, pz + Math.sin(a) * 3.2);
-      wantPos = new THREE.Vector3(px - Math.cos(a) * d, Math.max(h, 2.2), pz - Math.sin(a) * d);
+      const h = controls.chaseHeight + (2.2 - controls.chaseHeight) * ads;
+      const ahead = 3.2 + ads * (sniper ? 1.5 : 0);
+      // over the right shoulder when aiming down sights
+      const sx = -Math.sin(a) * 0.75 * ads;
+      const sz = Math.cos(a) * 0.75 * ads;
+      wantLook = new THREE.Vector3(px + Math.cos(a) * ahead + sx, 0.6 + ads * 0.1, pz + Math.sin(a) * ahead + sz);
+      wantPos = new THREE.Vector3(px - Math.cos(a) * d + sx, Math.max(h, 2.2), pz - Math.sin(a) * d + sz);
       const k = 1 - Math.pow(10 ** (-9 + 6 * prefs.camSmooth), dt);
       pos.current.lerp(wantPos, k);
       look.current.lerp(wantLook, k);
@@ -469,7 +491,9 @@ function CameraRig({ session }: { session: Session }) {
     const cam = camera as THREE.PerspectiveCamera;
     const t = performance.now() / 1000;
     const sprinting = !!playing && session.sprinting;
-    const fovWant = prefs.fov + (sprinting ? 8 : 0);
+    controls.adsK += ((controls.ads && playing && controls.view === "chase" ? 1 : 0) - controls.adsK) * (1 - Math.pow(0.00005, dt));
+    const zoom = 1 - controls.adsK * (session.view?.me.weapon === 4 ? 0.55 : 0.2);
+    const fovWant = prefs.fov * zoom + (sprinting && controls.adsK < 0.2 ? 8 : 0);
     if (Math.abs(cam.fov - fovWant) > 0.05) {
       cam.fov += (fovWant - cam.fov) * (1 - Math.pow(0.0005, dt));
       cam.updateProjectionMatrix();
@@ -590,6 +614,16 @@ function InputController({ session }: { session: Session }) {
     const el = gl.domElement;
     const move = (e: PointerEvent) => {
       if (e.pointerType === "touch") return;
+      // a second mouse button pressed while one is held arrives as pointermove, not pointerdown
+      // (so "aim with RMB, then click to fire" needs this)
+      if (e.pointerType === "mouse") {
+        const left = (e.buttons & 1) !== 0;
+        if (left && !controls.fire) {
+          controls.fire = true;
+          controls.fireUntil = performance.now() + 160;
+        } else if (!left && controls.fire) controls.fire = false;
+        controls.ads = (e.buttons & 2) !== 0;
+      }
 
       const r = el.getBoundingClientRect();
       if (controls.view !== "chase") {
@@ -607,17 +641,22 @@ function InputController({ session }: { session: Session }) {
         controls.fire = true;
         controls.fireUntil = performance.now() + 160;
       }
+      if (e.button === 2) controls.ads = true;
     };
     const up = (e: PointerEvent) => {
       if (e.button === 0) controls.fire = false;
+      if (e.button === 2) controls.ads = false;
     };
+    const noMenu = (e: Event) => e.preventDefault();
+    el.addEventListener("contextmenu", noMenu);
     const lockChange = () => (controls.locked = document.pointerLockElement === el);
     // shooter view: mouse X turns you. mousemove carries movementX in every browser, locked or not.
     const look = (e: MouseEvent) => {
       if (controls.view !== "chase") return;
       if (document.pointerLockElement === el) {
         // locked: a virtual crosshair moves freely; past the side edges it turns you
-        const k = controls.sens / 18000;
+        // aiming down sights slows the mouse with the zoom, so it feels the same on screen
+        const k = (controls.sens / 18000) * (1 - controls.adsK * (session.view?.me.weapon === 4 ? 0.6 : 0.3));
         controls.vcx += e.movementX * k;
         controls.vcy -= e.movementY * k * (prefs.invertY ? -1 : 1);
         const lim = 0.62;
@@ -653,6 +692,7 @@ function InputController({ session }: { session: Session }) {
       document.removeEventListener("mousemove", look);
 
       el.removeEventListener("wheel", wheel);
+      el.removeEventListener("contextmenu", noMenu);
     };
   }, [gl, session]);
   useFrame(() => {

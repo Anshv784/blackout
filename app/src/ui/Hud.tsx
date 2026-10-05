@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../game/store";
 import type { Session } from "../game/session";
-import { ST_COUNTDOWN, ST_ENDED, ST_LIVE, ST_STARTING, WEAPON_NAME } from "../chain/layout";
+import { ST_COUNTDOWN, ST_ENDED, ST_LIVE, ST_STARTING, WEAPON_NAME, FIRE_MODE } from "../chain/layout";
 import { angleToRad } from "../game/sim";
 import { SEAT_COLORS } from "../scene/Avatar";
 import { GameMenu, MatchClock } from "./GameMenu";
 import { onBanner, type Banner } from "../game/feel";
 import { FATIGUE_MAX } from "../game/sim";
+import { controls } from "../game/controls";
 
-const MAX_MAG = [10, 30, 5];
+const MAX_MAG = [10, 30, 5, 30, 5];
 const PING_GLYPH = ["", "👣", "💥", "✦", "⟳"];
 
 export function Hud({ session }: { session: Session }) {
@@ -49,12 +50,17 @@ export function Hud({ session }: { session: Session }) {
 
   return (
     <div className="hud">
-      <div className="hud-top-left">
-        <div className="alive">
-          <b>{room.aliveCount}</b> ALIVE
+      <div className="hud-top-left pubg">
+        <div className="chip-stat">
+          <b>{room.aliveCount}</b>
+          <span>ALIVE</span>
         </div>
-        <div className="kills">☠ {view.kills} kills</div>
+        <div className="chip-stat kill">
+          <b>{view.kills}</b>
+          <span>KILLED</span>
+        </div>
       </div>
+      <Compass session={session} />
       <MatchClock room={room} />
       <GameMenu session={session} room={room} />
 
@@ -150,28 +156,37 @@ export function Hud({ session }: { session: Session }) {
 
       {me.alive && me.hp <= 35 && room.status === ST_LIVE && <div className="low-hp" style={{ ["--k" as any]: String(1 - me.hp / 35) }} />}
       <Banners />
-      <div className="hud-bottom-left">
+      <div className="hud-health">
         <Stamina session={session} />
-        <div className="bar hp">
+        {me.armor > 0 && (
+          <div className="armor-row">
+            <span>VEST</span>
+            <div className="bar armor">
+              <i style={{ width: `${me.armor}%` }} />
+            </div>
+          </div>
+        )}
+        <div className={`bar hp ${me.hp <= 35 ? "low" : ""}`}>
           <i style={{ width: `${me.hp}%` }} />
           <span>{me.hp}</span>
         </div>
-        {me.armor > 0 && (
-          <div className="bar armor">
-            <i style={{ width: `${me.armor}%` }} />
-            <span>{me.armor}</span>
-          </div>
-        )}
       </div>
-      <div className="hud-bottom-right">
-        <div className="weapon">{WEAPON_NAME[me.weapon]}</div>
-        <div className="ammo">
-          {me.reload > 0 ? <span className="reloading">RELOADING</span> : (
+      <div className="hud-weapon">
+        <div className="hw-top">
+          <span className="hw-name">{WEAPON_NAME[me.weapon]}</span>
+          <span className="hw-mode">{FIRE_MODE[me.weapon]}</span>
+        </div>
+        <div className={`hw-ammo ${me.mag === 0 && me.reload === 0 ? "empty" : ""}`}>
+          {me.reload > 0 ? (
+            <span className="reloading">RELOADING…</span>
+          ) : (
             <>
-              <b>{me.mag}</b>/{MAX_MAG[me.weapon]}
+              <b>{me.mag}</b>
+              <small>/ {MAX_MAG[me.weapon]}</small>
             </>
           )}
         </div>
+        <div className="hw-hint">{me.mag === 0 && me.reload === 0 ? "PRESS R TO RELOAD" : "RMB AIM · R RELOAD"}</div>
       </div>
       <div className="aim-hint" style={{ display: "none" }}>{aim}</div>
     </div>
@@ -227,6 +242,58 @@ function Stamina({ session }: { session: Session }) {
     <div className="bar stamina" ref={ref}>
       <i />
       <span>SPRINT</span>
+    </div>
+  );
+}
+
+/** PUBG-style heading strip: where you're facing, with the next safe zone marked. */
+function Compass({ session }: { session: Session }) {
+  const strip = useRef<HTMLDivElement>(null);
+  const zone = useRef<HTMLElement>(null);
+  const deg = useRef<HTMLElement>(null);
+  const PX = 4; // pixels per degree
+  useEffect(() => {
+    let raf = 0;
+    const bearingOf = (rad: number) => (((rad * 180) / Math.PI + 90) % 360 + 360) % 360;
+    const loop = () => {
+      raf = requestAnimationFrame(loop);
+      const a = controls.view === "chase" ? controls.camYaw : angleToRad(session.input.aim);
+      const b = bearingOf(a);
+      if (strip.current) strip.current.style.transform = `translateX(${240 - (b + 360) * PX}px)`;
+      if (deg.current) deg.current.textContent = String(Math.round(b) % 360).padStart(3, "0");
+      const r = session.room;
+      const p = session.myPos();
+      if (zone.current && r && p) {
+        const zb = bearingOf(Math.atan2(r.next.y - p.y, r.next.x - p.x));
+        let d = zb - b;
+        d = ((d + 540) % 360) - 180;
+        const far = Math.hypot(r.next.x - p.x, r.next.y - p.y) > r.next.r * 0.6;
+        zone.current.style.opacity = far && Math.abs(d) < 58 ? "1" : "0";
+        zone.current.style.transform = `translateX(${d * PX}px)`;
+      }
+    };
+    loop();
+    return () => cancelAnimationFrame(raf);
+  }, [session]);
+  const marks: JSX.Element[] = [];
+  for (let k = 0; k < 360 * 3; k += 15) {
+    const v = k % 360;
+    const label = { 0: "N", 45: "NE", 90: "E", 135: "SE", 180: "S", 225: "SW", 270: "W", 315: "NW" }[v];
+    marks.push(
+      <i key={k} style={{ left: k * PX }} className={label ? (label.length === 1 ? "card" : "mid") : ""}>
+        {label ?? v}
+      </i>,
+    );
+  }
+  return (
+    <div className="compass">
+      <div className="cmp-window">
+        <div className="cmp-strip" ref={strip}>
+          {marks}
+        </div>
+        <em className="cmp-zone" ref={zone} title="next safe zone" />
+      </div>
+      <b className="cmp-deg" ref={deg}>000</b>
     </div>
   );
 }

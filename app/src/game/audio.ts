@@ -352,6 +352,21 @@ class Audio {
   // ------------------------------------------------------------ game sfx
 
   shoot(weapon: number) {
+    if (weapon === 4) {
+      // Kar98k: a crack that rolls across the Yard, then the bolt
+      this.burst(0.5, 700, 0.5, 1.1, 0, "lowpass", 0.85);
+      this.burst(0.06, 3800, 1.4, 0.7, 0, "bandpass", 0.3);
+      this.tone(60, 0.6, "sine", 0.8, 0, 28, 0, 0.7);
+      this.tone(900, 0.05, "square", 0.05, 0, 600, 0.55, 0.2);
+      this.tone(700, 0.05, "square", 0.05, 0, 500, 0.75, 0.2);
+      return;
+    }
+    if (weapon === 3) {
+      // M416: tight, punchy
+      this.burst(0.09, 1900, 1.1, 0.7, 0, "bandpass", 0.4);
+      this.tone(110, 0.09, "square", 0.2, 0, 60, 0, 0.35);
+      return;
+    }
     if (weapon === 2) {
       this.burst(0.32, 900, 0.7, 1.0, 0, "bandpass", 0.5);
       this.tone(80, 0.25, "sine", 0.7, 0, 36, 0, 0.4);

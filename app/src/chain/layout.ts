@@ -17,7 +17,9 @@ export const ST_REVEALED = 5;
 export const NO_SEAT = 255;
 
 export const STATUS_NAME = ["LOBBY", "SEEDING", "COUNTDOWN", "LIVE", "ENDED", "REVEALED"];
-export const WEAPON_NAME = ["PISTOL", "SMG", "SHOTGUN"];
+export const WEAPON_NAME = ["P92", "UMP", "S12K", "M416", "KAR98K"];
+/** how each gun fires (HUD tag) */
+export const FIRE_MODE = ["SINGLE", "AUTO", "PUMP", "AUTO", "BOLT"];
 export const LOOT_NAME = ["", "MEDKIT", "ARMOR", "SMG", "SHOTGUN", "FLARE"];
 
 class Reader {

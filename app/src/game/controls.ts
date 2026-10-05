@@ -21,7 +21,9 @@ export const controls = {
   cursorX: -100,
   cursorY: -100,
   locked: false,
-  menu: false, // a settings/map overlay is open: game keys are ignored
+  menu: false,
+  ads: false, // right mouse: aim down sights
+  adsK: 0, // eased 0..1 // a settings/map overlay is open: game keys are ignored
   // player-tunable camera (persisted)
   chaseDist: num("bo-chase-dist-v2", 7.5),
   chaseHeight: num("bo-chase-height-v2", 5.5),

@@ -1716,3 +1716,60 @@ button {
 .bar.stamina i{background:linear-gradient(90deg,#06d6a0,#b8ffe6)!important;transition:none}
 .bar.stamina span{display:none}
 .bar.stamina.winded i{background:#ff6b81!important;animation:clockpulse .4s infinite}
+
+/* ===================== PUBG-style HUD ===================== */
+.hud-clock{top:calc(max(12px, env(safe-area-inset-top)) + 50px)!important;padding:4px 14px 5px!important}
+.hud-clock b{font-size:22px!important}
+
+.compass{position:absolute;left:50%;top:max(10px, env(safe-area-inset-top));transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;pointer-events:none}
+.cmp-window{position:relative;width:480px;height:30px;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent);mask-image:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent);border-bottom:1px solid rgba(255,255,255,.18)}
+.cmp-strip{position:absolute;left:0;top:0;height:100%;will-change:transform}
+.cmp-strip i{position:absolute;top:4px;transform:translateX(-50%);font-style:normal;font-family:var(--mono);font-size:10px;color:rgba(255,255,255,.55)}
+.cmp-strip i::after{content:"";position:absolute;left:50%;top:15px;width:1px;height:8px;background:rgba(255,255,255,.45)}
+.cmp-strip i.card{font-size:15px;font-weight:700;color:#fff;top:1px}
+.cmp-strip i.card::after{top:19px;height:10px;background:#fff}
+.cmp-strip i.mid{font-size:11px;color:rgba(255,255,255,.8)}
+.cmp-zone{position:absolute;left:50%;bottom:0;width:0;height:0;margin-left:-6px;border:6px solid transparent;border-bottom:9px solid #c77dff;filter:drop-shadow(0 0 6px #a64dff);transition:opacity .3s}
+.cmp-deg{margin-top:2px;font-family:var(--mono);font-size:11px;color:#fff;background:rgba(0,0,0,.55);padding:1px 6px;border-radius:4px;position:relative}
+.cmp-deg::before{content:"";position:absolute;left:50%;top:-5px;margin-left:-4px;border:4px solid transparent;border-bottom-color:#fff;border-top:0}
+@media (max-width:640px){.cmp-window{width:260px}}
+
+.hud-top-left.pubg{display:flex;gap:6px}
+.chip-stat{display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:5px 10px}
+.chip-stat b{font-family:var(--mono);font-size:20px;color:#fff;line-height:1}
+.chip-stat span{font-size:10px;letter-spacing:.18em;color:#cfd5e4}
+.chip-stat.kill b{color:var(--gold)}
+
+.hud-health{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(max(18px, env(safe-area-inset-bottom)) + 44px);width:min(380px,60vw);display:flex;flex-direction:column;gap:4px;pointer-events:none}
+.hud-health .bar.hp{height:12px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);border-radius:2px}
+.hud-health .bar.hp i{background:#f2f2f2!important;box-shadow:0 0 8px rgba(255,255,255,.35)}
+.hud-health .bar.hp.low i{background:#ff3b4f!important;box-shadow:0 0 10px rgba(255,46,77,.6);animation:clockpulse .8s infinite}
+.hud-health .bar.hp span{font-size:10px;top:-1px;color:#111;mix-blend-mode:normal;right:6px}
+.hud-health .bar.hp.low span{color:#fff}
+.armor-row{display:flex;align-items:center;gap:6px}
+.armor-row span{font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:#90e0ef}
+.armor-row .bar.armor{flex:1;height:5px;border-radius:2px}
+.hud-health .bar.stamina{height:4px;margin:0}
+
+.hud-weapon{position:absolute;right:18px;bottom:calc(max(18px, env(safe-area-inset-bottom)) + 4px);display:flex;flex-direction:column;align-items:flex-end;gap:2px;pointer-events:none;background:linear-gradient(270deg,rgba(0,0,0,.55),transparent);padding:8px 4px 8px 40px;border-radius:6px}
+.hw-top{display:flex;align-items:center;gap:8px}
+.hw-name{font-family:var(--font);font-weight:700;font-size:15px;letter-spacing:.12em;color:#fff}
+.hw-mode{font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:#111;background:var(--gold);padding:2px 5px;border-radius:3px}
+.hw-ammo{display:flex;align-items:baseline;gap:6px;font-family:var(--mono)}
+.hw-ammo b{font-size:40px;line-height:1;color:#fff}
+.hw-ammo small{font-size:15px;color:#9aa2b5}
+.hw-ammo.empty b{color:#ff4d6a}
+.hw-ammo .reloading{font-size:16px;color:var(--gold);animation:clockpulse .6s infinite}
+.hw-hint{font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:#8a93a8}
+@media (max-width:640px){.hud-weapon{bottom:auto;top:118px}.hud-health{bottom:200px}.hw-hint{display:none}}
+
+/* sniper scope */
+.scope{position:fixed;inset:0;pointer-events:none;z-index:39;opacity:0;--sx:50%;--sy:50%;background:radial-gradient(circle at var(--sx) var(--sy),transparent 0 min(30vh,240px),rgba(0,0,0,.92) calc(min(30vh,240px) + 2px));transition:opacity .08s}
+.scope i{position:absolute;background:rgba(0,0,0,.85)}
+.scope .sh{left:calc(var(--sx) - min(30vh,240px));width:calc(min(30vh,240px) * 2);top:var(--sy);height:1.5px}
+.scope .sv{top:calc(var(--sy) - min(30vh,240px));height:calc(min(30vh,240px) * 2);left:var(--sx);width:1.5px}
+
+/* your damage */
+.dmg-float{position:fixed;transform:translate(-50%,-50%);font-family:var(--mono);font-weight:700;font-size:18px;color:#fff;text-shadow:0 0 6px rgba(0,0,0,.9),0 2px 0 #000;pointer-events:none;z-index:38;animation:dmgup .9s ease-out forwards}
+.dmg-float.kill{color:#ff4d6a;font-size:22px}
+@keyframes dmgup{0%{opacity:0;transform:translate(-50%,-30%) scale(1.4)}12%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-160%)}}
