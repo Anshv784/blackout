@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../game/store";
 import type { Session } from "../game/session";
-import { ST_COUNTDOWN, ST_ENDED, ST_LIVE, ST_STARTING, WEAPON_NAME, FIRE_MODE } from "../chain/layout";
+import { ST_COUNTDOWN, ST_ENDED, ST_LIVE, ST_STARTING, WEAPON_NAME, FIRE_MODE, GADGET_NAME, NIGHT_MOD, DOWNED } from "../chain/layout";
 import { angleToRad } from "../game/sim";
 import { SEAT_COLORS } from "../game/colors";
 import { GameMenu, MatchClock } from "./GameMenu";
@@ -10,7 +10,7 @@ import { FATIGUE_MAX } from "../game/sim";
 import { controls } from "../game/controls";
 
 const MAX_MAG = [10, 30, 5, 30, 5];
-const PING_GLYPH = ["", "👣", "💥", "✦", "⟳", "📦", "🎯"];
+const PING_GLYPH = ["", "👣", "💥", "✦", "⟳", "📦", "🎯", "☁", "📡", "💣"];
 
 export function Hud({ session }: { session: Session }) {
   const room = useStore((s) => s.room);
@@ -62,6 +62,26 @@ export function Hud({ session }: { session: Session }) {
       </div>
       <Compass session={session} />
       <MatchClock room={room} />
+      {room.nightMod > 0 && <div className="mod-chip">{NIGHT_MOD[room.nightMod]}</div>}
+      {view.inv.nvg > 0 && me.alive === 1 && <div className="nvg-tint" />}
+      {view.inv.blind > 0 && <div className="flash-white" style={{ opacity: Math.min(1, view.inv.blind / 40) }} />}
+      {room.duos && <Partner view={view} room={room} mySeat={session.mySeat} />}
+      {me.alive === DOWNED && (
+        <div className="downed">
+          <b>YOU'RE DOWN</b>
+          <small>crawl to cover · your partner can revive you</small>
+          <div className="dn-bar bleed">
+            <i style={{ width: `${(me.armor / 300) * 100}%` }} />
+            <span>BLEEDING OUT</span>
+          </div>
+          {me.hp > 0 && (
+            <div className="dn-bar revive">
+              <i style={{ width: `${(me.hp / 60) * 100}%` }} />
+              <span>BEING REVIVED</span>
+            </div>
+          )}
+        </div>
+      )}
       <GameMenu session={session} room={room} />
 
       {room.status === ST_STARTING && (
@@ -188,6 +208,21 @@ export function Hud({ session }: { session: Session }) {
           )}
         </div>
         <div className="hw-hint">{me.mag === 0 && me.reload === 0 ? "PRESS R TO RELOAD" : "RMB AIM · R RELOAD"}</div>
+      </div>
+      <div className="hud-slots">
+        <div className={`slot ${view.inv.sec >= 0 ? "" : "empty"}`}>
+          <i>X</i>
+          <span>{view.inv.sec >= 0 ? `${WEAPON_NAME[view.inv.sec]} · ${view.inv.secMag}` : "2ND GUN"}</span>
+        </div>
+        <div className={`slot gadget ${view.inv.gadget ? "" : "empty"}`}>
+          <i>G</i>
+          <span>{view.inv.gadget ? `${GADGET_NAME[view.inv.gadget]} ×${view.inv.count}` : "GADGET"}</span>
+        </div>
+        {view.inv.nvg > 0 && (
+          <div className="slot nvg">
+            <span>NIGHT VISION {Math.ceil(view.inv.nvg / 20)}s</span>
+          </div>
+        )}
       </div>
       <div className="aim-hint" style={{ display: "none" }}>{aim}</div>
     </div>
@@ -336,6 +371,24 @@ function ClickToPlay() {
     <div className="click-to-play">
       <b>CLICK TO PLAY</b>
       <small>mouse turns · WASD moves · click fire · right-click aim · Shift sprint · Esc menu</small>
+    </div>
+  );
+}
+
+/** Duos: your partner's health, even when they're out of your light (partners always see each other). */
+function Partner({ view, room, mySeat }: { view: NonNullable<ReturnType<typeof useStore.getState>["view"]>; room: NonNullable<ReturnType<typeof useStore.getState>["room"]>; mySeat: number | null }) {
+  if (mySeat === null) return null;
+  const mate = mySeat ^ 1;
+  const p = view.players.find((x) => x.seat === mate);
+  const dead = room.alive[mate] === 0;
+  const down = p ? (p.flags & 16) !== 0 : false;
+  return (
+    <div className="partner" style={{ ["--c" as any]: SEAT_COLORS[mate] }}>
+      <span>PARTNER · {room.names[mate] || "—"}</span>
+      <div className={`pt-bar ${down ? "down" : ""}`}>
+        <i style={{ width: dead ? "0%" : `${down ? 100 : p?.hp ?? 0}%` }} />
+      </div>
+      <em>{dead ? "OUT" : down ? "DOWN · go revive" : `${p?.hp ?? "?"} HP`}</em>
     </div>
   );
 }

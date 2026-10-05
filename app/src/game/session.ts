@@ -18,8 +18,11 @@ import {
   type VisPlayer,
   WEAPON_NAME,
   FIRE_MODE,
+  NIGHT_MOD,
+  NIGHT_MOD_SUB,
+  DOWNED,
 } from "../chain/layout";
-import { inputVelocity, moveBody, packMoved, sprintStep, SPEED, SPRINT_SPEED, UNIT, COUNTDOWN_TICKS, blackoutTick, BLACKOUT_TICKS } from "./sim";
+import { inputVelocity, moveBody, packMoved, sprintStep, SPEED, SPRINT_SPEED, CRAWL_SPEED, UNIT, COUNTDOWN_TICKS, blackoutTick, BLACKOUT_TICKS } from "./sim";
 import { banner, feel } from "./feel";
 import { audio } from "./audio";
 import { controls } from "./controls";
@@ -76,6 +79,12 @@ export class Session {
   predMoved = 0;
   /** night events: where the supply drop is (from its pings) and the kill leader's direction */
   drop: { x: number; y: number; at: number } | null = null;
+  /** smoke clouds you can see from afar (from smoke pings), keyed by rounded position */
+  smokes = new Map<string, { x: number; y: number; at: number }>();
+  /** explosions to draw */
+  booms: { x: number; y: number; at: number }[] = [];
+  private announcedMod = -1;
+  private wasDown = false;
   bounty: { angle: number; dist: number; at: number; seat: number } | null = null;
   private lastLeader = -1;
   private streak = 0;
@@ -250,6 +259,10 @@ export class Session {
       const t1 = Math.max(0, r.tick - COUNTDOWN_TICKS);
       const bo = blackoutTick(r.matchLen);
       const crossed = (at: number) => t0 < at && t1 >= at;
+      if (this.announcedMod !== r.matchNo && t1 >= 20 && r.nightMod > 0) {
+        this.announcedMod = r.matchNo;
+        banner(NIGHT_MOD[r.nightMod], "event", NIGHT_MOD_SUB[r.nightMod]);
+      }
       if (crossed(bo - 200)) banner("BLACKOUT IN 10s", "danger", "every flashlight in the Yard is about to die");
       if (crossed(bo)) {
         banner("BLACKOUT", "danger", "no lights for 10 seconds · hunt by sound");
@@ -384,6 +397,18 @@ export class Session {
       if (p.flags & 4) this.addFx({ kind: "shot", x: p.x, y: p.y, angle: p.aim, sub: p.seat });
     }
     for (const [seat, tr] of this.tracks) if (!seen.has(seat)) tr.visible = false;
+    // duos: you went down / got picked up; your partner went down
+    const down = v.me.alive === DOWNED;
+    if (down && !this.wasDown) banner("YOU'RE DOWN", "danger", "crawl to cover · your partner can pick you up");
+    if (!down && this.wasDown && v.me.alive === 1) banner("BACK ON YOUR FEET", "event");
+    this.wasDown = down;
+    for (const p of v.players) {
+      if (p.flags & 32 && p.flags & 16) {
+        const was = prev?.players.find((q) => q.seat === p.seat);
+        if (!was || !(was.flags & 16)) banner("PARTNER DOWN", "danger", "stand over them for 3 seconds to revive");
+      }
+    }
+    if (prev && v.inv.nvg > prev.inv.nvg + 20) audio.nvgOn();
     // stinger: someone steps into your light who you haven't seen for a while
     for (const p of v.players) {
       const last = this.lastSeenAt.get(p.seat) ?? 0;
@@ -406,6 +431,28 @@ export class Session {
           audio.airdrop();
           banner("SUPPLY DROP", "danger", `Kar98k · full vest · full health · ${p.dist}m away, follow the red smoke`);
         }
+        continue;
+      }
+      if (p.kind === 7 || p.kind === 9) {
+        const a = (p.angle / 65536) * Math.PI * 2;
+        const x = v.me.x + Math.cos(a) * p.dist * UNIT;
+        const y = v.me.y + Math.sin(a) * p.dist * UNIT;
+        if (p.kind === 7) {
+          const key = `${Math.round(x / 512)}:${Math.round(y / 512)}`;
+          if (!this.smokes.has(key)) audio.smoke();
+          this.smokes.set(key, { x, y, at: now });
+        } else {
+          this.booms.push({ x, y, at: now });
+          if (this.booms.length > 8) this.booms.shift();
+          audio.explosion(p.dist, v.inv.blind > 0);
+          if (p.dist < 8) feel.shake = Math.min(1.6, feel.shake + (8 - p.dist) / 6);
+        }
+        continue;
+      }
+      if (p.kind === 8) {
+        // your motion sensor tripped
+        this.addFx({ kind: "ping", x: v.me.x, y: v.me.y, angle: p.angle, sub: 8, dist: p.dist });
+        audio.sensor();
         continue;
       }
       if (p.kind === 6) {
@@ -479,8 +526,9 @@ export class Session {
       while (this.predAcc >= 50) {
         this.predAcc -= 50;
         this.predPrev = { ...this.pred };
-        const [sp, fat, winded] = sprintStep(this.predMoved, this.input.buttons, this.input.dx, this.input.dy);
-        const [vx, vy] = inputVelocity(this.input.dx, this.input.dy, sp ? SPRINT_SPEED : SPEED);
+        const down = v?.me.alive === DOWNED;
+        const [sp, fat, winded] = sprintStep(this.predMoved, down ? 0 : this.input.buttons, this.input.dx, this.input.dy);
+        const [vx, vy] = inputVelocity(this.input.dx, this.input.dy, down ? CRAWL_SPEED : sp ? SPRINT_SPEED : SPEED);
         const ox = this.pred.x;
         const oy = this.pred.y;
         moveBody(this.pred, vx, vy);
@@ -633,6 +681,11 @@ export class Session {
     }
     onStep?.("closing the room…");
     if (seat !== null) await this.closeFromReveal(seat, true);
+  }
+
+  async setMode(duos: boolean) {
+    await client.sendEr([client.setModeIx(this.roomId, duos)]);
+    await this.poll();
   }
 
   async setLength(level: number) {

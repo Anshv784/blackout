@@ -504,6 +504,27 @@ class Audio {
     } else this.tone(80, 0.6, "sine", 0.2, 0, 240, 0, 0.5);
   }
 
+  /** Frag / flashbang going off; `flash` adds the ringing. */
+  explosion(dist: number, flash = false) {
+    const vol = Math.max(0.15, 1 - dist / 30);
+    this.burst(0.9, 160, 0.5, 1.0 * vol, 0, "lowpass", 0.8);
+    this.tone(48, 1.1, "sine", 0.6 * vol, 0, 28, 0, 0.7);
+    if (flash && dist < 8) this.tone(3400, 2.6, "sine", 0.08, 0, 3000, 0.05, 0.2);
+  }
+
+  smoke() {
+    this.burst(1.6, 2200, 0.4, 0.25, 0, "highpass", 0.4);
+  }
+
+  sensor() {
+    this.tone(1320, 0.07, "square", 0.06, 0, undefined, 0, 0.2);
+    this.tone(1760, 0.07, "square", 0.06, 0, undefined, 0.1, 0.2);
+  }
+
+  nvgOn() {
+    this.tone(400, 0.5, "sine", 0.08, 0, 2400, 0, 0.3);
+  }
+
   /** Your bullet landed. */
   hitmark() {
     this.tone(1800, 0.05, "square", 0.05, 0, 1400, 0, 0.1);

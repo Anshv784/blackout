@@ -1,9 +1,9 @@
 // "Create a room" = claim a free on-chain room slot, become its host, take seat 0 — one gasless tx.
-import { PublicKey } from "@solana/web3.js";
+import { ComputeBudgetProgram, PublicKey } from "@solana/web3.js";
 import { client } from "./identity";
 import { useStore } from "./store";
 import { ROOM_POOL, STAKED_ROOMS } from "../config";
-import { ST_LOBBY, ST_ENDED, ST_REVEALED, READY_ALL, NO_SEAT, type Room } from "../chain/layout";
+import { ST_LOBBY, ST_ENDED, ST_REVEALED, ST_LIVE, ST_COUNTDOWN, READY_ALL, NO_SEAT, type Room } from "../chain/layout";
 
 const EMPTY = "11111111111111111111111111111111";
 
@@ -61,6 +61,16 @@ export function sweepRooms(rooms: Record<number, Room | null>, slot: number) {
         nudged.set(id, now);
         abandonedSince.delete(id);
         client.sendEr([client.resetIx(BigInt(id))], { confirm: false }).catch(() => {});
+      }
+    } else if ((r.status === ST_LIVE || r.status === ST_COUNTDOWN) && liveHumansAt(r, slot) === 0) {
+      // a night nobody is in any more (its ticker died): one budgeted tick lets it end itself
+      const since = abandonedSince.get(id) ?? now;
+      abandonedSince.set(id, since);
+      if (now - since > 20000) {
+        nudged.set(id, now);
+        client
+          .sendEr([ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 }), client.tickIx(BigInt(id))], { confirm: false })
+          .catch(() => {});
       }
     } else abandonedSince.delete(id);
   }

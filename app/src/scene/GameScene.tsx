@@ -19,8 +19,8 @@ import { audio } from "../game/audio";
 
 const CONE_RAD = (7000 / 65536) * Math.PI * 2; // half-angle used on chain
 const VISION_TILES = 10;
-const LOOT_COLORS = ["#fff", "#06d6a0", "#4cc9f0", "#ff8c42", "#ef476f", "#f15bb5", "#ffd166", "#c77dff", "#ff3b3b"];
-const LOOT_LABEL = ["", "MEDKIT", "ARMOR", "UMP", "S12K", "FLARE", "M416", "KAR98K", "SUPPLY DROP"];
+const LOOT_COLORS = ["#fff", "#06d6a0", "#4cc9f0", "#ff8c42", "#ef476f", "#f15bb5", "#ffd166", "#c77dff", "#ff3b3b", "#9ae64a", "#c9ccd1", "#ffffff", "#ffb347", "#38e1ff", "#3cff7a"];
+const LOOT_LABEL = ["", "MEDKIT", "ARMOR", "UMP", "S12K", "FLARE", "M416", "KAR98K", "SUPPLY DROP", "FRAG", "SMOKE", "FLASHBANG", "DECOY", "SENSOR", "NIGHT VISION"];
 const COOLDOWN_MS = [350, 100, 800, 150, 1500];
 // crosshair kick per shot (vertical, horizontal jitter) — PUBG-style: you pull it back down
 const RECOIL = [[0.02, 0.004], [0.009, 0.006], [0.045, 0.01], [0.013, 0.005], [0.07, 0.002]];
@@ -82,7 +82,7 @@ function MyPlayer({ session }: { session: Session }) {
     const aim = session.input.aim;
     if (aimGroup.current) {
       aimGroup.current.rotation.y = aimToRotY(aim);
-      aimGroup.current.rotation.z = -gait.current * (session.sprinting ? 0.16 : 0.06);
+      aimGroup.current.rotation.z = v.me.alive === 2 ? -1.35 : -gait.current * (session.sprinting ? 0.16 : 0.06);
     }
     const a = angleToRad(aim);
     target.position.set(pos.x / 256 + Math.cos(a) * 6, 0.2, pos.y / 256 + Math.sin(a) * 6);
@@ -91,7 +91,11 @@ function MyPlayer({ session }: { session: Session }) {
     const dark = !!r0 && r0.status === ST_LIVE && lightsOut(r0.matchLen, Math.max(0, r0.tick - 60));
     (globalThis as any).__boLightsOut = dark; // street lamps and the searchlight die too
     if (spot.current) {
-      spot.current.intensity = alive && !dark ? (flare ? 0 : 55) : 0;
+      const nvg = (v.inv?.nvg ?? 0) > 0;
+      spot.current.intensity = alive && !dark ? (flare ? 0 : nvg ? 70 : 55) : 0;
+      spot.current.angle = nvg ? CONE_RAD * 1.5 : CONE_RAD;
+      spot.current.distance = nvg ? VISION_TILES + 5 : VISION_TILES + 1;
+      spot.current.color.set(nvg ? "#b6ffc8" : "#fff1d0");
     }
     // the light shaft reads well from above but becomes a giant dome from behind
     beam.uniforms.uStrength.value = alive && !flare && controls.view === "top" ? 0.07 : 0;
@@ -195,6 +199,9 @@ function Others({ session }: { session: Session }) {
         gaits.current[s] += ((moving ? 1 : 0) - gaits.current[s]) * 0.15;
         g.position.set(smp.x / 256, Math.abs(Math.sin(now / 1000 * 11 + s)) * 0.07 * gaits.current[s], smp.y / 256);
         g.rotation.y = aimToRotY(smp.aim);
+        // partners get their own tag; the downed lie on the floor
+        g.rotation.z = smp.flags & 16 ? -1.35 : 0;
+        if (lab) lab.classList.toggle("mate", (smp.flags & 32) !== 0);
         const hp = hpBars.current[s];
         if (hp) hp.style.width = `${Math.max(0, smp.hp)}%`;
         if (lab) lab.style.display = "flex";
@@ -351,6 +358,36 @@ function Crate({ kind }: { kind: number }) {
           </mesh>
         </group>
       )}
+      {kind >= 9 && (
+        <group position={[0, 0.13, 0]}>
+          <mesh>
+            <boxGeometry args={[0.42, 0.24, 0.32]} />
+            <meshStandardMaterial color="#2b2f36" roughness={0.7} />
+          </mesh>
+          <mesh position={[0, 0.125, 0]}>
+            <boxGeometry args={[0.3, 0.012, 0.2]} />
+            <meshBasicMaterial color={c} toneMapped={false} />
+          </mesh>
+          {kind === 9 && (
+            <mesh position={[0, 0.2, 0]}>
+              <sphereGeometry args={[0.09, 12, 10]} />
+              <meshStandardMaterial color="#4b5d2a" roughness={0.6} />
+            </mesh>
+          )}
+          {(kind === 10 || kind === 11) && (
+            <mesh position={[0, 0.22, 0]}>
+              <cylinderGeometry args={[0.06, 0.06, 0.2, 12]} />
+              <meshStandardMaterial color={kind === 10 ? "#8a8f98" : "#d9dde3"} roughness={0.5} />
+            </mesh>
+          )}
+          {kind === 14 && (
+            <mesh position={[0, 0.2, 0]}>
+              <boxGeometry args={[0.24, 0.08, 0.12]} />
+              <meshBasicMaterial color="#3cff7a" toneMapped={false} />
+            </mesh>
+          )}
+        </group>
+      )}
       {kind === 5 && (
         <group>
           <mesh position={[0, 0.06, 0]}>
@@ -496,7 +533,7 @@ function Zone({ session }: { session: Session }) {
   );
 }
 
-const PING_COLORS = ["#fff", "#9fb4ff", "#ff5d5d", "#ffd166", "#c9c9c9", "#ff3b3b", "#ffd166"];
+const PING_COLORS = ["#fff", "#9fb4ff", "#ff5d5d", "#ffd166", "#c9c9c9", "#ff3b3b", "#ffd166", "#c9ccd1", "#38e1ff", "#ff9a3c"];
 
 function Fx({ session }: { session: Session }) {
   const rings = useRef<(THREE.Mesh | null)[]>([]);
@@ -881,7 +918,11 @@ function InputController({ session }: { session: Session }) {
     const now = performance.now();
     const sprint = controls.keys.has("shift") || controls.touchSprint;
     const buttons =
-      (controls.fire || controls.touchFire || now < controls.fireUntil ? 1 : 0) | (controls.reload || now < controls.reloadUntil ? 2 : 0) | (sprint ? 4 : 0);
+      (controls.fire || controls.touchFire || now < controls.fireUntil ? 1 : 0) |
+      (controls.reload || now < controls.reloadUntil ? 2 : 0) |
+      (sprint ? 4 : 0) |
+      (controls.keys.has("g") ? 8 : 0) |
+      (controls.keys.has("x") || controls.keys.has("1") || controls.keys.has("2") ? 16 : 0);
     session.setInput(dx * 127, dy * 127, aim, buttons);
     session.frame();
   });

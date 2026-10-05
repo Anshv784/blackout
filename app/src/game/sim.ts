@@ -88,6 +88,7 @@ export const SPRINT_SPEED = 84;
 export const FATIGUE_MAX = 100;
 export const FATIGUE_RECOVERED = 30;
 export const BTN_SPRINT = 4;
+export const CRAWL_SPEED = 18; // downed (duos)
 
 export function sprintStep(moved: number, buttons: number, dx: number, dy: number): [boolean, number, boolean] {
   let fatigue = moved >>> 8;

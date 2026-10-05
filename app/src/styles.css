@@ -1780,3 +1780,28 @@ button {
 .click-to-play{position:absolute;left:50%;top:58%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 24px;border-radius:12px;background:rgba(0,0,0,.6);border:1px solid rgba(255,209,102,.4);pointer-events:none;z-index:6;animation:fadein .3s}
 .click-to-play b{font-family:var(--font);font-size:22px;letter-spacing:.3em;color:var(--gold)}
 .click-to-play small{font-family:var(--mono);font-size:11px;color:#cfd5e4}
+
+/* gadgets, duos, night modifiers */
+.mod-chip{position:absolute;left:50%;transform:translateX(-50%);top:calc(max(12px, env(safe-area-inset-top)) + 104px);font-family:var(--mono);font-size:10px;letter-spacing:.22em;color:#c77dff;background:rgba(0,0,0,.55);border:1px solid rgba(166,77,255,.45);padding:3px 9px;border-radius:5px;pointer-events:none}
+.nvg-tint{position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle,rgba(60,255,120,.10),rgba(0,40,10,.45));mix-blend-mode:screen;z-index:3}
+.flash-white{position:absolute;inset:0;pointer-events:none;background:#fff;z-index:31}
+.hud-slots{position:absolute;right:18px;bottom:calc(max(18px, env(safe-area-inset-bottom)) + 118px);display:flex;flex-direction:column;align-items:flex-end;gap:4px;pointer-events:none}
+.slot{display:flex;align-items:center;gap:6px;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.14);border-radius:5px;padding:3px 8px;font-family:var(--mono);font-size:11px;color:#e8ecf6}
+.slot i{font-style:normal;font-size:9px;color:#111;background:var(--gold);padding:1px 4px;border-radius:3px}
+.slot.empty{opacity:.45}
+.slot.gadget span{color:#ffd166}
+.slot.nvg{border-color:rgba(60,255,120,.5);color:#7dffa8}
+.downed{position:absolute;left:50%;top:62%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none;z-index:6}
+.downed b{font-family:var(--font);font-size:30px;letter-spacing:.2em;color:#ff4d6a;text-shadow:0 0 20px rgba(255,46,77,.6)}
+.downed small{font-family:var(--mono);font-size:11px;color:#cfd5e4}
+.dn-bar{position:relative;width:260px;height:8px;background:rgba(0,0,0,.6);border-radius:3px;overflow:hidden}
+.dn-bar i{position:absolute;inset:0 auto 0 0;background:#ff4d6a}
+.dn-bar.revive i{background:#06d6a0}
+.dn-bar span{position:absolute;left:0;right:0;top:-1px;text-align:center;font-family:var(--mono);font-size:7px;letter-spacing:.2em;color:#fff}
+.partner{position:absolute;left:16px;top:calc(max(14px, env(safe-area-inset-top)) + 46px);display:flex;flex-direction:column;gap:3px;background:rgba(0,0,0,.5);border:1px solid var(--c);border-radius:6px;padding:6px 9px;min-width:170px;pointer-events:none}
+.partner span{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--c)}
+.pt-bar{height:5px;background:rgba(255,255,255,.12);border-radius:2px;overflow:hidden}
+.pt-bar i{display:block;height:100%;background:#f2f2f2}
+.pt-bar.down i{background:#ff4d6a;animation:clockpulse .6s infinite}
+.partner em{font-style:normal;font-family:var(--mono);font-size:10px;color:#cfd5e4}
+.tag.mate span{color:var(--c);font-weight:700}.tag.mate::before{content:"PARTNER";display:block;font-size:8px;letter-spacing:.2em;color:#06d6a0}

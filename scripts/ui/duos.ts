@@ -1,0 +1,25 @@
+import { chromium } from "playwright";
+(async () => {
+  const b = await chromium.launch({ args: ["--use-gl=swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"] });
+  const ctx = await b.newContext({ viewport: { width: 1400, height: 860 } });
+  await ctx.addInitScript("localStorage.setItem('bo-intro-seen','1');localStorage.setItem('bo-guest','1');localStorage.setItem('bo-name','DUOTEST');localStorage.setItem('bo-prefs-v1', JSON.stringify({weather:false}))");
+  const p = await ctx.newPage();
+  const errs: string[] = [];
+  p.on("pageerror", (e) => errs.push(String(e)));
+  await p.goto("http://127.0.0.1:5173/");
+  await p.getByRole("button", { name: /CREATE A ROOM/ }).click({ timeout: 30000 });
+  await p.waitForURL(/\/r\//, { timeout: 60000 });
+  await p.locator(".bot-level.mode button", { hasText: "DUOS" }).click({ timeout: 60000 });
+  await p.locator(".bot-level.mode button.on", { hasText: "DUOS" }).waitFor({ timeout: 20000 });
+  await p.screenshot({ path: "demo/duos-lobby.png" });
+  console.log("duos set");
+  await p.getByRole("button", { name: "START THE NIGHT" }).click({ timeout: 60000 });
+  await p.locator(".compass").waitFor({ timeout: 90000 });
+  await p.waitForTimeout(6000);
+  console.log("partner panel:", await p.locator(".partner").innerText().catch(() => "none"));
+  console.log("modifier:", await p.locator(".mod-chip").innerText().catch(() => "none (normal night)"));
+  console.log("slots:", (await p.locator(".hud-slots").innerText()).replace(/\n/g, " | "));
+  await p.screenshot({ path: "demo/duos-game.png" });
+  console.log("errors", errs);
+  await b.close();
+})();

@@ -365,6 +365,10 @@ export class BlackoutClient {
     return ix("make_host", { seat }, [r(this.publicKey, true), w(roomPda(roomId))]);
   }
 
+  setModeIx(roomId: bigint, duos: boolean) {
+    return ix("set_mode", { duos }, [r(this.publicKey, true), w(roomPda(roomId))]);
+  }
+
   /** Host only: end the running night now (the next tick wraps it up normally). */
   endNowIx(roomId: bigint) {
     return ix("end_now", {}, [r(this.publicKey, true), w(roomPda(roomId))]);

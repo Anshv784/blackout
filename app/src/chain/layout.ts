@@ -106,6 +106,9 @@ export interface Room {
   botLevel: number;
   /** 0 = standard 2:15, 1 = quick 1:30, 2 = long 3:30 */
   matchLen: number;
+  /** the night's modifier, rolled from the seed (see NIGHT_MOD) */
+  nightMod: number;
+  duos: boolean;
 }
 
 export const READY_ALL = 1 | (0b11111 << 1) | (0xff << 8);
@@ -157,6 +160,8 @@ export function decodeRoom(data: Uint8Array): Room {
     unlisted: (cfg & 0x100) !== 0,
     botLevel: (cfg >>> 9) & 3,
     matchLen: (cfg >>> 11) & 3,
+    nightMod: (cfg >>> 13) & 7,
+    duos: (cfg & 0x10000) !== 0,
   };
 }
 
@@ -219,7 +224,29 @@ export interface View {
   loot: { id: number; x: number; y: number; kind: number }[];
   pingHead: number;
   pings: Ping[];
+  /** your pockets (View._pad): second gun, gadget, night vision, flash blindness */
+  inv: Inventory;
 }
+
+export interface Inventory {
+  sec: number; // second gun id, -1 = none
+  secMag: number;
+  gadget: number; // 0 none, 1 frag, 2 smoke, 3 flash, 4 decoy, 5 sensor, 6 night vision
+  count: number;
+  nvg: number; // ticks of night vision left
+  blind: number; // ticks of flash blindness left
+}
+export const GADGET_NAME = ["", "FRAG", "SMOKE", "FLASHBANG", "DECOY", "SENSOR", "NIGHT VISION"];
+export const NIGHT_MOD = ["", "FOG NIGHT", "HUNTER'S MOON", "SNIPER NIGHT", "NO LAMPS", "GADGET NIGHT"];
+export const NIGHT_MOD_SUB = [
+  "",
+  "vision is cut short tonight",
+  "one kill makes you the bounty",
+  "every gun in the Yard is a Kar98k",
+  "the street lamps are dead",
+  "the crates are full of tricks",
+];
+export const DOWNED = 2;
 
 export function decodeView(data: Uint8Array): View {
   const r = new Reader(dvOf(data));
@@ -240,7 +267,9 @@ export function decodeView(data: Uint8Array): View {
   const loot = r.arr(12, () => ({ id: r.u32(), x: r.i32(), y: r.i32(), kind: r.u32() })).slice(0, nL);
   const pingHead = r.u32();
   const pings = r.arr(12, () => ({ tick: r.u32(), angle: r.u32(), kind: r.u32(), dist: r.u32() }));
-  return { tick, status, seat, me, kills, place, players, bullets, loot, pingHead, pings };
+  const p = r.u32();
+  const inv = { sec: (p & 0xf) - 1, secMag: (p >>> 4) & 0x3f, gadget: (p >>> 10) & 0xf, count: (p >>> 14) & 0xf, nvg: ((p >>> 18) & 0xff) * 4, blind: ((p >>> 26) & 0x3f) * 2 };
+  return { tick, status, seat, me, kills, place, players, bullets, loot, pingHead, pings, inv };
 }
 
 export interface World {

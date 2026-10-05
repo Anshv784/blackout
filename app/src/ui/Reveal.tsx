@@ -32,14 +32,36 @@ export function Reveal({ session }: { session: Session }) {
   const [linking, setLinking] = useState<"idle" | "busy" | "done">("idle");
   const world = reveal?.world ?? null;
   // Which seat to tell the story from: you, or the winner if you were spectating
-  const pov = mySeat ?? (room.winner !== 255 ? room.winner : 0);
+  const basePov = mySeat ?? (room.winner !== 255 ? room.winner : 0);
+  // kill cam: replay your last seconds through your killer's eyes
+  const [camSeat, setCamSeat] = useState<number | null>(null);
+  const pov = camSeat ?? basePov;
 
   const highlight = useMemo(() => {
     if (!rec) return 0;
     // the moment the POV died, else the last frame
-    for (let f = 1; f < rec.frames; f++) if (rec.data[f - 1][pov].alive && !rec.data[f][pov].alive) return f;
+    for (let f = 1; f < rec.frames; f++) if (rec.data[f - 1][basePov].alive && !rec.data[f][basePov].alive) return f;
     return rec.frames - 1;
-  }, [rec, pov]);
+  }, [rec, basePov]);
+
+  const killCamFrom = (() => {
+    if (mySeat === null) return null;
+    const d = room.feed.slice(0, Math.min(16, room.feedHead)).find((f) => f.victim === mySeat);
+    return d && d.killer !== 255 && d.killer !== mySeat ? d.killer : null;
+  })();
+  const startKillCam = () => {
+    if (!rec || killCamFrom === null) return;
+    setCard(false);
+    setCamSeat(killCamFrom);
+    setLights(false);
+    ctl.current.lightsTarget = 0;
+    ctl.current.follow = true;
+    setFollow(true);
+    ctl.current.t = Math.max(0, highlight - Math.round(100 / rec.every));
+    ctl.current.speed = 0.5;
+    ctl.current.playing = true;
+    setPlaying(true);
+  };
 
   useEffect(() => {
     if (!rec) return;
@@ -255,6 +277,11 @@ export function Reveal({ session }: { session: Session }) {
                 <button className="btn" onClick={() => setCard(false)}>
                   WATCH THE REPLAY
                 </button>
+                {killCamFrom !== null && (
+                  <button className="btn" onClick={startKillCam}>
+                    ☠ KILL CAM
+                  </button>
+                )}
                 <button
                   className="btn"
                   onClick={() => {
@@ -299,7 +326,14 @@ export function Reveal({ session }: { session: Session }) {
           ← BLACKOUT
         </a>
         <div className="reveal-title">
-          <span className={`lights-badge ${lights ? "on" : ""}`}>{lights ? "LIGHTS ON" : mySeat !== null ? "YOUR VIEW" : `${room.names[pov]}'S VIEW`}</span>
+          <span className={`lights-badge ${lights ? "on" : ""}`}>
+            {camSeat !== null ? `KILL CAM · ${room.names[camSeat]}'S VIEW` : lights ? "LIGHTS ON" : mySeat !== null ? "YOUR VIEW" : `${room.names[pov]}'S VIEW`}
+          </span>
+          {camSeat !== null && (
+            <button className="btn small" style={{ pointerEvents: "auto", marginTop: 6 }} onClick={() => { setCamSeat(null); ctl.current.speed = 1; }}>
+              BACK TO YOUR VIEW
+            </button>
+          )}
           <h2>{room.winner === mySeat ? "👑 YOU WON" : `👑 ${winnerName} WINS`}</h2>
         </div>
         <div className="reveal-actions">

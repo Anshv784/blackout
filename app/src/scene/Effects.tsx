@@ -466,6 +466,73 @@ function DropBeacon({ session }: { session: Session }) {
   );
 }
 
+/** Smoke clouds (from smoke pings) and explosions (from boom pings). A fixed pool: no new lights or materials. */
+const SMOKE_PUFFS = 7;
+function SmokeAndBooms({ session }: { session: Session }) {
+  const tex = useMemo(() => {
+    const c = document.createElement("canvas");
+    c.width = c.height = 64;
+    const g = c.getContext("2d")!;
+    const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0, "rgba(200,205,215,0.9)");
+    grad.addColorStop(0.6, "rgba(150,155,165,0.45)");
+    grad.addColorStop(1, "rgba(120,125,135,0)");
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 64, 64);
+    return new THREE.CanvasTexture(c);
+  }, []);
+  const sprites = useRef<(THREE.Sprite | null)[]>([]);
+  const boomLight = useRef<THREE.PointLight>(null);
+  const seen = useRef(new Set<number>());
+  useFrame(({ clock }) => {
+    const now = performance.now();
+    // drop clouds we haven't heard about for a while
+    for (const [k, c] of session.smokes) if (now - c.at > 2500) session.smokes.delete(k);
+    const clouds = [...session.smokes.values()].slice(0, 4);
+    for (let i = 0; i < 4 * SMOKE_PUFFS; i++) {
+      const sp = sprites.current[i];
+      if (!sp) continue;
+      const c = clouds[Math.floor(i / SMOKE_PUFFS)];
+      sp.visible = !!c;
+      if (!c) continue;
+      const k = i % SMOKE_PUFFS;
+      const a = k * 0.9 + clock.elapsedTime * 0.15;
+      const r = k === 0 ? 0 : 1.4;
+      sp.position.set(c.x / 256 + Math.cos(a) * r, 0.9 + (k % 3) * 0.55, c.y / 256 + Math.sin(a) * r);
+      const sc = 3.2 + Math.sin(clock.elapsedTime * 0.6 + k) * 0.3;
+      sp.scale.set(sc, sc, 1);
+    }
+    // explosions: sparks once, and the one shared flash light
+    let flash = 0;
+    session.booms.forEach((b, i) => {
+      const age = now - b.at;
+      const id = Math.round(b.at);
+      if (!seen.current.has(id)) {
+        seen.current.add(id);
+        sparks(b.x / 256, 0.6, b.y / 256, "#ffb347", 40, { speed: 6, up: 3, life: 0.6, grav: 8 });
+        sparks(b.x / 256, 0.4, b.y / 256, "#6b6f78", 18, { speed: 1.2, up: 2.5, life: 1.6, grav: -0.3 });
+      }
+      if (age < 300 && boomLight.current) {
+        boomLight.current.position.set(b.x / 256, 1.5, b.y / 256);
+        flash = Math.max(flash, 1 - age / 300);
+      }
+      void i;
+    });
+    if (seen.current.size > 64) seen.current.clear();
+    if (boomLight.current) boomLight.current.intensity = flash * 40;
+  });
+  return (
+    <>
+      {Array.from({ length: 4 * SMOKE_PUFFS }, (_, i) => (
+        <sprite key={i} ref={(el) => (sprites.current[i] = el)} visible={false}>
+          <spriteMaterial map={tex} transparent depthWrite={false} opacity={0.85} color="#9aa0aa" />
+        </sprite>
+      ))}
+      <pointLight ref={boomLight} color="#ffb070" intensity={0} distance={9} decay={1.4} />
+    </>
+  );
+}
+
 export function Effects({ session }: { session: Session }) {
   const p = usePrefs();
   const rich = p.quality === "high";
@@ -486,6 +553,7 @@ export function Effects({ session }: { session: Session }) {
       <ZoneGround session={session} />
       <Reactions session={session} />
       <DropBeacon session={session} />
+      <SmokeAndBooms session={session} />
       {p.weather && <Lightning session={session} />}
       {p.weather && rich && <Rain session={session} />}
       {rich && <DustMotes session={session} />}

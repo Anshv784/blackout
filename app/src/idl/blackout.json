@@ -1459,6 +1459,38 @@
       ]
     },
     {
+      "name": "set_mode",
+      "docs": [
+        "Host switches the room between solo and duos (seats pair up 0-1, 2-3, 4-5, 6-7)."
+      ],
+      "discriminator": [
+        159,
+        47,
+        147,
+        247,
+        85,
+        53,
+        84,
+        230
+      ],
+      "accounts": [
+        {
+          "name": "player",
+          "signer": true
+        },
+        {
+          "name": "room",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "duos",
+          "type": "bool"
+        }
+      ]
+    },
+    {
       "name": "set_size",
       "docs": [
         "Host resizes the room (seats beyond the new size must be empty)."

@@ -35,6 +35,125 @@ pub const PING_BOUNTY: u32 = 6;
 pub const LOOT_DROP: u32 = 8;
 pub const BLACKOUT_TICKS: u32 = 200;
 pub const KILL_HEAL: u32 = 25;
+
+// ---- gadgets, second gun, night modifiers, duos (no account layout changes:
+// thrown things live in spare bullet slots, a human's inventory in their unused bot brain,
+// and the client gets it packed into View._pad)
+pub const LOOT_FRAG: u32 = 9;
+pub const LOOT_SMOKE: u32 = 10;
+pub const LOOT_FLASH: u32 = 11;
+pub const LOOT_DECOY: u32 = 12;
+pub const LOOT_SENSOR: u32 = 13;
+pub const LOOT_NVG: u32 = 14;
+pub const G_FRAG: u32 = 1;
+pub const G_SMOKE: u32 = 2;
+pub const G_FLASH: u32 = 3;
+pub const G_DECOY: u32 = 4;
+pub const G_SENSOR: u32 = 5;
+pub const G_NVG: u32 = 6;
+pub const BTN_GADGET: u32 = 8;
+pub const BTN_SWAP: u32 = 16;
+/// bullet.weapon >= EFF_FLY marks a gadget, not a round: EFF_FLY + kind while flying
+pub const EFF_FLY: u32 = 16;
+pub const EFF_SMOKE: u32 = 32;
+pub const EFF_DECOY: u32 = 33;
+pub const EFF_SENSOR: u32 = 34;
+pub const SMOKE_R: i32 = 5 * UNIT / 2;
+pub const SMOKE_TICKS: u32 = 180;
+pub const DECOY_TICKS: u32 = 120;
+pub const SENSOR_TICKS: u32 = 2400;
+pub const SENSOR_R: i32 = 4 * UNIT;
+pub const NVG_TICKS: u32 = 300;
+pub const BLIND_TICKS: u32 = 60;
+pub const FRAG_R: i32 = 3 * UNIT;
+pub const FRAG_DMG: u32 = 70;
+pub const FLASHBANG_R: i32 = 7 * UNIT;
+pub const PING_SMOKE: u32 = 7;
+pub const PING_SENSOR: u32 = 8;
+pub const PING_BOOM: u32 = 9;
+pub const CRAWL_SPEED: i32 = 18;
+pub const BLEED_TICKS: u32 = 300;
+pub const REVIVE_TICKS: u32 = 60;
+pub const REVIVE_R: i32 = 5 * UNIT / 4;
+/// alive == DOWNED: on the floor in duos, crawling, waiting for a revive
+pub const DOWNED: u32 = 2;
+
+pub const MOD_NONE: u32 = 0;
+pub const MOD_FOG: u32 = 1;
+pub const MOD_HUNTER: u32 = 2;
+pub const MOD_SNIPER: u32 = 3;
+pub const MOD_NO_LAMPS: u32 = 4;
+pub const MOD_GADGETS: u32 = 5;
+/// The night's modifier, rolled from the VRF seed (Room.cfg bits 13-15).
+pub fn night_mod(room: &Room) -> u32 {
+    (room.cfg >> 13) & 7
+}
+pub const CFG_DUOS: u32 = 1 << 16;
+pub fn duos(room: &Room) -> bool {
+    room.cfg & CFG_DUOS != 0
+}
+pub fn same_team(room: &Room, a: usize, b: usize) -> bool {
+    duos(room) && a != b && a / 2 == b / 2
+}
+
+// a human's inventory, kept in their (otherwise unused) bot brain
+fn inv_sec(b: &BotBrain) -> (u32, u32) {
+    let v = b.wx as u32;
+    ((v & 0xff), (v >> 8) & 0xff) // (second gun + 1, its mag)
+}
+fn inv_gadget(b: &BotBrain) -> (u32, u32) {
+    let v = b.wx as u32;
+    ((v >> 16) & 0xff, (v >> 24) & 0xff)
+}
+fn inv_set(b: &mut BotBrain, sec: u32, sec_mag: u32, g: u32, n: u32) {
+    b.wx = (sec | sec_mag << 8 | g << 16 | n << 24) as i32;
+}
+fn blind_of(p: &PlayerState) -> u32 {
+    p.hit_angle >> 16
+}
+
+/// Loot roll (mirrored in verify.ts): what a 0..99 roll becomes under the night's modifier.
+pub fn loot_for_roll(roll: u32, m: u32) -> u32 {
+    let k = match roll {
+        0..=15 => LOOT_MEDKIT,
+        16..=27 => LOOT_ARMOR,
+        28..=37 => LOOT_SMG,
+        38..=45 => LOOT_SHOTGUN,
+        46..=57 => LOOT_AR,
+        58..=63 => LOOT_SNIPER,
+        64..=69 => LOOT_FLARE,
+        70..=77 => LOOT_FRAG,
+        78..=83 => LOOT_SMOKE,
+        84..=88 => LOOT_FLASH,
+        89..=92 => LOOT_DECOY,
+        93..=95 => LOOT_SENSOR,
+        _ => LOOT_NVG,
+    };
+    match (m, k) {
+        (MOD_SNIPER, LOOT_SMG | LOOT_SHOTGUN | LOOT_AR) => LOOT_SNIPER,
+        (MOD_GADGETS, LOOT_SMG) => LOOT_FRAG,
+        (MOD_GADGETS, LOOT_SHOTGUN) => LOOT_SMOKE,
+        (MOD_GADGETS, LOOT_AR) => LOOT_DECOY,
+        (MOD_GADGETS, LOOT_SNIPER) => LOOT_FLASH,
+        (MOD_GADGETS, LOOT_FLARE) => LOOT_NVG,
+        _ => k,
+    }
+}
+
+/// Does the segment a-b pass through any smoke cloud?
+fn smoked(smokes: &[(i32, i32)], ax: i32, ay: i32, bx: i32, by: i32) -> bool {
+    for &(sx, sy) in smokes {
+        let (dx, dy) = ((bx - ax) as i64, (by - ay) as i64);
+        let len2 = dx * dx + dy * dy;
+        let t = if len2 == 0 { 0 } else { (((sx - ax) as i64 * dx + (sy - ay) as i64 * dy) * 1024 / len2).clamp(0, 1024) };
+        let px = ax as i64 + dx * t / 1024;
+        let py = ay as i64 + dy * t / 1024;
+        if (px - sx as i64).pow(2) + (py - sy as i64).pow(2) <= (SMOKE_R as i64).pow(2) {
+            return true;
+        }
+    }
+    false
+}
 /// Room.end_tick set to this while live = the host asked to end the night now
 pub const END_REQUEST: u32 = 1;
 /// a street lamp lights a circle this wide; anyone in it is visible this far away
@@ -306,6 +425,9 @@ pub fn tile_center(t: u8) -> i32 {
 /// here, from the VRF output, and stays sealed inside World until the reveal.
 pub fn seed_match(room: &mut Room, w: &mut World, seed: [u8; 32]) {
     w.seed = seed;
+    // the night's modifier comes straight from the seed (so verify.ts can re-derive it)
+    let m = (seed[31] as u32) % 6;
+    room.cfg = (room.cfg & !(7 << 13)) | (m << 13);
     w.rng_lo = u32::from_le_bytes(seed[0..4].try_into().unwrap()) | 1;
     w.rng_hi = u32::from_le_bytes(seed[4..8].try_into().unwrap());
     w.tick = 0;
@@ -358,6 +480,7 @@ pub fn seed_match(room: &mut Room, w: &mut World, seed: [u8; 32]) {
         p.weapon = W_PISTOL;
         p.mag = WEAPONS[0].mag;
         p.aim = atan2((MAP_W / 2) * UNIT - sy, (MAP_W / 2) * UNIT - sx);
+        w.bots[seat] = bytemuck::Zeroable::zeroed(); // clean slate (humans keep their inventory here)
         w.bots[seat].sweep = rng_range(w, -4000, 4000);
         w.bots[seat].strafe = if rng_next(w) & 1 == 0 { 1 } else { -1 };
     }
@@ -374,15 +497,7 @@ pub fn seed_match(room: &mut Room, w: &mut World, seed: [u8; 32]) {
     for i in 0..10usize.min(MAXL) {
         let (lx, ly) = LOOT_SPOTS[spots[i]];
         let roll = rng_next(w) % 100;
-        let kind = match roll {
-            0..=21 => LOOT_MEDKIT,
-            22..=37 => LOOT_ARMOR,
-            38..=51 => LOOT_SMG,
-            52..=63 => LOOT_SHOTGUN,
-            64..=79 => LOOT_AR,
-            80..=88 => LOOT_SNIPER,
-            _ => LOOT_FLARE,
-        };
+        let kind = loot_for_roll(roll, m);
         w.loot[i] = Loot { x: tile_center(lx), y: tile_center(ly), kind, active: 1 };
     }
 
@@ -464,6 +579,12 @@ fn zone_now(w: &World, t: u32) -> (i32, i32, i32, u32) {
 
 fn damage(w: &mut World, killer: &mut [u32; MAXP], victim: usize, mut dmg: u32, src: u32, from_angle: u32, tick: u32) {
     let p = &mut w.players[victim];
+    if p.alive == DOWNED {
+        if killer[victim] == u32::MAX {
+            killer[victim] = src;
+        }
+        return;
+    }
     if p.alive == 0 || p.hp == 0 {
         return;
     }
@@ -473,7 +594,7 @@ fn damage(w: &mut World, killer: &mut [u32; MAXP], victim: usize, mut dmg: u32, 
         dmg -= a;
     }
     p.hp = p.hp.saturating_sub(dmg);
-    p.hit_angle = from_angle;
+    p.hit_angle = (p.hit_angle & 0xffff_0000) | (from_angle & 0xffff);
     p.hit_tick = tick;
     if p.hp == 0 && killer[victim] == u32::MAX {
         killer[victim] = src;
@@ -620,6 +741,8 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
     let mut killer = [u32::MAX; MAXP];
     let mut loot_events: [(i32, i32); 4] = [(0, 0); 4];
     let mut n_loot_events = 0usize;
+    let mut booms: [(i32, i32); 4] = [(0, 0); 4];
+    let mut n_booms = 0usize;
 
     if live {
         // 1. bots decide from what they saw last tick
@@ -634,12 +757,63 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
             if p.alive == 0 {
                 continue;
             }
-            let (sprinting, fatigue, winded) = sprint_step(p.moved, p.buttons, p.in_dx, p.in_dy);
-            let (vx, vy) = input_velocity_at(p.in_dx, p.in_dy, if sprinting { SPRINT_SPEED } else { SPEED });
+            let downed = p.alive == DOWNED;
+            let btn = if downed { 0 } else { p.buttons };
+            let (sprinting, fatigue, winded) = sprint_step(p.moved, btn, p.in_dx, p.in_dy);
+            let speed = if downed { CRAWL_SPEED } else if sprinting { SPRINT_SPEED } else { SPEED };
+            let (vx, vy) = input_velocity_at(p.in_dx, p.in_dy, speed);
             let (ox, oy) = (p.x, p.y);
             move_body(&mut p.x, &mut p.y, vx, vy);
             let moved = ox != p.x || oy != p.y;
-            p.moved = moved as u32 | ((sprinting && moved) as u32) << 1 | (winded as u32) << 2 | fatigue << 8;
+            p.moved = moved as u32 | ((sprinting && moved) as u32) << 1 | (winded as u32) << 2 | (fatigue & 0xff) << 8;
+            let blind = blind_of(&p);
+            if blind > 0 {
+                p.hit_angle = (p.hit_angle & 0xffff) | ((blind - 1) << 16);
+            }
+            if downed {
+                // bleeding out: armor counts down while you're on the floor
+                p.armor = p.armor.saturating_sub(1);
+                if p.armor == 0 && killer[s] == u32::MAX {
+                    killer[s] = if p.last_shot >= 1 && p.last_shot <= MAXP as u32 { p.last_shot - 1 } else { NO_SEAT };
+                }
+                w.players[s] = p;
+                continue;
+            }
+            if room.is_bot[s] == 0 {
+                let mut b = w.bots[s];
+                // night vision wears off
+                if b.wy > 0 {
+                    b.wy -= 1;
+                }
+                let (sec, sec_mag) = inv_sec(&b);
+                let (g, n) = inv_gadget(&b);
+                // swap guns
+                if p.buttons & BTN_SWAP != 0 && p.cooldown == 0 && sec != 0 {
+                    let (cw, cm) = (p.weapon, p.mag);
+                    p.weapon = sec - 1;
+                    p.mag = sec_mag;
+                    p.reload = 0;
+                    p.cooldown = 8;
+                    inv_set(&mut b, cw + 1, cm, g, n);
+                } else if p.buttons & BTN_GADGET != 0 && p.cooldown == 0 && g != 0 && n > 0 {
+                    if g == G_NVG {
+                        b.wy = NVG_TICKS as i32;
+                    } else {
+                        let (c, sn) = (cos(p.aim), sin(p.aim));
+                        let bx = p.x + c * (PLAYER_R + 40) / 1024;
+                        let by = p.y + sn * (PLAYER_R + 40) / 1024;
+                        if !is_wall(bx >> 8, by >> 8) {
+                            if let Some(slot) = w.bullets.iter().position(|q| q.ttl == 0) {
+                                w.bullets[slot] = Bullet { x: bx, y: by, vx: c * 120 / 1024, vy: sn * 120 / 1024, owner: s as u32, ttl: 18, dmg: 0, weapon: EFF_FLY + g };
+                            }
+                        }
+                    }
+                    p.cooldown = 12;
+                    let (sec2, sm2) = inv_sec(&b);
+                    inv_set(&mut b, sec2, sm2, if n > 1 { g } else { 0 }, n - 1);
+                }
+                w.bots[s] = b;
+            }
             if p.flare > 0 {
                 p.flare -= 1;
             }
@@ -695,6 +869,58 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
             if b.ttl == 0 {
                 continue;
             }
+            if b.weapon >= EFF_FLY {
+                // a gadget: thrown ones fly, bounce and slow down; placed ones just tick down
+                if b.weapon < EFF_SMOKE {
+                    let nx = b.x + b.vx;
+                    if is_wall(nx >> 8, b.y >> 8) { b.vx = -b.vx / 2; } else { b.x = nx; }
+                    let ny = b.y + b.vy;
+                    if is_wall(b.x >> 8, ny >> 8) { b.vy = -b.vy / 2; } else { b.y = ny; }
+                    b.vx = b.vx * 7 / 8;
+                    b.vy = b.vy * 7 / 8;
+                }
+                b.ttl -= 1;
+                if b.ttl == 0 && b.weapon < EFF_SMOKE {
+                    match b.weapon - EFF_FLY {
+                        G_FRAG => {
+                            for s in 0..MAXP {
+                                let q = w.players[s];
+                                if q.alive == 0 || same_team(room, s, b.owner as usize) {
+                                    continue;
+                                }
+                                let d2 = dist2(q.x, q.y, b.x, b.y);
+                                if d2 <= (FRAG_R as i64).pow(2) && line_of_sight(b.x, b.y, q.x, q.y) {
+                                    let d = isqrt(d2 as u64) as u32;
+                                    let dmg = 10 + FRAG_DMG * (FRAG_R as u32 - d.min(FRAG_R as u32)) / FRAG_R as u32;
+                                    damage(w, &mut killer, s, dmg, b.owner, atan2(q.y - b.y, q.x - b.x).wrapping_add(32768) & 0xffff, tick);
+                                }
+                            }
+                            if n_booms < 4 { booms[n_booms] = (b.x, b.y); n_booms += 1; }
+                        }
+                        G_FLASH => {
+                            for s in 0..MAXP {
+                                let q = w.players[s];
+                                if q.alive == 0 {
+                                    continue;
+                                }
+                                let d2 = dist2(q.x, q.y, b.x, b.y);
+                                // blinds anyone close who's looking anywhere near it
+                                if d2 <= (FLASHBANG_R as i64).pow(2) && line_of_sight(b.x, b.y, q.x, q.y)
+                                    && (d2 <= (2 * UNIT as i64).pow(2) || angle_diff(q.aim, atan2(b.y - q.y, b.x - q.x)) <= 16384) {
+                                    w.players[s].hit_angle = (q.hit_angle & 0xffff) | (BLIND_TICKS << 16);
+                                }
+                            }
+                            if n_booms < 4 { booms[n_booms] = (b.x, b.y); n_booms += 1; }
+                        }
+                        G_SMOKE => { b.weapon = EFF_SMOKE; b.ttl = SMOKE_TICKS; }
+                        G_DECOY => { b.weapon = EFF_DECOY; b.ttl = DECOY_TICKS; }
+                        G_SENSOR => { b.weapon = EFF_SENSOR; b.ttl = SENSOR_TICKS; }
+                        _ => {}
+                    }
+                }
+                w.bullets[bi] = b;
+                continue;
+            }
             'sub: for _ in 0..4 {
                 b.x += b.vx / 4;
                 b.y += b.vy / 4;
@@ -703,7 +929,7 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
                     break 'sub;
                 }
                 for s in 0..MAXP {
-                    if s as u32 == b.owner {
+                    if s as u32 == b.owner || same_team(room, s, b.owner as usize) {
                         continue;
                     }
                     let q = w.players[s];
@@ -730,9 +956,28 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
                 continue;
             }
             for s in 0..MAXP {
+                let human = room.is_bot[s] == 0;
                 let p = &mut w.players[s];
-                if p.alive == 0 || dist2(p.x, p.y, l.x, l.y) > (PICK_R as i64).pow(2) {
+                if p.alive != 1 || dist2(p.x, p.y, l.x, l.y) > (PICK_R as i64).pow(2) {
                     continue;
+                }
+                // bots don't carry gadgets
+                if !human && l.kind >= LOOT_FRAG {
+                    continue;
+                }
+                if l.kind >= LOOT_FRAG {
+                    let g = l.kind - LOOT_FRAG + 1;
+                    let b = &mut w.bots[s];
+                    let (sec, sm) = inv_sec(b);
+                    let (cg, cn) = inv_gadget(b);
+                    let n = if cg == g { (cn + if g == G_NVG { 1 } else { 2 }).min(4) } else if g == G_NVG { 1 } else { 2 };
+                    inv_set(b, sec, sm, g, n);
+                    w.loot[li].active = 0;
+                    if n_loot_events < 4 {
+                        loot_events[n_loot_events] = (l.x, l.y);
+                        n_loot_events += 1;
+                    }
+                    break;
                 }
                 match l.kind {
                     LOOT_MEDKIT => p.hp = (p.hp + 50).min(100),
@@ -744,8 +989,20 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
                             LOOT_AR => W_AR,
                             _ => W_SNIPER,
                         };
+                        // a second gun goes in the free slot; with both full it replaces the one in hand
+                        let full = WEAPONS[wpn as usize].mag;
+                        if human && p.weapon != W_PISTOL {
+                            let b = &mut w.bots[s];
+                            let (sec, sm) = inv_sec(b);
+                            let (g, n) = inv_gadget(b);
+                            if sec == 0 || sec - 1 == W_PISTOL {
+                                inv_set(b, p.weapon + 1, p.mag, g, n);
+                            } else {
+                                let _ = sm;
+                            }
+                        }
                         p.weapon = wpn;
-                        p.mag = WEAPONS[wpn as usize].mag;
+                        p.mag = full;
                         p.reload = 0;
                     }
                     LOOT_FLARE => p.flare = FLARE_TICKS,
@@ -808,9 +1065,31 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
         if t % 10 == 0 {
             for s in 0..MAXP {
                 let p = w.players[s];
-                if p.alive == 1 && dist2(p.x, p.y, zx, zy) > (zr as i64).pow(2) {
+                if p.alive != 0 && dist2(p.x, p.y, zx, zy) > (zr as i64).pow(2) {
                     let a = atan2(zy - p.y, zx - p.x);
                     damage(w, &mut killer, s, zdmg, NO_SEAT, a, tick);
+                }
+            }
+        }
+        // 5b. revives (duos): a teammate standing over you for 3 s brings you back
+        if duos(room) {
+            for s in 0..MAXP {
+                if w.players[s].alive != DOWNED || killer[s] != u32::MAX {
+                    continue;
+                }
+                let mate = s ^ 1;
+                let m = w.players[mate];
+                if m.alive == 1 && m.buttons & 1 == 0 && dist2(m.x, m.y, w.players[s].x, w.players[s].y) <= (REVIVE_R as i64).pow(2) {
+                    w.players[s].hp += 1;
+                    if w.players[s].hp >= REVIVE_TICKS {
+                        let p = &mut w.players[s];
+                        p.alive = 1;
+                        p.hp = 30;
+                        p.armor = 0;
+                        p.last_shot = 0;
+                    }
+                } else {
+                    w.players[s].hp = 0;
                 }
             }
         }
@@ -821,6 +1100,16 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
             }
             let p = w.players[s];
             if p.alive == 0 {
+                continue;
+            }
+            // duos: with your partner still standing you go down instead of out
+            if p.alive == 1 && duos(room) && w.players[s ^ 1].alive == 1 {
+                let q = &mut w.players[s];
+                q.alive = DOWNED;
+                q.hp = 0;
+                q.armor = BLEED_TICKS;
+                q.reload = 0;
+                q.last_shot = if killer[s] < MAXP as u32 { killer[s] + 1 } else { 0 };
                 continue;
             }
             let k = killer[s];
@@ -855,17 +1144,30 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
         let humans_alive = (0..MAXP).any(|i| {
             room.is_bot[i] == 0
                 && room.players[i] != anchor_lang::prelude::Pubkey::default()
-                && w.players[i].alive == 1
+                && w.players[i].alive != 0
                 && (t < IDLE_TICKS || tick.saturating_sub(w.players[i].last_input_tick) <= IDLE_TICKS)
         });
         // (end_tick == END_REQUEST: the host ended the night early)
-        if room.alive_count <= 1 || t >= room.match_ticks() || (humans_in && !humans_alive) || room.end_tick == END_REQUEST {
+        // duos: the night is over when only one team is left
+        let last_team = duos(room) && {
+            let mut team = u32::MAX;
+            let mut one = true;
+            for s in 0..MAXP {
+                if w.players[s].alive != 0 {
+                    let tm = (s / 2) as u32;
+                    if team == u32::MAX { team = tm; } else if team != tm { one = false; }
+                }
+            }
+            one
+        };
+        if room.alive_count <= 1 || last_team || t >= room.match_ticks() || (humans_in && !humans_alive) || room.end_tick == END_REQUEST {
             // rank survivors by hp+armor, then kills
             let mut survivors: [(u32, u32, usize); MAXP] = [(0, 0, 0); MAXP];
             let mut n = 0;
             for s in 0..MAXP {
-                if w.players[s].alive == 1 {
-                    survivors[n] = (w.players[s].hp + w.players[s].armor, room.kills[s], s);
+                if w.players[s].alive != 0 {
+                    let standing = if w.players[s].alive == 1 { w.players[s].hp + w.players[s].armor + 1000 } else { 0 };
+                    survivors[n] = (standing, room.kills[s], s);
                     n += 1;
                 }
             }
@@ -886,7 +1188,7 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
     let lights_out = live && t >= bo && t < bo + BLACKOUT_TICKS;
     // kill leader: most kills among the living, at least 2
     let mut leader = NO_SEAT;
-    let mut best_k = 1u32;
+    let mut best_k = if night_mod(room) == MOD_HUNTER { 0u32 } else { 1u32 };
     for s in 0..MAXP {
         if w.players[s].alive == 1 && room.kills[s] > best_k {
             best_k = room.kills[s];
@@ -895,13 +1197,30 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
     }
 
     // street lamps light whoever stands under them (dark during the blackout)
+    let modifier = night_mod(room);
     let mut lit = [false; MAXP];
-    if !lights_out {
+    // night vision glows: whoever wears it is easy to spot
+    for s in 0..MAXP {
+        lit[s] = room.is_bot[s] == 0 && w.players[s].alive == 1 && w.bots[s].wy > 0;
+    }
+    if !lights_out && modifier != MOD_NO_LAMPS {
         for s in 0..MAXP {
             let ps = w.players[s];
-            lit[s] = ps.alive == 1 && LAMPS.iter().any(|&(lx, ly)| dist2(ps.x, ps.y, tile_center(lx), tile_center(ly)) <= (LAMP_R as i64).pow(2));
+            lit[s] = lit[s] || ps.alive == 1 && LAMPS.iter().any(|&(lx, ly)| dist2(ps.x, ps.y, tile_center(lx), tile_center(ly)) <= (LAMP_R as i64).pow(2));
         }
     }
+
+    // smoke clouds block sight lines
+    let mut smokes = [(0i32, 0i32); 8];
+    let mut n_smokes = 0usize;
+    for b in w.bullets.iter() {
+        if b.ttl > 0 && b.weapon == EFF_SMOKE && n_smokes < smokes.len() {
+            smokes[n_smokes] = (b.x, b.y);
+            n_smokes += 1;
+        }
+    }
+    let smokes = &smokes[..n_smokes];
+    let fog = modifier == MOD_FOG;
 
     // ---- vision: who sees whom (computed inside the TEE, never published)
     let mut vis = [[0u32; MAXP]; MAXP]; // flags, 0 = not visible
@@ -910,6 +1229,11 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
         if pv.alive == 0 {
             continue;
         }
+        let nvg = room.is_bot[v] == 0 && w.bots[v].wy > 0;
+        let blind = blind_of(&pv) > 0;
+        let vr = if nvg { VISION_R + 4 * UNIT } else if fog { VISION_R * 7 / 10 } else { VISION_R };
+        let cone = if nvg { CONE_HALF * 3 / 2 } else { CONE_HALF };
+        let lamp_r = if fog { LAMP_SEE_R * 7 / 10 } else { LAMP_SEE_R };
         for q in 0..MAXP {
             if q == v {
                 continue;
@@ -920,21 +1244,28 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
             }
             let d2 = dist2(pv.x, pv.y, pq.x, pq.y);
             let mut f = 0u32;
-            if pv.flare > 0 {
+            if same_team(room, v, q) {
+                // partners always see each other
+                f = 8 | 32;
+            } else if pv.flare > 0 {
                 f = 2;
             } else if d2 <= (AMBIENT_R as i64).pow(2) {
                 if line_of_sight(pv.x, pv.y, pq.x, pq.y) {
                     f = 8;
                 }
+            } else if blind {
+                // a flashbang took your eyes: only what's right next to you
             } else if !lights_out
-                && d2 <= (VISION_R as i64).pow(2)
-                && angle_diff(pv.aim, atan2(pq.y - pv.y, pq.x - pv.x)) <= CONE_HALF
+                && d2 <= (vr as i64).pow(2)
+                && angle_diff(pv.aim, atan2(pq.y - pv.y, pq.x - pv.x)) <= cone
                 && line_of_sight(pv.x, pv.y, pq.x, pq.y)
+                && !smoked(smokes, pv.x, pv.y, pq.x, pq.y)
             {
                 f = 8;
             } else if lit[q]
-                && d2 <= (LAMP_SEE_R as i64).pow(2)
+                && d2 <= (lamp_r as i64).pow(2)
                 && line_of_sight(pv.x, pv.y, pq.x, pq.y)
+                && !smoked(smokes, pv.x, pv.y, pq.x, pq.y)
             {
                 // standing under a street lamp: anyone with a line on you sees you
                 f = 8;
@@ -947,6 +1278,9 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
             }
             if f != 0 && pq.last_shot == tick + 1 {
                 f |= 4;
+            }
+            if f != 0 && pq.alive == DOWNED {
+                f |= 16;
             }
             vis[v][q] = f;
         }
@@ -978,9 +1312,19 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
                     continue;
                 }
                 let d2 = dist2(pv.x, pv.y, pq.x, pq.y);
+                if same_team(room, v, q) {
+                    continue;
+                }
                 if (pq.last_shot == tick + 1 && d2 <= (SHOT_R as i64).pow(2)) || (pq.moved & 1 == 1 && d2 <= (STEP_R as i64).pow(2) / 2)
                     || (pq.moved & 2 != 0 && d2 <= (STEP_R as i64 * 3 / 2).pow(2)) {
                     b.ping_angle = atan2(pq.y - pv.y, pq.x - pv.x);
+                    b.ping_tick = tick;
+                }
+            }
+            // decoys fool bots too
+            for e in w.bullets.iter() {
+                if e.ttl > 0 && e.weapon == EFF_DECOY && e.owner != v as u32 && dist2(pv.x, pv.y, e.x, e.y) <= (STEP_R as i64).pow(2) {
+                    b.ping_angle = atan2(e.y - pv.y, e.x - pv.x);
                     b.ping_tick = tick;
                 }
             }
@@ -1043,6 +1387,55 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
             let d2 = dist2(pv.x, pv.y, pl.x, pl.y);
             push_ping(view, tick, atan2(pl.y - pv.y, pl.x - pv.x) & !0x3ff, PING_BOUNTY, (isqrt(d2 as u64) as u32) / UNIT as u32);
         }
+        // gadgets: smoke you can see from afar, decoys that sound like people, your sensors, explosions
+        for e in w.bullets.iter() {
+            if e.ttl == 0 || e.weapon < EFF_SMOKE {
+                continue;
+            }
+            let d2 = dist2(pv.x, pv.y, e.x, e.y);
+            let dist = (isqrt(d2 as u64) as u32) / UNIT as u32;
+            let ang = atan2(e.y - pv.y, e.x - pv.x);
+            match e.weapon {
+                EFF_SMOKE if (tick + v as u32) % 20 == 0 && d2 <= (24 * UNIT as i64).pow(2) => push_ping(view, tick, ang, PING_SMOKE, dist),
+                EFF_DECOY if e.owner != v as u32 => {
+                    if (tick + e.ttl) % 40 == 0 && d2 <= (SHOT_R as i64).pow(2) {
+                        push_ping(view, tick, ang & !0x7ff, PING_SHOT, dist);
+                    } else if (tick + e.ttl) % 8 == 0 && d2 <= (STEP_R as i64).pow(2) {
+                        push_ping(view, tick, ang & !0xfff, PING_STEP, dist);
+                    }
+                }
+                EFF_SENSOR if e.owner == v as u32 && tick % 10 == 0 => {
+                    for q in 0..MAXP {
+                        let pq = w.players[q];
+                        if q == v || pq.alive == 0 || same_team(room, v, q) || pq.moved & 1 == 0 {
+                            continue;
+                        }
+                        if dist2(pq.x, pq.y, e.x, e.y) <= (SENSOR_R as i64).pow(2) {
+                            let dq = dist2(pv.x, pv.y, pq.x, pq.y);
+                            push_ping(view, tick, atan2(pq.y - pv.y, pq.x - pv.x) & !0x3ff, PING_SENSOR, (isqrt(dq as u64) as u32) / UNIT as u32);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        for &(bx, by) in booms[..n_booms].iter() {
+            let d2 = dist2(pv.x, pv.y, bx, by);
+            if d2 <= (30 * UNIT as i64).pow(2) {
+                push_ping(view, tick, atan2(by - pv.y, bx - pv.x), PING_BOOM, (isqrt(d2 as u64) as u32) / UNIT as u32);
+            }
+        }
+        // your pockets: second gun, gadget, night vision, flash blindness (View._pad)
+        if room.is_bot[v] == 0 {
+            let b = w.bots[v];
+            let (sec, sm) = inv_sec(&b);
+            let (g, n) = inv_gadget(&b);
+            let nvg4 = ((b.wy.max(0) as u32) / 4).min(255);
+            let bl2 = (blind_of(&pv) / 2).min(63);
+            view._pad = (sec & 0xf) | (sm & 0x3f) << 4 | (g & 0xf) << 10 | (n & 0xf) << 14 | nvg4 << 18 | bl2 << 26;
+        } else {
+            view._pad = 0;
+        }
         for &(lx, ly) in loot_events[..n_loot_events].iter() {
             let d2 = dist2(pv.x, pv.y, lx, ly);
             if d2 > 0 && d2 <= (LOOT_R as i64).pow(2) && !line_of_sight(pv.x, pv.y, lx, ly) {
@@ -1052,7 +1445,7 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
         // bullets in sight (your own always)
         let mut nb = 0usize;
         for b in w.bullets.iter() {
-            if b.ttl == 0 || nb >= VIS_B {
+            if b.ttl == 0 || nb >= VIS_B || b.weapon >= EFF_FLY {
                 continue;
             }
             let mine = b.owner == v as u32;
@@ -1226,6 +1619,77 @@ mod stats {
             }
         }
         println!("kills by gun {gun}, by zone {zone}, bullets/match {}", shots / 30);
+    }
+
+    fn setup(seed: u8, duo: bool) -> (Room, World, Vec<View>, Vec<Vec<u8>>) {
+        let mut room: Room = bytemuck::Zeroable::zeroed();
+        let mut w: World = bytemuck::Zeroable::zeroed();
+        let views: Vec<View> = (0..MAXP).map(|_| bytemuck::Zeroable::zeroed()).collect();
+        let rec_bufs: Vec<Vec<u8>> = (0..REC_CHUNKS).map(|_| vec![0u8; REC_LEN]).collect();
+        for s in 0..MAXP { room.is_bot[s] = 1; }
+        room.is_bot[0] = 0; // seat 0 is a "human" with an inventory
+        room.players[0] = anchor_lang::prelude::Pubkey::new_from_array([7; 32]);
+        if duo { room.cfg |= CFG_DUOS; }
+        seed_match(&mut room, &mut w, [seed; 32]);
+        (room, w, views, rec_bufs)
+    }
+    fn step(room: &mut Room, w: &mut World, views: &mut Vec<View>, rec: &mut Vec<Vec<u8>>) {
+        let mut refs: Vec<&mut View> = views.iter_mut().collect();
+        let mut rr: Vec<&mut [u8]> = rec.iter_mut().map(|b| &mut b[..]).collect();
+        tick(room, w, &mut refs[..], &mut rr[..]);
+    }
+
+    #[test]
+    fn frag_hurts_and_inventory_shows() {
+        let (mut room, mut w, mut views, mut rec) = setup(3, false);
+        while room.status != ST_LIVE { step(&mut room, &mut w, &mut views, &mut rec); }
+        // hand seat 0 two frags and put an enemy 2 tiles ahead
+        inv_set(&mut w.bots[0], 0, 0, G_FRAG, 2);
+        let (x, y) = (w.players[0].x, w.players[0].y);
+        w.players[0].aim = 0;
+        w.players[3].x = x + 2 * UNIT;
+        w.players[3].y = y;
+        let hp0 = w.players[3].hp + w.players[3].armor;
+        w.players[0].buttons = BTN_GADGET;
+        step(&mut room, &mut w, &mut views, &mut rec);
+        w.players[0].buttons = 0;
+        assert_eq!(inv_gadget(&w.bots[0]), (G_FRAG, 1), "one frag thrown");
+        assert!(views[0]._pad >> 14 & 0xf == 1, "client sees 1 frag left");
+        for _ in 0..25 {
+            w.players[3].x = x + 2 * UNIT; // hold the target still
+            w.players[3].y = y;
+            step(&mut room, &mut w, &mut views, &mut rec);
+        }
+        let hp1 = w.players[3].hp + w.players[3].armor;
+        assert!(hp1 < hp0 || w.players[3].alive == 0, "frag did damage: {hp0} -> {hp1}");
+    }
+
+    #[test]
+    fn duos_go_down_then_get_revived() {
+        let (mut room, mut w, mut views, mut rec) = setup(9, true);
+        room.is_bot[3] = 0; // the partner is a person (bots hold the trigger, which blocks a revive)
+        room.players[3] = anchor_lang::prelude::Pubkey::new_from_array([8; 32]);
+        while room.status != ST_LIVE { step(&mut room, &mut w, &mut views, &mut rec); }
+        // seat 2 (partner of 3) takes a lethal hit
+        let mut killer = [u32::MAX; MAXP];
+        w.players[2].armor = 0;
+        damage(&mut w, &mut killer, 2, 500, 5, 0, room.tick);
+        // let the next tick turn that into "down" (we fake it through the same path)
+        w.players[2].hp = 1;
+        w.players[2].armor = 0;
+        w.bullets[0] = Bullet { x: w.players[2].x - 60, y: w.players[2].y, vx: 300, vy: 0, owner: 5, ttl: 4, dmg: 200, weapon: 0 };
+        step(&mut room, &mut w, &mut views, &mut rec);
+        assert_eq!(w.players[2].alive, DOWNED, "partner alive, so seat 2 is down not dead");
+        // partner stands over them, holding fire off
+        for _ in 0..(REVIVE_TICKS + 5) {
+            w.players[3].x = w.players[2].x + 100;
+            w.players[3].y = w.players[2].y;
+            w.players[3].buttons = 0;
+            if w.players[2].alive != DOWNED { break; }
+            step(&mut room, &mut w, &mut views, &mut rec);
+        }
+        assert_eq!(w.players[2].alive, 1, "revived");
+        assert_eq!(w.players[2].hp, 30);
     }
 
     #[test]

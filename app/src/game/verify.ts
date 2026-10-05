@@ -67,6 +67,8 @@ export function verifyMatch(room: Room, world: World, rec: Recording, occupied: 
     rng.next(); // bot strafe
   }
   // loot
+  // the night's modifier comes from the last seed byte (mirror of sim.rs)
+  const nightMod = seed[31] % 6;
   const spots = LOOT_SPOTS.map((_, i) => i);
   for (let i = spots.length - 1; i > 0; i--) {
     const j = rng.next() % (i + 1);
@@ -76,8 +78,7 @@ export function verifyMatch(room: Room, world: World, rec: Recording, occupied: 
   for (let i = 0; i < 10; i++) {
     const [lx, ly] = LOOT_SPOTS[spots[i]];
     const roll = rng.next() % 100;
-    // mirror of sim.rs seed_match: medkit, armor, smg, shotgun, AR, sniper, flare
-    const kind = roll <= 21 ? 1 : roll <= 37 ? 2 : roll <= 51 ? 3 : roll <= 63 ? 4 : roll <= 79 ? 6 : roll <= 88 ? 7 : 5;
+    const kind = lootForRoll(roll, nightMod);
     loot.push({ x: tc(lx), y: tc(ly), kind });
   }
   // zone
@@ -108,4 +109,13 @@ export function verifyMatch(room: Room, world: World, rec: Recording, occupied: 
   const spawnsOk = !!f0 && spawnAt.every((sp, seat) => !sp || Math.hypot(f0[seat].x - sp[0], f0[seat].y - sp[1]) <= 64);
   void room;
   return { spawns: spawnsOk, loot: lootOk, zone: zoneOk };
+}
+
+/** mirror of sim.rs loot_for_roll */
+export function lootForRoll(roll: number, m: number): number {
+  const k =
+    roll <= 15 ? 1 : roll <= 27 ? 2 : roll <= 37 ? 3 : roll <= 45 ? 4 : roll <= 57 ? 6 : roll <= 63 ? 7 : roll <= 69 ? 5 : roll <= 77 ? 9 : roll <= 83 ? 10 : roll <= 88 ? 11 : roll <= 92 ? 12 : roll <= 95 ? 13 : 14;
+  if (m === 3 && (k === 3 || k === 4 || k === 6)) return 7;
+  if (m === 5) return ({ 3: 9, 4: 10, 6: 12, 7: 11, 5: 14 } as Record<number, number>)[k] ?? k;
+  return k;
 }

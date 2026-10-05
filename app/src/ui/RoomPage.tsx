@@ -189,7 +189,8 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
       away: taken && room.isBot[i] === 0 && !fresh(i),
       canMakeHost: canStart && taken && room.isBot[i] === 0 && i !== mySeat && fresh(i),
       canKick: canStart && !staked && taken && room.isBot[i] === 0 && i !== mySeat,
-      openHint: staked ? "stake to sit" : undefined,
+      openHint: staked ? "stake to sit" : room.duos ? `team ${(i >> 1) + 1} · bot if empty` : undefined,
+      team: room.duos ? (i >> 1) + 1 : undefined,
     };
   });
 
@@ -502,7 +503,17 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
               </small>
             </>
           )}
-          <small className="night-len">every night lasts 5:00</small>
+          {!staked && (
+            <div className="bot-level mode">
+              <span>MODE</span>
+              {[false, true].map((d) => (
+                <button key={String(d)} className={room.duos === d ? "on lv-0" : ""} disabled={!canStart || !!busy} onClick={() => room.duos !== d && run("mode", () => session.setMode(d))}>
+                  {d ? "DUOS" : "SOLO"}
+                </button>
+              ))}
+            </div>
+          )}
+          <small className="night-len">every night lasts 5:00{room.duos ? " · seats pair up: 1+2, 3+4, 5+6, 7+8" : ""}</small>
         </div>
       </div>
       <div className="keys-hint">
@@ -510,6 +521,8 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
         <span>W A S D move</span>
         <span>Shift sprint</span>
         <span>right-click aim</span>
+        <span>G gadget</span>
+        <span>X swap gun</span>
         <span>Q / E turn</span>
         <span>click fire</span>
         <span>R reload</span>

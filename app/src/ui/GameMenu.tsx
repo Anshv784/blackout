@@ -322,6 +322,8 @@ function Settings({ onClose }: { onClose: () => void }) {
                   <span><b>Mouse</b> aim</span>
                   <span><b>Click / Space</b> fire</span>
                   <span><b>Right mouse</b> aim down sights</span>
+                  <span><b>G</b> throw / use gadget</span>
+                  <span><b>X / 1 / 2</b> swap guns</span>
                   <span><b>R</b> reload</span>
                   <span><b>Q / E</b> turn</span>
                   <span><b>V</b> view</span>

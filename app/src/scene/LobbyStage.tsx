@@ -16,6 +16,8 @@ export interface SeatInfo {
   away: boolean;
   canMakeHost?: boolean;
   canKick?: boolean;
+  /** duos: which team this seat is on */
+  team?: number;
   /** hint under OPEN SEAT */
   openHint?: string;
 }
@@ -81,6 +83,7 @@ function Pedestal({ i, n, seat, onTake, onMakeHost, onKick }: { i: number; n: nu
               {seat.host && (seat.me ? " · HOST" : "HOST")}
               {seat.bot && "BOT"}
               {seat.away && " · AWAY"}
+              {seat.team && ` · TEAM ${seat.team}`}
             </span>
             {(seat.canMakeHost || seat.canKick) && (
               <div className="seat-actions">

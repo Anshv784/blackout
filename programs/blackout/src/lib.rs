@@ -503,6 +503,20 @@ pub mod blackout {
         Ok(())
     }
 
+    /// Host switches the room between solo and duos (seats pair up 0-1, 2-3, 4-5, 6-7).
+    pub fn set_mode(ctx: Context<Heartbeat>, duos: bool) -> Result<()> {
+        let mut room = ctx.accounts.room.load_mut()?;
+        require!(room.status == ST_LOBBY, BlackoutError::NotInLobby);
+        require!(room.host == ctx.accounts.player.key(), BlackoutError::NotHost);
+        require!(room.stake == 0, BlackoutError::NotReady); // staked nights are every player for themselves
+        if duos {
+            room.cfg |= crate::sim::CFG_DUOS;
+        } else {
+            room.cfg &= !crate::sim::CFG_DUOS;
+        }
+        Ok(())
+    }
+
     /// Host ends a running night early: the next tick ends it normally (placements,
     /// lights on, replay), then the room can be closed from the verdict.
     pub fn end_now(ctx: Context<Heartbeat>) -> Result<()> {
