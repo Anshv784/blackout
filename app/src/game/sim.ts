@@ -14,8 +14,8 @@ export const FLARE_TICKS = 100;
 
 // Night length (mirror of Room::match_ticks): the zone schedule stretches with it.
 export const BASE_MATCH_TICKS = 2700;
-export const MATCH_LENGTHS = [2700, 1800, 4200];
-export const matchTicks = (len: number) => MATCH_LENGTHS[len] ?? 2700;
+export const MATCH_LENGTHS = [6000, 6000, 6000]; // every night is 5:00
+export const matchTicks = (len: number) => MATCH_LENGTHS[len] ?? 6000;
 export function zoneSchedule(len: number) {
   const k = matchTicks(len);
   const sc = (v: number) => Math.floor((v * k) / BASE_MATCH_TICKS);

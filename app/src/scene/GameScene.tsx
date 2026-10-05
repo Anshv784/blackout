@@ -5,7 +5,7 @@ import { EffectComposer, Bloom, Vignette, Noise, ChromaticAberration } from "@re
 import { BlendFunction } from "postprocessing";
 import * as THREE from "three";
 import { Arena, occlusion } from "./Arena";
-import { Avatar, SEAT_COLORS, aimToRotY } from "./Avatar";
+import { Avatar, Gun, SEAT_COLORS, aimToRotY } from "./Avatar";
 import type { Session } from "../game/session";
 import { ST_COUNTDOWN, ST_LIVE, ST_ENDED } from "../chain/layout";
 import { controls, wheelZoom } from "../game/controls";
@@ -267,9 +267,126 @@ function Bullets({ session }: { session: Session }) {
   );
 }
 
+const LOOT_GUN: Record<number, number> = { 3: 1, 4: 2, 6: 3, 7: 4 };
+
+/** A real crate per loot kind: medkit case, vest box, flare canister, or a gun case with the gun on top. */
+function Crate({ kind }: { kind: number }) {
+  const c = LOOT_COLORS[kind] ?? "#fff";
+  const gun = LOOT_GUN[kind];
+  return (
+    <group>
+      {/* glow on the ground so it reads in the dark */}
+      <mesh rotation-x={-Math.PI / 2} position={[0, 0.025, 0]}>
+        <ringGeometry args={[0.46, 0.56, 40]} />
+        <meshBasicMaterial color={c} transparent opacity={0.55} toneMapped={false} blending={THREE.AdditiveBlending} depthWrite={false} />
+      </mesh>
+      <pointLight position={[0, 0.7, 0]} intensity={1.3} distance={2.4} decay={1.6} color={c} />
+      {kind === 1 && (
+        <group position={[0, 0.17, 0]}>
+          <mesh castShadow>
+            <boxGeometry args={[0.52, 0.32, 0.38]} />
+            <meshStandardMaterial color="#e9ecef" roughness={0.45} />
+          </mesh>
+          <mesh position={[0, 0.165, 0]}>
+            <boxGeometry args={[0.24, 0.01, 0.07]} />
+            <meshBasicMaterial color="#e5383b" toneMapped={false} />
+          </mesh>
+          <mesh position={[0, 0.165, 0]}>
+            <boxGeometry args={[0.07, 0.01, 0.24]} />
+            <meshBasicMaterial color="#e5383b" toneMapped={false} />
+          </mesh>
+          <mesh position={[0, 0.01, 0.192]}>
+            <boxGeometry args={[0.16, 0.05, 0.005]} />
+            <meshBasicMaterial color="#e5383b" toneMapped={false} />
+          </mesh>
+          <mesh position={[0, 0.01, 0.192]}>
+            <boxGeometry args={[0.05, 0.16, 0.005]} />
+            <meshBasicMaterial color="#e5383b" toneMapped={false} />
+          </mesh>
+          <mesh position={[0, 0.2, 0]}>
+            <boxGeometry args={[0.2, 0.04, 0.04]} />
+            <meshStandardMaterial color="#2b2d33" roughness={0.6} />
+          </mesh>
+        </group>
+      )}
+      {kind === 2 && (
+        <group position={[0, 0.16, 0]}>
+          <mesh castShadow>
+            <boxGeometry args={[0.58, 0.3, 0.44]} />
+            <meshStandardMaterial color="#33402f" roughness={0.8} />
+          </mesh>
+          <mesh position={[0, 0.04, 0]}>
+            <boxGeometry args={[0.6, 0.05, 0.46]} />
+            <meshStandardMaterial color="#4cc9f0" emissive="#4cc9f0" emissiveIntensity={1.4} toneMapped={false} />
+          </mesh>
+          {/* the vest folded on the lid */}
+          <mesh position={[0, 0.2, 0]} castShadow>
+            <boxGeometry args={[0.36, 0.09, 0.3]} />
+            <meshStandardMaterial color="#20262f" roughness={0.7} />
+          </mesh>
+          <mesh position={[0.1, 0.25, 0]}>
+            <boxGeometry args={[0.08, 0.02, 0.28]} />
+            <meshStandardMaterial color="#2f3a4a" roughness={0.6} />
+          </mesh>
+        </group>
+      )}
+      {kind === 5 && (
+        <group>
+          <mesh position={[0, 0.06, 0]} castShadow>
+            <boxGeometry args={[0.34, 0.12, 0.34]} />
+            <meshStandardMaterial color="#2b2d33" roughness={0.7} />
+          </mesh>
+          <mesh position={[0, 0.36, 0]} castShadow>
+            <cylinderGeometry args={[0.08, 0.08, 0.46, 16]} />
+            <meshStandardMaterial color="#ff7b2e" roughness={0.5} />
+          </mesh>
+          <mesh position={[0, 0.62, 0]}>
+            <cylinderGeometry args={[0.085, 0.085, 0.06, 16]} />
+            <meshBasicMaterial color="#ff3b8f" toneMapped={false} />
+          </mesh>
+        </group>
+      )}
+      {gun !== undefined && (
+        <group>
+          {/* weapon case */}
+          <mesh position={[0, 0.1, 0]} castShadow>
+            <boxGeometry args={[1.05, 0.2, 0.4]} />
+            <meshStandardMaterial color="#3d4630" roughness={0.75} metalness={0.15} />
+          </mesh>
+          <mesh position={[0, 0.205, 0]}>
+            <boxGeometry args={[1.07, 0.012, 0.42]} />
+            <meshStandardMaterial color="#2a3022" roughness={0.8} />
+          </mesh>
+          {[-0.3, 0.3].map((x) => (
+            <mesh key={x} position={[x, 0.12, 0.205]}>
+              <boxGeometry args={[0.08, 0.06, 0.02]} />
+              <meshStandardMaterial color="#9aa0a6" metalness={0.9} roughness={0.3} />
+            </mesh>
+          ))}
+          <mesh position={[0, 0.215, 0]}>
+            <boxGeometry args={[0.95, 0.005, 0.03]} />
+            <meshBasicMaterial color={c} toneMapped={false} />
+          </mesh>
+          {/* the gun itself, laid on the lid */}
+          <group position={[-0.62 * (gun === 4 ? 1.05 : 0.95), 0.27, -0.05]} scale={gun === 4 ? 0.8 : 1}>
+            <Gun weapon={gun} display />
+          </group>
+        </group>
+      )}
+    </group>
+  );
+}
+
 function LootCrates({ session }: { session: Session }) {
   const refs = useRef<(THREE.Group | null)[]>([]);
   const labels = useRef<(HTMLDivElement | null)[]>([]);
+  // which kind sits in each slot (re-render only when that changes)
+  const kinds = useStore((st) => st.view?.loot.map((l) => `${l.id}:${l.kind}`).join(",") ?? "");
+  const kindOf = useRef<number[]>(Array(12).fill(0));
+  for (const kv of kinds.split(",")) {
+    const [a, b] = kv.split(":").map(Number);
+    if (kv && a >= 0 && a < 12) kindOf.current[a] = b;
+  }
   useFrame(({ clock }) => {
     const loot = session.view?.loot ?? [];
     for (let i = 0; i < 12; i++) {
@@ -277,15 +394,11 @@ function LootCrates({ session }: { session: Session }) {
       if (!g) continue;
       const l = loot.find((x) => x.id === i);
       g.visible = !!l;
-      const lab0 = labels.current[i];
-      if (lab0) lab0.style.display = l ? "block" : "none";
-      if (!l) continue;
-      g.position.set(l.x / 256, 0.45 + Math.sin(clock.elapsedTime * 2 + i) * 0.08, l.y / 256);
-      g.rotation.y = clock.elapsedTime * 1.4 + i;
-      const mat = (g.children[0] as THREE.Mesh).material as THREE.MeshStandardMaterial;
-      mat.color.set(LOOT_COLORS[l.kind]);
-      mat.emissive.set(LOOT_COLORS[l.kind]);
       const lab = labels.current[i];
+      if (lab) lab.style.display = l ? "block" : "none";
+      if (!l) continue;
+      g.position.set(l.x / 256, 0, l.y / 256);
+      g.rotation.y = i * 1.7 + Math.sin(clock.elapsedTime * 0.4 + i) * 0.08;
       if (lab && lab.textContent !== LOOT_LABEL[l.kind]) {
         lab.textContent = LOOT_LABEL[l.kind];
         lab.style.color = LOOT_COLORS[l.kind];
@@ -296,12 +409,8 @@ function LootCrates({ session }: { session: Session }) {
     <>
       {Array.from({ length: 12 }, (_, i) => (
         <group key={i} ref={(el) => (refs.current[i] = el)} visible={false}>
-          <mesh>
-            <octahedronGeometry args={[0.3, 0]} />
-            <meshStandardMaterial emissiveIntensity={2.6} toneMapped={false} />
-          </mesh>
-          <pointLight intensity={1.6} distance={2.2} decay={1.6} color="#fff6d8" />
-          <Html position={[0, 0.55, 0]} center zIndexRange={[4, 0]} style={{ pointerEvents: "none" }}>
+          {kindOf.current[i] > 0 && <Crate kind={kindOf.current[i]} />}
+          <Html position={[0, 0.95, 0]} center zIndexRange={[4, 0]} style={{ pointerEvents: "none" }}>
             <div className="loot-tag" ref={(el) => (labels.current[i] = el)} />
           </Html>
         </group>
@@ -669,7 +778,7 @@ function InputController({ session }: { session: Session }) {
       } else {
         const r = el.getBoundingClientRect();
         controls.vcx = ((e.clientX - r.left) / r.width) * 2 - 1;
-        controls.vcy = -(((e.clientY - r.top) / r.height) * 2 - 1);
+        controls.vcy = Math.max(-0.35, Math.min(0.85, -(((e.clientY - r.top) / r.height) * 2 - 1)));
       }
       controls.mouseActive = true;
     };
@@ -717,8 +826,17 @@ function InputController({ session }: { session: Session }) {
       if (ray.ray.intersectPlane(plane, hit) && hit.distanceTo(ray.ray.origin) < 60) {
         const dx = hit.x - p.x / 256;
         const dz = hit.z - p.y / 256;
-        aim = dx * dx + dz * dz > 0.25 ? radToAngle(Math.atan2(dz, dx)) : radToAngle(controls.camYaw);
+        // a crosshair below/behind your body would aim backwards, turn you round and swing the
+        // camera to your face: only aim at points clearly in front, else use the view heading
+        const ahead = dx * Math.cos(controls.camYaw) + dz * Math.sin(controls.camYaw);
+        aim = ahead > 1.2 ? radToAngle(Math.atan2(dz, dx)) : radToAngle(Math.atan2(ray.ray.direction.z, ray.ray.direction.x));
       } else aim = radToAngle(Math.atan2(ray.ray.direction.z, ray.ray.direction.x));
+      // never further than ~100° off the camera: the view can't flip to the front
+      {
+        let off = angleToRad(aim) - controls.camYaw;
+        off = Math.atan2(Math.sin(off), Math.cos(off));
+        if (Math.abs(off) > 1.75) aim = radToAngle(controls.camYaw + Math.sign(off) * 1.75);
+      }
       // the camera eases round to follow your aim once it's well off-centre
       let d = angleToRad(aim) - controls.camYaw;
       d = Math.atan2(Math.sin(d), Math.cos(d));

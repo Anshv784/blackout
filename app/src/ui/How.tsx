@@ -187,7 +187,7 @@ const TIMELINE: { layer: "SOLANA" | "TEE ROLLUP"; ix: string; title: string; bod
   { layer: "TEE ROLLUP", ix: "claim_room · join", title: "Players sit down", body: "join rewrites your View's permission so only your session key can read it." },
   { layer: "SOLANA", ix: "buy_ticket", title: "Staked nights only", body: "Your wallet pays the stake into the room's bank and funds your session key." },
   { layer: "TEE ROLLUP", ix: "start_match → on_seed", title: "VRF rolls the night", body: "Seed lands in the sealed World. Spawns, loot and the zone plan are derived from it." },
-  { layer: "TEE ROLLUP", ix: "tick × 1,800–4,200", title: "20 ticks a second", body: "The crank simulates the night (the host picks 1:30, 2:15 or 3:30) and writes each seat only what its flashlight hits." },
+  { layer: "TEE ROLLUP", ix: "tick × up to 6,000", title: "20 ticks a second", body: "The crank simulates the 5-minute night and writes each seat only what its flashlight hits." },
   { layer: "TEE ROLLUP", ix: "finish", title: "Lights on", body: "World + Recorder flip to public. Anyone can now replay and verify the night." },
   { layer: "SOLANA", ix: "commit → settle", title: "Magic Action settles", body: "The pot is paid to the winner's wallet and the leaderboard is updated on L1." },
 ];

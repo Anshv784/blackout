@@ -87,7 +87,9 @@ const GUNS: Part[][] = [
   ],
 ];
 
-export function Gun({ weapon, ghost = false }: { weapon: number; ghost?: boolean }) {
+export function Gun({ weapon, ghost = false, display = false }: { weapon: number; ghost?: boolean; display?: boolean }) {
+  // on a loot crate the gun is shown off: lighter steel so you can tell what it is in the dark
+  const tint = (c?: string) => (display ? (c === "#3a2a1c" ? "#8a6a48" : !c || c === "#16181e" ? "#6c727e" : "#9aa1ad") : c ?? "#0b0c10");
   const parts = GUNS[weapon] ?? GUNS[0];
   const op = ghost ? 0.35 : 1;
   return (
@@ -101,12 +103,12 @@ export function Gun({ weapon, ghost = false }: { weapon: number; ghost?: boolean
         ) : pt.cyl ? (
           <mesh key={i} position={pt.p} rotation-z={Math.PI / 2} castShadow>
             <cylinderGeometry args={[pt.s[1], pt.s[1], pt.s[0], 12]} />
-            <meshStandardMaterial color={pt.c ?? "#0b0c10"} roughness={0.35} metalness={0.85} transparent={ghost} opacity={op} />
+            <meshStandardMaterial color={tint(pt.c)} roughness={0.35} metalness={display ? 0.6 : 0.85} transparent={ghost} opacity={op} />
           </mesh>
         ) : (
           <mesh key={i} position={pt.p} rotation-z={pt.r ?? 0} castShadow>
             <boxGeometry args={pt.s} />
-            <meshStandardMaterial color={pt.c ?? "#0b0c10"} roughness={0.4} metalness={0.8} transparent={ghost} opacity={op} />
+            <meshStandardMaterial color={tint(pt.c)} roughness={0.4} metalness={display ? 0.55 : 0.8} transparent={ghost} opacity={op} />
           </mesh>
         ),
       )}

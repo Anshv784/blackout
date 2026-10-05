@@ -121,11 +121,7 @@ impl Room {
 
     /// cfg bits 11-12: match length. 0 = standard 2:15, 1 = quick 1:30, 2 = long 3:30
     pub fn match_ticks(&self) -> u32 {
-        match (self.cfg >> 11) & 3 {
-            1 => 1800,
-            2 => 4200,
-            _ => 2700,
-        }
+        6000 // one length for every night: 5:00 (cfg bits 11-12 are ignored)
     }
 
     /// Recorder stride: 10 Hz when it fits, slower for long nights (the buffer is fixed).

@@ -7,7 +7,9 @@ pub const UNIT: i32 = 256; // fixed-point units per tile
 pub const PLAYER_R: i32 = 90;
 pub const SPEED: i32 = 56; // units per tick (~4.4 tiles/s at 20 tps)
 pub const COUNTDOWN_TICKS: u32 = 60;
-pub const MATCH_TICKS: u32 = 2700; // hard cap after go
+pub const MATCH_TICKS: u32 = 6000; // every night is 5:00
+/// the zone schedule below is written for a 2:15 night and stretched to MATCH_TICKS
+pub const ZONE_BASE: u32 = 2700;
 pub const VISION_R: i32 = 10 * UNIT;
 pub const AMBIENT_R: i32 = 2 * UNIT + 64;
 pub const CONE_HALF: u32 = 7000; // ~38 degrees
@@ -376,7 +378,7 @@ pub fn seed_match(room: &mut Room, w: &mut World, seed: [u8; 32]) {
     w.start_r = 23 * UNIT;
     // the schedule is written for a 2:15 night and stretched to the length the host picked
     let k = room.match_ticks();
-    let sc = |v: u32| v * k / MATCH_TICKS;
+    let sc = |v: u32| v * k / ZONE_BASE;
     w.zone = [
         ZonePhase { reveal: sc(100), start: sc(500), end: sc(900), dmg: 2, x: c1x, y: c1y, r: 13 * UNIT, _pad: 0 },
         ZonePhase { reveal: sc(900), start: sc(1200), end: sc(1600), dmg: 4, x: c2x, y: c2y, r: 6 * UNIT, _pad: 0 },
