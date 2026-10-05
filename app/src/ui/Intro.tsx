@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { audio } from "../game/audio";
-import { INTRO_LENGTH } from "../scene/IntroScene";
+import { INTRO_LENGTH } from "../game/colors";
 
 const IntroScene = lazy(() => import("../scene/IntroScene").then((m) => ({ default: m.IntroScene })));
 

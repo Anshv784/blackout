@@ -3,7 +3,7 @@ import { useStore } from "../game/store";
 import type { Session } from "../game/session";
 import { ST_COUNTDOWN, ST_ENDED, ST_LIVE, ST_STARTING, WEAPON_NAME, FIRE_MODE } from "../chain/layout";
 import { angleToRad } from "../game/sim";
-import { SEAT_COLORS } from "../scene/Avatar";
+import { SEAT_COLORS } from "../game/colors";
 import { GameMenu, MatchClock } from "./GameMenu";
 import { onBanner, type Banner } from "../game/feel";
 import { FATIGUE_MAX } from "../game/sim";

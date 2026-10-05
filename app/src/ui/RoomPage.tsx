@@ -4,7 +4,6 @@ import { Session } from "../game/session";
 import { useStore } from "../game/store";
 import { client } from "../game/identity";
 import { ST_LOBBY, ST_STARTING, ST_COUNTDOWN, ST_LIVE, ST_ENDED, ST_REVEALED, STATUS_NAME, type Room } from "../chain/layout";
-import { GameScene } from "../scene/GameScene";
 import { Hud } from "./Hud";
 import { Reveal } from "./Reveal";
 import { TouchControls } from "./TouchControls";
@@ -19,6 +18,7 @@ import { AlreadyInRoom } from "./AlreadyInRoom";
 import { TopBar } from "./TopBar";
 import type { SeatInfo } from "../scene/LobbyStage";
 
+const GameScene = lazy(() => import("../scene/GameScene").then((m) => ({ default: m.GameScene })));
 const LobbyStage = lazy(() => import("../scene/LobbyStage").then((m) => ({ default: m.LobbyStage })));
 const Backdrop = lazy(() => import("../scene/Backdrop").then((m) => ({ default: m.Backdrop })));
 
@@ -55,7 +55,9 @@ export function RoomPage({ roomId }: { roomId: bigint }) {
   if (playing)
     return (
       <div className="game">
-        <GameScene session={session} />
+        <Suspense fallback={null}>
+          <GameScene session={session} />
+        </Suspense>
         <Hud session={session} />
         <TouchControls />
         <ChainPanel session={session} />

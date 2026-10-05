@@ -491,6 +491,34 @@
       ]
     },
     {
+      "name": "end_now",
+      "docs": [
+        "Host ends a running night early: the next tick ends it normally (placements,",
+        "lights on, replay), then the room can be closed from the verdict."
+      ],
+      "discriminator": [
+        238,
+        59,
+        61,
+        237,
+        70,
+        253,
+        202,
+        226
+      ],
+      "accounts": [
+        {
+          "name": "player",
+          "signer": true
+        },
+        {
+          "name": "room",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "fallback_seed",
       "docs": [
         "If the VRF oracle doesn't answer within ~5 s, any seated player can",

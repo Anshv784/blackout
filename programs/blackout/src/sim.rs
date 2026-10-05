@@ -35,6 +35,8 @@ pub const PING_BOUNTY: u32 = 6;
 pub const LOOT_DROP: u32 = 8;
 pub const BLACKOUT_TICKS: u32 = 200;
 pub const KILL_HEAL: u32 = 25;
+/// Room.end_tick set to this while live = the host asked to end the night now
+pub const END_REQUEST: u32 = 1;
 /// a street lamp lights a circle this wide; anyone in it is visible this far away
 pub const LAMP_R: i32 = 5 * UNIT / 2;
 pub const LAMP_SEE_R: i32 = 16 * UNIT;
@@ -856,7 +858,8 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
                 && w.players[i].alive == 1
                 && (t < IDLE_TICKS || tick.saturating_sub(w.players[i].last_input_tick) <= IDLE_TICKS)
         });
-        if room.alive_count <= 1 || t >= room.match_ticks() || (humans_in && !humans_alive) {
+        // (end_tick == END_REQUEST: the host ended the night early)
+        if room.alive_count <= 1 || t >= room.match_ticks() || (humans_in && !humans_alive) || room.end_tick == END_REQUEST {
             // rank survivors by hp+armor, then kills
             let mut survivors: [(u32, u32, usize); MAXP] = [(0, 0, 0); MAXP];
             let mut n = 0;
@@ -1223,6 +1226,23 @@ mod stats {
             }
         }
         println!("kills by gun {gun}, by zone {zone}, bullets/match {}", shots / 30);
+    }
+
+    #[test]
+    fn host_can_end_during_countdown() {
+        let mut room: Room = bytemuck::Zeroable::zeroed();
+        let mut w: World = bytemuck::Zeroable::zeroed();
+        let mut views: Vec<View> = (0..MAXP).map(|_| bytemuck::Zeroable::zeroed()).collect();
+        let mut rec_bufs: Vec<Vec<u8>> = (0..REC_CHUNKS).map(|_| vec![0u8; REC_LEN]).collect();
+        for s in 0..MAXP { room.is_bot[s] = 1; }
+        seed_match(&mut room, &mut w, [5; 32]);
+        room.end_tick = END_REQUEST;
+        for _ in 0..80 {
+            let mut refs: Vec<&mut View> = views.iter_mut().collect();
+            let mut rr: Vec<&mut [u8]> = rec_bufs.iter_mut().map(|b| &mut b[..]).collect();
+            if tick(&mut room, &mut w, &mut refs[..], &mut rr[..]).ended { break; }
+        }
+        assert_eq!(room.status, ST_ENDED, "tick {} status {}", room.tick, room.status);
     }
 
     #[test]

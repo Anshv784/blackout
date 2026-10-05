@@ -58,6 +58,19 @@ export const prefs: Prefs = (() => {
   }
 })();
 
+// the cross is the crosshair everyone starts with: reset older saved styles once
+try {
+  if (!localStorage.getItem("bo-xhair-cross")) {
+    prefs.xStyle = "cross";
+    prefs.xSize = DEFAULT_PREFS.xSize;
+    prefs.xColor = DEFAULT_PREFS.xColor;
+    localStorage.setItem("bo-xhair-cross", "1");
+    localStorage.setItem(KEY, JSON.stringify(prefs));
+  }
+} catch {
+  /* ignore */
+}
+
 const subs = new Set<() => void>();
 let version = 0;
 

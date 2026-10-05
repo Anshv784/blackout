@@ -1362,7 +1362,7 @@ button {
 .dead-stats span{font-size:10px;letter-spacing:.2em;color:var(--dim);text-transform:uppercase}
 
 /* verdict */
-.verdict{position:absolute;inset:0;z-index:20;display:grid;place-items:center;background:rgba(0,0,0,.55);backdrop-filter:blur(3px);animation:fadein .5s}
+.verdict{position:absolute;inset:0;z-index:20;display:grid;place-items:center;background:rgba(0,0,0,.7);animation:fadein .5s}
 .verdict-card{width:min(620px,calc(100vw - 32px));background:rgba(8,10,16,.92);border:1px solid var(--line);border-radius:22px;padding:30px;text-align:center;box-shadow:0 30px 80px rgba(0,0,0,.6)}
 .vc-kicker{font-family:var(--mono);font-size:11px;letter-spacing:.3em;color:var(--dim)}
 .verdict-card h1{font-size:clamp(38px,6vw,64px);margin:12px 0 6px;letter-spacing:.04em}
@@ -1468,7 +1468,7 @@ button {
 
 .exit-room{position:absolute;top:74px;left:20px;z-index:6;background:rgba(10,12,20,.85);border:1px solid var(--line);color:var(--fg);font-family:inherit;font-weight:700;letter-spacing:.12em;font-size:12px;padding:9px 14px;border-radius:10px;cursor:pointer}
 .exit-room:hover{border-color:#ff7a90;color:#ff7a90}
-.room-closed{position:absolute;inset:0;z-index:20;display:grid;place-items:center;background:rgba(0,0,0,.65);backdrop-filter:blur(4px)}
+.room-closed{position:absolute;inset:0;z-index:20;display:grid;place-items:center;background:rgba(0,0,0,.78)}
 .room-closed-card{width:min(460px,calc(100vw - 32px));background:rgba(8,10,16,.95);border:1px solid var(--line);border-radius:20px;padding:28px;text-align:center;display:flex;flex-direction:column;gap:12px}
 .room-closed-card h2{margin:0}
 .room-closed-card p{margin:0;color:#aab2c6}
@@ -1510,7 +1510,7 @@ button {
 @media (max-width:640px){.game-tools{top:auto;bottom:250px}.game-tools button i{display:none}}
 
 /* ---- overlays (map, settings, exit) ---- */
-.menu-overlay{position:fixed;inset:0;z-index:60;display:grid;place-items:center;background:rgba(2,3,6,.62);backdrop-filter:blur(3px);pointer-events:auto;cursor:default;padding:16px;animation:fadein .15s}
+.menu-overlay{position:fixed;inset:0;z-index:60;display:grid;place-items:center;background:rgba(2,3,6,.78);pointer-events:auto;cursor:default;padding:16px;animation:fadein .15s}
 .menu-head{display:flex;align-items:baseline;gap:12px;margin-bottom:14px}
 .menu-head h3{margin:0;font-size:15px;letter-spacing:.24em;color:var(--gold)}
 .menu-head span{color:var(--dim);font-size:12px;flex:1}

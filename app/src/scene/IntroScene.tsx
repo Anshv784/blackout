@@ -8,7 +8,8 @@ import { Avatar, SEAT_COLORS } from "./Avatar";
 import { SPAWNS } from "../game/gen";
 import { audio } from "../game/audio";
 
-export const INTRO_LENGTH = 38;
+import { INTRO_LENGTH } from "../game/colors";
+export { INTRO_LENGTH };
 
 // camera keyframes: [time, pos, lookAt]
 const KEYS: [number, [number, number, number], [number, number, number]][] = [

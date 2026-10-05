@@ -282,12 +282,11 @@ function Crate({ kind }: { kind: number }) {
       {/* glow on the ground so it reads in the dark */}
       <mesh rotation-x={-Math.PI / 2} position={[0, 0.025, 0]}>
         <ringGeometry args={[0.46, 0.56, 40]} />
-        <meshBasicMaterial color={c} transparent opacity={0.55} toneMapped={false} blending={THREE.AdditiveBlending} depthWrite={false} />
+        <meshBasicMaterial color={c} transparent opacity={0.85} toneMapped={false} blending={THREE.AdditiveBlending} depthWrite={false} />
       </mesh>
-      <pointLight position={[0, 0.7, 0]} intensity={1.3} distance={2.4} decay={1.6} color={c} />
       {kind === 1 && (
         <group position={[0, 0.17, 0]}>
-          <mesh castShadow>
+          <mesh>
             <boxGeometry args={[0.52, 0.32, 0.38]} />
             <meshStandardMaterial color="#e9ecef" roughness={0.45} />
           </mesh>
@@ -315,7 +314,7 @@ function Crate({ kind }: { kind: number }) {
       )}
       {kind === 2 && (
         <group position={[0, 0.16, 0]}>
-          <mesh castShadow>
+          <mesh>
             <boxGeometry args={[0.58, 0.3, 0.44]} />
             <meshStandardMaterial color="#33402f" roughness={0.8} />
           </mesh>
@@ -324,7 +323,7 @@ function Crate({ kind }: { kind: number }) {
             <meshStandardMaterial color="#4cc9f0" emissive="#4cc9f0" emissiveIntensity={1.4} toneMapped={false} />
           </mesh>
           {/* the vest folded on the lid */}
-          <mesh position={[0, 0.2, 0]} castShadow>
+          <mesh position={[0, 0.2, 0]}>
             <boxGeometry args={[0.36, 0.09, 0.3]} />
             <meshStandardMaterial color="#20262f" roughness={0.7} />
           </mesh>
@@ -336,7 +335,7 @@ function Crate({ kind }: { kind: number }) {
       )}
       {kind === 8 && (
         <group position={[0, 0.3, 0]}>
-          <mesh castShadow>
+          <mesh>
             <boxGeometry args={[0.85, 0.6, 0.85]} />
             <meshStandardMaterial color="#c9ccd1" roughness={0.6} metalness={0.3} />
           </mesh>
@@ -354,11 +353,11 @@ function Crate({ kind }: { kind: number }) {
       )}
       {kind === 5 && (
         <group>
-          <mesh position={[0, 0.06, 0]} castShadow>
+          <mesh position={[0, 0.06, 0]}>
             <boxGeometry args={[0.34, 0.12, 0.34]} />
             <meshStandardMaterial color="#2b2d33" roughness={0.7} />
           </mesh>
-          <mesh position={[0, 0.36, 0]} castShadow>
+          <mesh position={[0, 0.36, 0]}>
             <cylinderGeometry args={[0.08, 0.08, 0.46, 16]} />
             <meshStandardMaterial color="#ff7b2e" roughness={0.5} />
           </mesh>
@@ -371,7 +370,7 @@ function Crate({ kind }: { kind: number }) {
       {gun !== undefined && (
         <group>
           {/* weapon case */}
-          <mesh position={[0, 0.1, 0]} castShadow>
+          <mesh position={[0, 0.1, 0]}>
             <boxGeometry args={[1.05, 0.2, 0.4]} />
             <meshStandardMaterial color="#3d4630" roughness={0.75} metalness={0.15} />
           </mesh>
@@ -523,8 +522,8 @@ function Fx({ session }: { session: Session }) {
       mat.color.set(PING_COLORS[f.sub ?? 1]);
       mat.opacity = 0.85 * (1 - age);
     }
-    const shots = session.fx.filter((f) => f.kind === "shot" && now - f.at < 120).slice(-6);
-    for (let i = 0; i < 6; i++) {
+    const shots = session.fx.filter((f) => f.kind === "shot" && now - f.at < 120).slice(-3);
+    for (let i = 0; i < 3; i++) {
       const l = flashes.current[i];
       if (!l) continue;
       const f = shots[i];
@@ -545,7 +544,7 @@ function Fx({ session }: { session: Session }) {
           <meshBasicMaterial transparent opacity={0} toneMapped={false} side={THREE.DoubleSide} />
         </mesh>
       ))}
-      {Array.from({ length: 6 }, (_, i) => (
+      {Array.from({ length: 3 }, (_, i) => (
         <pointLight key={i} ref={(el) => (flashes.current[i] = el)} color="#ffb347" intensity={0} distance={4} decay={1.5} />
       ))}
     </>

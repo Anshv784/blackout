@@ -45,7 +45,7 @@ pub const ACTION_ESCROW_INDEX: u8 = 255;
 pub const ADMIN: Pubkey = pubkey!("9Sg12k15Ann4SKSxcA85bq5fbpq7WMLH9bLCTUbTRkQV");
 pub const COMPUTE_BUDGET_PROGRAM: Pubkey = pubkey!("ComputeBudget111111111111111111111111111111");
 pub const TICK_MS: i64 = 50;
-pub const TICK_ITERATIONS: i64 = 3300;
+pub const TICK_ITERATIONS: i64 = 6600; // a full 5:00 night (6,000 ticks) + countdown, with headroom
 pub const MIN_TICK_SLOTS: u64 = 4;
 /// core | 5 recorder chunks | 8 views
 pub const READY_ALL: u32 = 1 | (0b11111 << 1) | (0xff << 8); // ER slots are ~10 ms; never tick faster than 40 ms
@@ -500,6 +500,16 @@ pub mod blackout {
         require!(room.status == ST_LOBBY, BlackoutError::NotInLobby);
         require!(room.host == ctx.accounts.player.key(), BlackoutError::NotHost);
         room.cfg = (room.cfg & !(3 << 9)) | ((level as u32 & 3).min(2) << 9);
+        Ok(())
+    }
+
+    /// Host ends a running night early: the next tick ends it normally (placements,
+    /// lights on, replay), then the room can be closed from the verdict.
+    pub fn end_now(ctx: Context<Heartbeat>) -> Result<()> {
+        let mut room = ctx.accounts.room.load_mut()?;
+        require!(room.status == ST_LIVE || room.status == ST_COUNTDOWN, BlackoutError::NotInLobby);
+        require!(room.host == ctx.accounts.player.key(), BlackoutError::NotHost);
+        room.end_tick = crate::sim::END_REQUEST;
         Ok(())
     }
 

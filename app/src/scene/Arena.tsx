@@ -1,5 +1,5 @@
 import { useMemo, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { MAP_ROWS, LOOT_SPOTS, LAMPS, MAP_W, MAP_H, WALL_CHARS } from "../game/gen";
 
@@ -355,18 +355,30 @@ function floorTexture() {
 
 /** Street lamps: a post, a warm glow on the ground, dark during the blackout. */
 function Lamps() {
+  // every lamp head glows, but only the 6 nearest the camera cast real light: a fixed number
+  // of lights (no shader recompiles) and far fewer per-pixel light loops
+  const N = 6;
   const lights = useRef<(THREE.PointLight | null)[]>([]);
   const heads = useRef<(THREE.MeshBasicMaterial | null)[]>([]);
+  const { camera } = useThree();
   useFrame(() => {
     const out = (globalThis as any).__boLightsOut === true;
-    lights.current.forEach((l) => l && (l.intensity = out ? 0 : 7));
+    const near = LAMPS.map(([x, y], i) => [(x + 0.5 - camera.position.x) ** 2 + (y + 0.5 - camera.position.z) ** 2, i] as const)
+      .sort((a, b) => a[0] - b[0])
+      .slice(0, N);
+    near.forEach(([, li], k) => {
+      const l = lights.current[k];
+      if (!l) return;
+      l.position.set(LAMPS[li][0] + 0.5, 3, LAMPS[li][1] + 0.5);
+      l.intensity = out ? 0 : 7;
+    });
     heads.current.forEach((m) => m && m.color.set(out ? "#222" : "#ffd89a"));
   });
   return (
     <>
       {LAMPS.map(([x, y], i) => (
         <group key={i} position={[x + 0.5, 0, y + 0.5]}>
-          <mesh position={[0, 1.6, 0]} castShadow>
+          <mesh position={[0, 1.6, 0]}>
             <cylinderGeometry args={[0.05, 0.07, 3.2, 8]} />
             <meshStandardMaterial color="#2a2d33" metalness={0.7} roughness={0.4} />
           </mesh>
@@ -374,8 +386,10 @@ function Lamps() {
             <boxGeometry args={[0.36, 0.1, 0.22]} />
             <meshBasicMaterial ref={(m) => (heads.current[i] = m)} color="#ffd89a" toneMapped={false} />
           </mesh>
-          <pointLight ref={(l) => (lights.current[i] = l)} position={[0, 3, 0]} color="#ffc777" intensity={7} distance={6.5} decay={1.4} />
         </group>
+      ))}
+      {Array.from({ length: N }, (_, k) => (
+        <pointLight key={k} ref={(l) => (lights.current[k] = l)} color="#ffc777" intensity={7} distance={6.5} decay={1.4} />
       ))}
     </>
   );
@@ -405,7 +419,7 @@ function Towers({ boxes }: { boxes: WallBox[] }) {
           <group key={i} position={[cx, 0, cz]}>
             {[-0.8, 0.8].flatMap((dx) =>
               [-0.8, 0.8].map((dz) => (
-                <mesh key={`${dx}${dz}`} position={[dx, water ? 2.6 : 2.2, dz]} castShadow>
+                <mesh key={`${dx}${dz}`} position={[dx, water ? 2.6 : 2.2, dz]}>
                   <boxGeometry args={[0.14, water ? 5.2 : 4.4, 0.14]} />
                   <meshStandardMaterial color="#3a3d44" metalness={0.6} roughness={0.5} />
                 </mesh>

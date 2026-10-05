@@ -5,10 +5,11 @@ import type { Room } from "../chain/layout";
 import { ST_LIVE } from "../chain/layout";
 import { angleToRad, COUNTDOWN_TICKS, matchTicks, zoneSchedule } from "../game/sim";
 import { MAP_ROWS, MAP_W, WALL_CHARS, LAMPS } from "../game/gen";
-import { SEAT_COLORS } from "../scene/Avatar";
+import { SEAT_COLORS } from "../game/colors";
 import { controls, setLaser, setSetting, toggleView } from "../game/controls";
 import { DEFAULT_PREFS, resetPrefs, setPref, usePrefs } from "../game/prefs";
 import { audio } from "../game/audio";
+import { client } from "../game/identity";
 
 
 const mmss = (ticks: number) => {
@@ -392,12 +393,32 @@ function Settings({ onClose }: { onClose: () => void }) {
   );
 }
 
-function ExitConfirm({ onClose }: { onClose: () => void }) {
+function ExitConfirm({ onClose, session, host }: { onClose: () => void; session: Session; host: boolean }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const endAndClose = async () => {
+    if (document.pointerLockElement) document.exitPointerLock();
+    try {
+      await session.endAndClose(setBusy);
+    } catch {
+      /* close anyway */
+    }
+    window.location.hash = "/";
+  };
   return (
-    <div className="menu-overlay" onPointerDown={(e) => e.stopPropagation()} onClick={onClose}>
+    <div className="menu-overlay" onPointerDown={(e) => e.stopPropagation()} onClick={() => !busy && onClose()}>
       <div className="exit-card" onClick={(e) => e.stopPropagation()}>
-        <h3>Leave the night?</h3>
-        <p>You'll vanish from the Yard and count as eliminated.</p>
+        <h3>{host ? "Leave or end the night?" : "Leave the night?"}</h3>
+        <p>
+          {host
+            ? "Leaving only takes you out. As the host you can also end the night for everyone and close the room."
+            : "You'll vanish from the Yard and count as eliminated."}
+        </p>
+        {busy && <p className="dim">{busy}</p>}
+        {host && (
+          <button className="btn danger wide" disabled={!!busy} onClick={endAndClose} style={{ marginBottom: 10 }}>
+            {busy ? "CLOSING…" : "END NIGHT & CLOSE ROOM"}
+          </button>
+        )}
         <div className="row">
           <button className="btn" onClick={onClose}>
             STAY
@@ -419,7 +440,23 @@ function ExitConfirm({ onClose }: { onClose: () => void }) {
 
 /** Top-right toolbar plus the overlays it opens. */
 export function GameMenu({ session, room }: { session: Session; room: Room }) {
-  const [open, setOpen] = useState<null | "map" | "settings" | "exit">(null);
+  const [open, setOpenRaw] = useState<null | "map" | "settings" | "exit">(null);
+  const openRef = useRef(open);
+  // closing a menu is a click or key press, so the browser lets us take the mouse back
+  // straight away: you're back in the game without an extra click
+  const setOpen = (next: null | "map" | "settings" | "exit" | ((o: typeof open) => typeof open)) => {
+    const v = typeof next === "function" ? next(openRef.current) : next;
+    if (openRef.current && !v && controls.view === "chase") {
+      const c = document.querySelector(".game canvas") as HTMLCanvasElement | null;
+      try {
+        (c?.requestPointerLock?.() as any)?.catch?.(() => {});
+      } catch {
+        /* the browser may refuse right after Esc: the click-to-play prompt covers it */
+      }
+    }
+    openRef.current = v;
+    setOpenRaw(v);
+  };
   const [muted, setMuted] = useState(audio.muted);
   useEffect(() => {
     const off = audio.onMute(setMuted);
@@ -485,7 +522,7 @@ export function GameMenu({ session, room }: { session: Session; room: Room }) {
       </div>
       {open === "map" && <MapOverlay session={session} room={room} onClose={() => setOpen(null)} />}
       {open === "settings" && <Settings onClose={() => setOpen(null)} />}
-      {open === "exit" && <ExitConfirm onClose={() => setOpen(null)} />}
+      {open === "exit" && <ExitConfirm onClose={() => setOpen(null)} session={session} host={room.host.equals(client.publicKey)} />}
     </>
   );
 }

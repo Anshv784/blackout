@@ -1,7 +1,8 @@
 import { forwardRef } from "react";
 import * as THREE from "three";
 
-export const SEAT_COLORS = ["#ffd166", "#ef476f", "#06d6a0", "#4cc9f0", "#c77dff", "#ff8c42", "#90e0ef", "#f15bb5"];
+import { SEAT_COLORS } from "../game/colors";
+export { SEAT_COLORS };
 
 /** Low-poly operative. Faces +x in its local frame; rotate around Y to aim. */
 export const Avatar = forwardRef<THREE.Group, { color: string; weapon?: number; me?: boolean; ghost?: boolean }>(
@@ -101,12 +102,12 @@ export function Gun({ weapon, ghost = false, display = false }: { weapon: number
             <meshBasicMaterial color={pt.glow} toneMapped={false} transparent={ghost} opacity={op} />
           </mesh>
         ) : pt.cyl ? (
-          <mesh key={i} position={pt.p} rotation-z={Math.PI / 2} castShadow>
+          <mesh key={i} position={pt.p} rotation-z={Math.PI / 2}>
             <cylinderGeometry args={[pt.s[1], pt.s[1], pt.s[0], 12]} />
             <meshStandardMaterial color={tint(pt.c)} roughness={0.35} metalness={display ? 0.6 : 0.85} transparent={ghost} opacity={op} />
           </mesh>
         ) : (
-          <mesh key={i} position={pt.p} rotation-z={pt.r ?? 0} castShadow>
+          <mesh key={i} position={pt.p} rotation-z={pt.r ?? 0}>
             <boxGeometry args={pt.s} />
             <meshStandardMaterial color={tint(pt.c)} roughness={0.4} metalness={display ? 0.55 : 0.8} transparent={ghost} opacity={op} />
           </mesh>

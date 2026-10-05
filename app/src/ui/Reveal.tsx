@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../game/store";
 import type { Session } from "../game/session";
-import { ReplayScene, type ReplayCtl } from "../scene/ReplayScene";
-import { SEAT_COLORS } from "../scene/Avatar";
+import { lazy, Suspense } from "react";
+import type { ReplayCtl } from "../scene/ReplayScene";
+const ReplayScene = lazy(() => import("../scene/ReplayScene").then((m) => ({ default: m.ReplayScene })));
+import { SEAT_COLORS } from "../game/colors";
 import { roomPda, worldPda, recPda } from "../chain/client";
 import { explorerAddr, roomLink } from "../config";
 import { audio } from "../game/audio";
@@ -191,7 +193,9 @@ export function Reveal({ session }: { session: Session }) {
   return (
     <div className="reveal">
       {rec ? (
-        <ReplayScene rec={rec} room={room} world={world} me={pov} ctl={ctl} onTime={setT} follow={follow} />
+        <Suspense fallback={null}>
+          <ReplayScene rec={rec} room={room} world={world} me={pov} ctl={ctl} onTime={setT} follow={follow} />
+        </Suspense>
       ) : (
         <div className="center-screen">
           <div className="spinner" />

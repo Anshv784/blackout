@@ -1,6 +1,6 @@
 // One live room: subscriptions, input sending, client prediction, interpolation,
 // and the "anyone can push the room forward" duties (tick/seed/finish fallbacks).
-import { PublicKey } from "@solana/web3.js";
+import { ComputeBudgetProgram, PublicKey } from "@solana/web3.js";
 import { client } from "./identity";
 import { ticketPda } from "../chain/client";
 import { useStore } from "./store";
@@ -543,7 +543,8 @@ export class Session {
     }
     // crank fallback: if the 20 Hz crank stalls, clients tick (slot-gated on chain)
     if ((r.status === ST_LIVE || r.status === ST_COUNTDOWN) && now - this.lastRoomTickAt > 700) {
-      client.sendEr([client.tickIx(this.roomId)], { confirm: false }).catch(() => {});
+      // same compute budget as the crank: a live tick (vision for 8 seats) needs far more than the default
+      client.sendEr([ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 }), client.tickIx(this.roomId)], { confirm: false }).catch(() => {});
     }
     // VRF fallback after ~6 s
     if (r.status === ST_STARTING && this.startingSince && now - this.startingSince > 6500 && (now | 0) % 1000 < 110) {
@@ -616,6 +617,22 @@ export class Session {
   async kick(seat: number, newCode = 0) {
     await client.sendEr([client.kickIx(this.roomId, seat, newCode)]);
     await this.poll();
+  }
+
+  /** Host: end the night now, wait for the lights to come on, then close the room for everyone. */
+  async endAndClose(onStep?: (s: string) => void) {
+    onStep?.("ending the night…");
+    await client.sendEr([client.endNowIx(this.roomId)]);
+    const seat = this.mySeat;
+    const t0 = performance.now();
+    while (performance.now() - t0 < 30000) {
+      await this.poll();
+      if (this.room?.status === ST_REVEALED) break;
+      if (this.room?.status === ST_ENDED) onStep?.("turning the lights on…");
+      await new Promise((r) => setTimeout(r, 700));
+    }
+    onStep?.("closing the room…");
+    if (seat !== null) await this.closeFromReveal(seat, true);
   }
 
   async setLength(level: number) {
