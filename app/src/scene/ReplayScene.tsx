@@ -3,6 +3,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Html, OrbitControls } from "@react-three/drei";
 import { EffectComposer, Bloom, Vignette } from "@react-three/postprocessing";
 import * as THREE from "three";
+import { MAP_W } from "../game/gen";
 import { Arena } from "./Arena";
 import { Avatar, SEAT_COLORS, aimToRotY } from "./Avatar";
 import type { Recording, Room, World } from "../chain/layout";
@@ -52,9 +53,9 @@ function wouldSee(me: { x: number; y: number; aim: number; flare: boolean }, o: 
 function zoneAt(world: World | null, tick: number) {
   if (!world) return null;
   const t = Math.max(0, tick - 60);
-  let x = 16 * 256;
-  let y = 16 * 256;
-  let r = 23 * 256;
+  let x = (MAP_W / 2) * 256;
+  let y = (MAP_W / 2) * 256;
+  let r = 35 * 256;
   for (const ph of world.zone) {
     if (t < ph.start) break;
     if (t >= ph.end || ph.end === ph.start) {
@@ -244,7 +245,7 @@ export function ReplayScene({
     <Canvas
       shadows
       dpr={[1, 1.75]}
-      camera={{ fov: 46, position: [16, 34, 34], near: 0.1, far: 150 }}
+      camera={{ fov: 46, position: [MAP_W / 2, 48, MAP_W / 2 + 26], near: 0.1, far: 200 }}
       gl={{ antialias: true, preserveDrawingBuffer: true }}
       onCreated={({ gl }) => {
         gl.toneMapping = THREE.ACESFilmicToneMapping;
@@ -257,7 +258,7 @@ export function ReplayScene({
       <Players rec={rec} room={room} me={me} ctl={ctl} />
       <ZoneRing world={world} ctl={ctl} rec={rec} />
       <Driver rec={rec} me={me} ctl={ctl} onTime={onTime} />
-      <OrbitControls target={[16, 0, 16]} enabled={!follow} maxPolarAngle={1.35} />
+      <OrbitControls target={[MAP_W / 2, 0, MAP_W / 2]} enabled={!follow} maxPolarAngle={1.35} />
       <EffectComposer multisampling={0}>
         <Bloom intensity={0.9} luminanceThreshold={0.3} mipmapBlur />
         <Vignette offset={0.2} darkness={0.75} />

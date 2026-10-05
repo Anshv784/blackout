@@ -4,7 +4,7 @@ import type { Session } from "../game/session";
 import type { Room } from "../chain/layout";
 import { ST_LIVE } from "../chain/layout";
 import { angleToRad, COUNTDOWN_TICKS, matchTicks, zoneSchedule } from "../game/sim";
-import { MAP_ROWS } from "../game/gen";
+import { MAP_ROWS, MAP_W, WALL_CHARS, LAMPS } from "../game/gen";
 import { SEAT_COLORS } from "../scene/Avatar";
 import { controls, setLaser, setSetting, toggleView } from "../game/controls";
 import { DEFAULT_PREFS, resetPrefs, setPref, usePrefs } from "../game/prefs";
@@ -48,7 +48,8 @@ export function drawMap(c: HTMLCanvasElement, session: Session, big: boolean) {
   const r = session.room;
   if (!r) return;
   const g = c.getContext("2d")!;
-  const s = c.width / 32;
+  const s = c.width / MAP_W;
+  const cellT = MAP_W / 8; // tiles per grid square
   const px = (v: number) => (v / 256) * s;
   g.clearRect(0, 0, c.width, c.height);
   g.fillStyle = big ? "rgba(5,6,10,0.92)" : "rgba(5,6,10,0.75)";
@@ -58,21 +59,46 @@ export function drawMap(c: HTMLCanvasElement, session: Session, big: boolean) {
     g.lineWidth = 1;
     for (let i = 1; i < 8; i++) {
       g.beginPath();
-      g.moveTo(i * 4 * s, 0);
-      g.lineTo(i * 4 * s, c.height);
-      g.moveTo(0, i * 4 * s);
-      g.lineTo(c.width, i * 4 * s);
+      g.moveTo(i * cellT * s, 0);
+      g.lineTo(i * cellT * s, c.height);
+      g.moveTo(0, i * cellT * s);
+      g.lineTo(c.width, i * cellT * s);
       g.stroke();
     }
     g.fillStyle = "rgba(255,255,255,0.28)";
     g.font = `${Math.round(s * 0.7)}px ui-monospace, monospace`;
     for (let i = 0; i < 8; i++) {
-      g.fillText("ABCDEFGH"[i], i * 4 * s + s * 0.3, s * 0.9);
-      g.fillText(String(i + 1), s * 0.3, i * 4 * s + s * 1.9);
+      g.fillText("ABCDEFGH"[i], i * cellT * s + s * 0.3, s * 0.9);
+      g.fillText(String(i + 1), s * 0.3, i * cellT * s + s * 1.9);
     }
   }
   g.fillStyle = "#273454";
-  for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) if (MAP_ROWS[y][x] === "#") g.fillRect(x * s, y * s, s, s);
+  // ground and walls by type: roads, field, buildings, containers, fences
+  const TILE: Record<string, string> = { "=": "#1c1f27", ",": "#2a2618", _: "#232733", "#": "#273454", C: "#3b5a7a", B: "#5a5f72", T: "#7d8496", F: "#4b5566", K: "#6b5234" };
+  for (let y = 0; y < MAP_W; y++)
+    for (let x = 0; x < MAP_W; x++) {
+      const col = TILE[MAP_ROWS[y][x]];
+      if (!col || (!big && !WALL_CHARS.includes(MAP_ROWS[y][x]))) continue;
+      g.fillStyle = col;
+      g.fillRect(x * s, y * s, s, s);
+    }
+  if (big) {
+    g.fillStyle = "#ffc777";
+    for (const [lx, ly] of LAMPS) {
+      g.beginPath();
+      g.arc((lx + 0.5) * s, (ly + 0.5) * s, s * 0.35, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.font = `${Math.round(s * 1.1)}px ui-monospace, monospace`;
+    g.fillStyle = "rgba(255,255,255,0.35)";
+    for (const [tx, ty, label] of [[4, 21, "YARD"], [31, 3, "WAREHOUSE"], [3, 28, "OFFICES"], [30, 31, "FIELD"]] as const) g.fillText(label, tx * s, ty * s);
+  }
+  // supply drop
+  const dr = session.drop;
+  if (dr && performance.now() - dr.at < 4000) {
+    g.fillStyle = "#ff3b3b";
+    g.fillRect(px(dr.x) - (big ? 6 : 3), px(dr.y) - (big ? 6 : 3), big ? 12 : 6, big ? 12 : 6);
+  }
   // outside the zone is poison: tint it
   g.save();
   g.fillStyle = "rgba(166,77,255,0.16)";
@@ -158,7 +184,7 @@ function MapOverlay({ session, room, onClose }: { session: Session; room: Room; 
   }, [session]);
   const p = session.myPos();
   const outside = p && Math.hypot(p.x - room.zone.x, p.y - room.zone.y) > room.zone.r;
-  const cell = p ? `${"ABCDEFGH"[Math.min(7, Math.floor(p.x / 256 / 4))]}${Math.min(8, Math.floor(p.y / 256 / 4) + 1)}` : "—";
+  const cell = p ? `${"ABCDEFGH"[Math.min(7, Math.floor(p.x / 256 / (MAP_W / 8)))]}${Math.min(8, Math.floor(p.y / 256 / (MAP_W / 8)) + 1)}` : "—";
   return (
     <div className="menu-overlay" onPointerDown={(e) => e.stopPropagation()} onClick={onClose}>
       <div className="map-card" onClick={(e) => e.stopPropagation()}>
@@ -289,7 +315,6 @@ function Settings({ onClose }: { onClose: () => void }) {
                 {toggle("Invert vertical aim", p.invertY, (v) => setPref("invertY", v))}
                 {range("Turn speed (Q / E)", p.turnSpeed, 0.4, 2.5, 0.1, (v) => setPref("turnSpeed", v), (v) => `${v.toFixed(1)}×`)}
                 {choice("Arrow keys", p.arrows, [["move", "Move"], ["camera", "Turn camera"]], (v) => setPref("arrows", v))}
-                {toggle("Camera follows aim", p.autoTurn, (v) => setPref("autoTurn", v), "swings round when you aim off to the side")}
                 <div className="set-keys">
                   <span><b>W A S D</b> move</span>
                   <span><b>Shift</b> sprint (loud)</span>

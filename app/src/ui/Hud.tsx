@@ -10,7 +10,7 @@ import { FATIGUE_MAX } from "../game/sim";
 import { controls } from "../game/controls";
 
 const MAX_MAG = [10, 30, 5, 30, 5];
-const PING_GLYPH = ["", "👣", "💥", "✦", "⟳"];
+const PING_GLYPH = ["", "👣", "💥", "✦", "⟳", "📦", "🎯"];
 
 export function Hud({ session }: { session: Session }) {
   const room = useStore((s) => s.room);
@@ -156,6 +156,7 @@ export function Hud({ session }: { session: Session }) {
 
       {me.alive && me.hp <= 35 && room.status === ST_LIVE && <div className="low-hp" style={{ ["--k" as any]: String(1 - me.hp / 35) }} />}
       <Banners />
+      {me.alive && (room.status === ST_LIVE || room.status === ST_COUNTDOWN) && <ClickToPlay />}
       <div className="hud-health">
         <Stamina session={session} />
         {me.armor > 0 && (
@@ -251,6 +252,8 @@ function Compass({ session }: { session: Session }) {
   const strip = useRef<HTMLDivElement>(null);
   const zone = useRef<HTMLElement>(null);
   const deg = useRef<HTMLElement>(null);
+  const dropM = useRef<HTMLElement>(null);
+  const bountyM = useRef<HTMLElement>(null);
   const PX = 4; // pixels per degree
   useEffect(() => {
     let raf = 0;
@@ -271,6 +274,21 @@ function Compass({ session }: { session: Session }) {
         zone.current.style.opacity = far && Math.abs(d) < 58 ? "1" : "0";
         zone.current.style.transform = `translateX(${d * PX}px)`;
       }
+      const mark = (el: HTMLElement | null, bearing: number | null) => {
+        if (!el) return;
+        if (bearing === null) {
+          el.style.opacity = "0";
+          return;
+        }
+        const dd = ((bearing - b + 540) % 360) - 180;
+        el.style.opacity = Math.abs(dd) < 58 ? "1" : "0";
+        el.style.transform = `translateX(${dd * PX}px)`;
+      };
+      const now = performance.now();
+      const dr = session.drop;
+      mark(dropM.current, dr && p && now - dr.at < 4000 ? bearingOf(Math.atan2(dr.y - p.y, dr.x - p.x)) : null);
+      const bo = session.bounty;
+      mark(bountyM.current, bo && now - bo.at < 6000 ? bearingOf((bo.angle / 65536) * Math.PI * 2) : null);
     };
     loop();
     return () => cancelAnimationFrame(raf);
@@ -292,8 +310,32 @@ function Compass({ session }: { session: Session }) {
           {marks}
         </div>
         <em className="cmp-zone" ref={zone} title="next safe zone" />
+        <em className="cmp-drop" ref={dropM} title="supply drop" />
+        <em className="cmp-bounty" ref={bountyM} title="kill leader" />
       </div>
       <b className="cmp-deg" ref={deg}>000</b>
+    </div>
+  );
+}
+
+/** Third person needs the mouse captured: say so whenever it isn't. */
+function ClickToPlay() {
+  const [locked, setLocked] = useState(!!document.pointerLockElement);
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const f = () => setLocked(!!document.pointerLockElement);
+    document.addEventListener("pointerlockchange", f);
+    const t = setInterval(() => tick((x) => x + 1), 500); // follows view / menu changes
+    return () => {
+      document.removeEventListener("pointerlockchange", f);
+      clearInterval(t);
+    };
+  }, []);
+  if (locked || controls.view !== "chase" || controls.menu || matchMedia("(pointer:coarse)").matches) return null;
+  return (
+    <div className="click-to-play">
+      <b>CLICK TO PLAY</b>
+      <small>mouse turns · WASD moves · click fire · right-click aim · Shift sprint · Esc menu</small>
     </div>
   );
 }

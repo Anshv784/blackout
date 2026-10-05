@@ -28,6 +28,25 @@ pub const PING_STEP: u32 = 1;
 pub const PING_SHOT: u32 = 2;
 pub const PING_LOOT: u32 = 3;
 pub const PING_RELOAD: u32 = 4;
+/// a supply drop is down: everyone hears where (until someone opens it)
+pub const PING_DROP: u32 = 5;
+/// direction to the kill leader, sent to everyone else every 5 s
+pub const PING_BOUNTY: u32 = 6;
+pub const LOOT_DROP: u32 = 8;
+pub const BLACKOUT_TICKS: u32 = 200;
+pub const KILL_HEAL: u32 = 25;
+/// a street lamp lights a circle this wide; anyone in it is visible this far away
+pub const LAMP_R: i32 = 5 * UNIT / 2;
+pub const LAMP_SEE_R: i32 = 16 * UNIT;
+
+/// Night events, as fractions of the night: two supply drops and one blackout.
+pub fn drop_ticks(room: &Room) -> [u32; 2] {
+    let m = room.match_ticks();
+    [m * 3 / 10, m * 62 / 100]
+}
+pub fn blackout_tick(room: &Room) -> u32 {
+    room.match_ticks() / 2
+}
 
 pub const LOOT_MEDKIT: u32 = 1;
 pub const LOOT_ARMOR: u32 = 2;
@@ -336,7 +355,7 @@ pub fn seed_match(room: &mut Room, w: &mut World, seed: [u8; 32]) {
         p.hp = 100;
         p.weapon = W_PISTOL;
         p.mag = WEAPONS[0].mag;
-        p.aim = atan2(16 * UNIT - sy, 16 * UNIT - sx);
+        p.aim = atan2((MAP_W / 2) * UNIT - sy, (MAP_W / 2) * UNIT - sx);
         w.bots[seat].sweep = rng_range(w, -4000, 4000);
         w.bots[seat].strafe = if rng_next(w) & 1 == 0 { 1 } else { -1 };
     }
@@ -366,24 +385,26 @@ pub fn seed_match(room: &mut Room, w: &mut World, seed: [u8; 32]) {
     }
 
     // zone plan, also sealed until each phase is announced
-    let c = 16 * UNIT;
-    let c1x = c + rng_range(w, -5 * UNIT, 5 * UNIT);
-    let c1y = c + rng_range(w, -5 * UNIT, 5 * UNIT);
-    let c2x = (c1x + rng_range(w, -4 * UNIT, 4 * UNIT)).clamp(7 * UNIT, 25 * UNIT);
-    let c2y = (c1y + rng_range(w, -4 * UNIT, 4 * UNIT)).clamp(7 * UNIT, 25 * UNIT);
-    let c3x = (c2x + rng_range(w, -UNIT * 3 / 2, UNIT * 3 / 2)).clamp(7 * UNIT, 25 * UNIT);
-    let c3y = (c2y + rng_range(w, -UNIT * 3 / 2, UNIT * 3 / 2)).clamp(7 * UNIT, 25 * UNIT);
+    // (mirrored in app/src/game/verify.ts)
+    let c = (MAP_W / 2) * UNIT;
+    let (lo, hi) = (9 * UNIT, (MAP_W - 9) * UNIT);
+    let c1x = c + rng_range(w, -7 * UNIT, 7 * UNIT);
+    let c1y = c + rng_range(w, -7 * UNIT, 7 * UNIT);
+    let c2x = (c1x + rng_range(w, -6 * UNIT, 6 * UNIT)).clamp(lo, hi);
+    let c2y = (c1y + rng_range(w, -6 * UNIT, 6 * UNIT)).clamp(lo, hi);
+    let c3x = (c2x + rng_range(w, -UNIT * 2, UNIT * 2)).clamp(lo, hi);
+    let c3y = (c2y + rng_range(w, -UNIT * 2, UNIT * 2)).clamp(lo, hi);
     w.start_x = c;
     w.start_y = c;
-    w.start_r = 23 * UNIT;
+    w.start_r = 35 * UNIT;
     // the schedule is written for a 2:15 night and stretched to the length the host picked
     let k = room.match_ticks();
     let sc = |v: u32| v * k / ZONE_BASE;
     w.zone = [
-        ZonePhase { reveal: sc(100), start: sc(500), end: sc(900), dmg: 2, x: c1x, y: c1y, r: 13 * UNIT, _pad: 0 },
-        ZonePhase { reveal: sc(900), start: sc(1200), end: sc(1600), dmg: 4, x: c2x, y: c2y, r: 6 * UNIT, _pad: 0 },
-        ZonePhase { reveal: sc(1600), start: sc(1800), end: sc(2200), dmg: 8, x: c3x, y: c3y, r: UNIT, _pad: 0 },
-        ZonePhase { reveal: sc(2200), start: sc(2200), end: sc(2200), dmg: 12, x: c3x, y: c3y, r: UNIT, _pad: 0 },
+        ZonePhase { reveal: sc(100), start: sc(500), end: sc(900), dmg: 2, x: c1x, y: c1y, r: 20 * UNIT, _pad: 0 },
+        ZonePhase { reveal: sc(900), start: sc(1200), end: sc(1600), dmg: 4, x: c2x, y: c2y, r: 9 * UNIT, _pad: 0 },
+        ZonePhase { reveal: sc(1600), start: sc(1800), end: sc(2200), dmg: 8, x: c3x, y: c3y, r: 2 * UNIT, _pad: 0 },
+        ZonePhase { reveal: sc(2200), start: sc(2200), end: sc(2200), dmg: 12, x: c3x, y: c3y, r: 2 * UNIT, _pad: 0 },
     ];
 
     room.zone_x = w.start_x;
@@ -726,6 +747,14 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
                         p.reload = 0;
                     }
                     LOOT_FLARE => p.flare = FLARE_TICKS,
+                    LOOT_DROP => {
+                        // the good stuff: a Kar98k, a full vest, patched up
+                        p.weapon = W_SNIPER;
+                        p.mag = WEAPONS[W_SNIPER as usize].mag;
+                        p.reload = 0;
+                        p.armor = 100;
+                        p.hp = 100;
+                    }
                     _ => {}
                 }
                 w.loot[li].active = 0;
@@ -734,6 +763,31 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
                     n_loot_events += 1;
                 }
                 break;
+            }
+        }
+        // 4b. supply drops: a crate lands somewhere inside the next circle
+        for &dt in drop_ticks(room).iter() {
+            if t == dt {
+                let (nx, ny, nr) = (room.next_x, room.next_y, room.next_r.max(3 * UNIT));
+                let total = SPAWNS.len() + LOOT_SPOTS.len();
+                let mut cands = [0usize; 40];
+                let mut nc = 0usize;
+                let mut nearest = (i64::MAX, 0usize);
+                for k in 0..total {
+                    let (tx, ty) = if k < SPAWNS.len() { SPAWNS[k] } else { LOOT_SPOTS[k - SPAWNS.len()] };
+                    let d = dist2(tile_center(tx), tile_center(ty), nx, ny);
+                    if d < nearest.0 {
+                        nearest = (d, k);
+                    }
+                    if d <= ((nr as i64) * 4 / 5).pow(2) && nc < cands.len() {
+                        cands[nc] = k;
+                        nc += 1;
+                    }
+                }
+                let k = if nc > 0 { cands[(rng_next(w) as usize) % nc] } else { nearest.1 };
+                let (tx, ty) = if k < SPAWNS.len() { SPAWNS[k] } else { LOOT_SPOTS[k - SPAWNS.len()] };
+                let slot = w.loot.iter().position(|l| l.active == 0).unwrap_or((t as usize) % MAXL);
+                w.loot[slot] = Loot { x: tile_center(tx), y: tile_center(ty), kind: LOOT_DROP, active: 1 };
             }
         }
         // 5. zone
@@ -776,7 +830,10 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
                 W_ZONE
             } else {
                 room.kills[k as usize] += 1;
-                w.players[k as usize].weapon
+                // a kill patches you up: aggression pays
+                let kp = &mut w.players[k as usize];
+                kp.hp = (kp.hp + KILL_HEAL).min(100);
+                kp.weapon
             };
             let fi = (room.feed_head as usize) % FEED;
             room.feed[fi] = KillEvent { tick, killer: k, victim: s as u32, weapon };
@@ -821,6 +878,28 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
         }
     }
 
+    // BLACKOUT: halfway through the night every flashlight dies for 10 s
+    let bo = blackout_tick(room);
+    let lights_out = live && t >= bo && t < bo + BLACKOUT_TICKS;
+    // kill leader: most kills among the living, at least 2
+    let mut leader = NO_SEAT;
+    let mut best_k = 1u32;
+    for s in 0..MAXP {
+        if w.players[s].alive == 1 && room.kills[s] > best_k {
+            best_k = room.kills[s];
+            leader = s as u32;
+        }
+    }
+
+    // street lamps light whoever stands under them (dark during the blackout)
+    let mut lit = [false; MAXP];
+    if !lights_out {
+        for s in 0..MAXP {
+            let ps = w.players[s];
+            lit[s] = ps.alive == 1 && LAMPS.iter().any(|&(lx, ly)| dist2(ps.x, ps.y, tile_center(lx), tile_center(ly)) <= (LAMP_R as i64).pow(2));
+        }
+    }
+
     // ---- vision: who sees whom (computed inside the TEE, never published)
     let mut vis = [[0u32; MAXP]; MAXP]; // flags, 0 = not visible
     for v in 0..MAXP {
@@ -844,10 +923,17 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
                 if line_of_sight(pv.x, pv.y, pq.x, pq.y) {
                     f = 8;
                 }
-            } else if d2 <= (VISION_R as i64).pow(2)
+            } else if !lights_out
+                && d2 <= (VISION_R as i64).pow(2)
                 && angle_diff(pv.aim, atan2(pq.y - pv.y, pq.x - pv.x)) <= CONE_HALF
                 && line_of_sight(pv.x, pv.y, pq.x, pq.y)
             {
+                f = 8;
+            } else if lit[q]
+                && d2 <= (LAMP_SEE_R as i64).pow(2)
+                && line_of_sight(pv.x, pv.y, pq.x, pq.y)
+            {
+                // standing under a street lamp: anyone with a line on you sees you
                 f = 8;
             } else if pq.last_shot != 0
                 && pq.last_shot + 2 >= tick + 1
@@ -942,6 +1028,18 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
                 push_ping(view, tick, ang & !0xfff, PING_RELOAD, dist);
             }
         }
+        // night events everyone hears: where the supply drop is, and where the kill leader is
+        if let Some(d) = w.loot.iter().find(|l| l.active == 1 && l.kind == LOOT_DROP) {
+            if (tick + v as u32) % 30 == 0 {
+                let d2 = dist2(pv.x, pv.y, d.x, d.y);
+                push_ping(view, tick, atan2(d.y - pv.y, d.x - pv.x), PING_DROP, (isqrt(d2 as u64) as u32) / UNIT as u32);
+            }
+        }
+        if leader != NO_SEAT && leader != v as u32 && tick % 100 == 0 {
+            let pl = w.players[leader as usize];
+            let d2 = dist2(pv.x, pv.y, pl.x, pl.y);
+            push_ping(view, tick, atan2(pl.y - pv.y, pl.x - pv.x) & !0x3ff, PING_BOUNTY, (isqrt(d2 as u64) as u32) / UNIT as u32);
+        }
         for &(lx, ly) in loot_events[..n_loot_events].iter() {
             let d2 = dist2(pv.x, pv.y, lx, ly);
             if d2 > 0 && d2 <= (LOOT_R as i64).pow(2) && !line_of_sight(pv.x, pv.y, lx, ly) {
@@ -960,7 +1058,7 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
                 || {
                     let d2 = dist2(pv.x, pv.y, b.x, b.y);
                     (d2 <= (AMBIENT_R as i64).pow(2)
-                        || (d2 <= (VISION_R as i64).pow(2) && angle_diff(pv.aim, atan2(b.y - pv.y, b.x - pv.x)) <= CONE_HALF))
+                        || (!lights_out && d2 <= (VISION_R as i64).pow(2) && angle_diff(pv.aim, atan2(b.y - pv.y, b.x - pv.x)) <= CONE_HALF))
                         && line_of_sight(pv.x, pv.y, b.x, b.y)
                 };
             if seen {
@@ -977,7 +1075,8 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
             }
             let d2 = dist2(pv.x, pv.y, l.x, l.y);
             let seen = d2 <= (AMBIENT_R as i64).pow(2)
-                || (d2 <= (VISION_R as i64).pow(2) && angle_diff(pv.aim, atan2(l.y - pv.y, l.x - pv.x)) <= CONE_HALF + 2000 && line_of_sight(pv.x, pv.y, l.x, l.y));
+                || (!lights_out && d2 <= (VISION_R as i64).pow(2) && angle_diff(pv.aim, atan2(l.y - pv.y, l.x - pv.x)) <= CONE_HALF + 2000 && line_of_sight(pv.x, pv.y, l.x, l.y))
+                || (l.kind == LOOT_DROP && d2 <= (VISION_R as i64).pow(2) && line_of_sight(pv.x, pv.y, l.x, l.y));
             if seen {
                 view.loot[nl] = VisLoot { id: li as u32, x: l.x, y: l.y, kind: l.kind };
                 nl += 1;
@@ -1124,6 +1223,26 @@ mod stats {
             }
         }
         println!("kills by gun {gun}, by zone {zone}, bullets/match {}", shots / 30);
+    }
+
+    #[test]
+    fn supply_drop_lands_and_blackout_hides() {
+        let mut room: Room = bytemuck::Zeroable::zeroed();
+        let mut w: World = bytemuck::Zeroable::zeroed();
+        let mut views: Vec<View> = (0..MAXP).map(|_| bytemuck::Zeroable::zeroed()).collect();
+        let mut rec_bufs: Vec<Vec<u8>> = (0..REC_CHUNKS).map(|_| vec![0u8; REC_LEN]).collect();
+        for s in 0..MAXP { room.is_bot[s] = 1; }
+        seed_match(&mut room, &mut w, [11; 32]);
+        let drop_at = COUNTDOWN_TICKS + drop_ticks(&room)[0];
+        let mut dropped = false;
+        while room.tick < drop_at + 2 {
+            let mut refs: Vec<&mut View> = views.iter_mut().collect();
+            let mut rr: Vec<&mut [u8]> = rec_bufs.iter_mut().map(|b| &mut b[..]).collect();
+            if tick(&mut room, &mut w, &mut refs[..], &mut rr[..]).ended { break; }
+            dropped |= w.loot.iter().any(|l| l.kind == LOOT_DROP);
+        }
+        println!("drop landed: {dropped}, status {}, tick {}", room.status, room.tick);
+        assert!(dropped || room.status == ST_ENDED, "no supply drop by tick {}", room.tick);
     }
 }
 

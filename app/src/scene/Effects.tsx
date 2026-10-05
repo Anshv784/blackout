@@ -10,6 +10,7 @@ import { ST_LIVE, ST_COUNTDOWN } from "../chain/layout";
 import { isWall, angleToRad } from "../game/sim";
 import { audio } from "../game/audio";
 import { feel } from "../game/feel";
+import { MAP_W } from "../game/gen";
 import { prefs, usePrefs } from "../game/prefs";
 
 // ------------------------------------------------------------------ sparks
@@ -334,8 +335,8 @@ function ZoneGround({ session }: { session: Session }) {
     if (r) mat.uniforms.uZone.value.set(r.zone.x / 256, r.zone.y / 256, r.zone.r > 0 ? r.zone.r / 256 : 99);
   });
   return (
-    <mesh rotation-x={-Math.PI / 2} position={[16, 0.03, 16]} material={mat} renderOrder={1}>
-      <planeGeometry args={[40, 40]} />
+    <mesh rotation-x={-Math.PI / 2} position={[MAP_W / 2, 0.03, MAP_W / 2]} material={mat} renderOrder={1}>
+      <planeGeometry args={[MAP_W + 10, MAP_W + 10]} />
     </mesh>
   );
 }
@@ -424,6 +425,47 @@ function Reactions({ session }: { session: Session }) {
   return null;
 }
 
+/** Red smoke over the supply drop: seen from anywhere, like PUBG's flare smoke. */
+function DropBeacon({ session }: { session: Session }) {
+  const col = useRef<THREE.Mesh>(null);
+  const mat = useMemo(
+    () =>
+      new THREE.ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+        uniforms: { uTime: { value: 0 } },
+        vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+        fragmentShader: `uniform float uTime; varying vec2 vUv;
+          void main(){ float w = 0.5 + 0.5 * sin(vUv.y * 18.0 - uTime * 2.5 + vUv.x * 12.0);
+            float a = (1.0 - vUv.y) * (0.18 + 0.12 * w);
+            gl_FragColor = vec4(1.0, 0.18, 0.15, a); }`,
+      }),
+    [],
+  );
+  const puff = useRef(0);
+  useFrame(({ clock }, dt) => {
+    mat.uniforms.uTime.value = clock.elapsedTime;
+    const d = session.drop;
+    const on = !!d && performance.now() - d.at < 4000 && session.room?.status === ST_LIVE;
+    if (!col.current) return;
+    col.current.visible = on;
+    if (!on || !d) return;
+    col.current.position.set(d.x / 256, 6, d.y / 256);
+    puff.current += dt;
+    if (puff.current > 0.12) {
+      puff.current = 0;
+      sparks(d.x / 256, 0.6, d.y / 256, "#ff4d3d", 3, { speed: 0.3, up: 3.5, life: 2.4, grav: -0.4 });
+    }
+  });
+  return (
+    <mesh ref={col} material={mat} visible={false} frustumCulled={false}>
+      <cylinderGeometry args={[0.35, 0.9, 12, 24, 1, true]} />
+    </mesh>
+  );
+}
+
 export function Effects({ session }: { session: Session }) {
   const p = usePrefs();
   const rich = p.quality === "high";
@@ -443,6 +485,7 @@ export function Effects({ session }: { session: Session }) {
       <Tracers session={session} />
       <ZoneGround session={session} />
       <Reactions session={session} />
+      <DropBeacon session={session} />
       {p.weather && <Lightning session={session} />}
       {p.weather && rich && <Rain session={session} />}
       {rich && <DustMotes session={session} />}

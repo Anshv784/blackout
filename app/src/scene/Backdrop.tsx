@@ -4,6 +4,8 @@ import { memo, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { EffectComposer, Bloom, Vignette, Noise } from "@react-three/postprocessing";
 import * as THREE from "three";
+import { MAP_W } from "../game/gen";
+const C = MAP_W / 2;
 import { Arena } from "./Arena";
 import { Avatar, SEAT_COLORS } from "./Avatar";
 
@@ -83,7 +85,7 @@ function Warden() {
     }
   });
   return (
-    <group ref={g} position={[16, 10, 16]}>
+    <group ref={g} position={[C, 10, C]}>
       <mesh>
         <icosahedronGeometry args={[1.5, 1]} />
         <meshBasicMaterial color="#a64dff" wireframe transparent opacity={0.55} toneMapped={false} />
@@ -108,11 +110,11 @@ function Rig({ focus }: { focus: "gate" | "lobby" }) {
   const nextStrike = useRef(4);
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
-    const r = focus === "gate" ? 27 : 22;
-    const h = focus === "gate" ? 17 : 13;
+    const r = focus === "gate" ? 36 : 28;
+    const h = focus === "gate" ? 22 : 16;
     const a = t * 0.035 + 0.6;
-    camera.position.set(16 + Math.cos(a) * r, h, 16 + Math.sin(a) * r);
-    camera.lookAt(16, focus === "gate" ? 3 : 2, 16);
+    camera.position.set(C + Math.cos(a) * r, h, C + Math.sin(a) * r);
+    camera.lookAt(C, focus === "gate" ? 3 : 2, C);
     if (t > nextStrike.current) nextStrike.current = t + 9 + Math.random() * 10;
     const dt = t - (nextStrike.current - 9);
     const strike = (Math.abs(dt) < 0.12 ? 1 : 0) + (Math.abs(dt - 0.25) < 0.08 ? 0.6 : 0);

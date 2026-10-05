@@ -1774,3 +1774,9 @@ button {
 .dmg-float.kill{color:#ff4d6a;font-size:22px}
 @keyframes dmgup{0%{opacity:0;transform:translate(-50%,-30%) scale(1.4)}12%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-160%)}}
 .night-len{display:block;margin-top:6px;font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--dim)}
+.cmp-drop,.cmp-bounty{position:absolute;left:50%;top:2px;margin-left:-7px;width:14px;height:14px;border-radius:3px;transition:opacity .3s;opacity:0}
+.cmp-drop{background:#ff3b3b;box-shadow:0 0 8px #ff3b3b}
+.cmp-bounty{border-radius:50%;background:transparent;border:2px solid var(--gold);box-shadow:0 0 8px var(--gold)}
+.click-to-play{position:absolute;left:50%;top:58%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 24px;border-radius:12px;background:rgba(0,0,0,.6);border:1px solid rgba(255,209,102,.4);pointer-events:none;z-index:6;animation:fadein .3s}
+.click-to-play b{font-family:var(--font);font-size:22px;letter-spacing:.3em;color:var(--gold)}
+.click-to-play small{font-family:var(--mono);font-size:11px;color:#cfd5e4}

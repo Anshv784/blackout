@@ -13,13 +13,14 @@ import { prefs, usePrefs } from "../game/prefs";
 import { feel } from "../game/feel";
 import { useStore } from "../game/store";
 import { Effects, sparks } from "./Effects";
-import { radToAngle, angleToRad, isWall } from "../game/sim";
+import { radToAngle, angleToRad, isWall, lightsOut } from "../game/sim";
+import { MAP_W } from "../game/gen";
 import { audio } from "../game/audio";
 
 const CONE_RAD = (7000 / 65536) * Math.PI * 2; // half-angle used on chain
 const VISION_TILES = 10;
-const LOOT_COLORS = ["#fff", "#06d6a0", "#4cc9f0", "#ff8c42", "#ef476f", "#f15bb5", "#ffd166", "#c77dff"];
-const LOOT_LABEL = ["", "MEDKIT", "ARMOR", "UMP", "S12K", "FLARE", "M416", "KAR98K"];
+const LOOT_COLORS = ["#fff", "#06d6a0", "#4cc9f0", "#ff8c42", "#ef476f", "#f15bb5", "#ffd166", "#c77dff", "#ff3b3b"];
+const LOOT_LABEL = ["", "MEDKIT", "ARMOR", "UMP", "S12K", "FLARE", "M416", "KAR98K", "SUPPLY DROP"];
 const COOLDOWN_MS = [350, 100, 800, 150, 1500];
 // crosshair kick per shot (vertical, horizontal jitter) — PUBG-style: you pull it back down
 const RECOIL = [[0.02, 0.004], [0.009, 0.006], [0.045, 0.01], [0.013, 0.005], [0.07, 0.002]];
@@ -86,8 +87,11 @@ function MyPlayer({ session }: { session: Session }) {
     const a = angleToRad(aim);
     target.position.set(pos.x / 256 + Math.cos(a) * 6, 0.2, pos.y / 256 + Math.sin(a) * 6);
     const flare = v.me.flare > 0;
+    const r0 = session.room;
+    const dark = !!r0 && r0.status === ST_LIVE && lightsOut(r0.matchLen, Math.max(0, r0.tick - 60));
+    (globalThis as any).__boLightsOut = dark; // street lamps and the searchlight die too
     if (spot.current) {
-      spot.current.intensity = alive ? (flare ? 0 : 55) : 0;
+      spot.current.intensity = alive && !dark ? (flare ? 0 : 55) : 0;
     }
     // the light shaft reads well from above but becomes a giant dome from behind
     beam.uniforms.uStrength.value = alive && !flare && controls.view === "top" ? 0.07 : 0;
@@ -101,8 +105,8 @@ function MyPlayer({ session }: { session: Session }) {
       feel.recoil = Math.min(1.8, feel.recoil + [0.8, 0.45, 1.3, 0.55, 1.8][v.me.weapon]);
       const [ky, kx] = RECOIL[v.me.weapon] ?? RECOIL[0];
       const steady = 1 - controls.adsK * 0.4;
-      controls.vcy = Math.min(0.85, controls.vcy + ky * steady);
-      controls.vcx += (Math.random() - 0.5) * 2 * kx * steady;
+      controls.camPitch = Math.max(0.02, controls.camPitch - ky * 0.7 * steady);
+      controls.camYaw += (Math.random() - 0.5) * 2 * kx * 0.8 * steady;
       sparks(pos.x / 256 + Math.cos(a) * 0.75, 0.7, pos.y / 256 + Math.sin(a) * 0.75, "#ffd27a", v.me.weapon === 2 ? 10 : 5, {
         speed: 5,
         dir: a,
@@ -330,6 +334,24 @@ function Crate({ kind }: { kind: number }) {
           </mesh>
         </group>
       )}
+      {kind === 8 && (
+        <group position={[0, 0.3, 0]}>
+          <mesh castShadow>
+            <boxGeometry args={[0.85, 0.6, 0.85]} />
+            <meshStandardMaterial color="#c9ccd1" roughness={0.6} metalness={0.3} />
+          </mesh>
+          {[-0.3, 0, 0.3].map((y) => (
+            <mesh key={y} position={[0, y * 0.6, 0]}>
+              <boxGeometry args={[0.87, 0.07, 0.87]} />
+              <meshStandardMaterial color="#d62828" emissive="#d62828" emissiveIntensity={0.6} />
+            </mesh>
+          ))}
+          <mesh position={[0, 0.33, 0]}>
+            <boxGeometry args={[0.5, 0.05, 0.5]} />
+            <meshBasicMaterial color="#ff3b3b" toneMapped={false} />
+          </mesh>
+        </group>
+      )}
       {kind === 5 && (
         <group>
           <mesh position={[0, 0.06, 0]} castShadow>
@@ -475,7 +497,7 @@ function Zone({ session }: { session: Session }) {
   );
 }
 
-const PING_COLORS = ["#fff", "#9fb4ff", "#ff5d5d", "#ffd166", "#c9c9c9"];
+const PING_COLORS = ["#fff", "#9fb4ff", "#ff5d5d", "#ffd166", "#c9c9c9", "#ff3b3b", "#ffd166"];
 
 function Fx({ session }: { session: Session }) {
   const rings = useRef<(THREE.Mesh | null)[]>([]);
@@ -547,40 +569,41 @@ function CameraRig({ session }: { session: Session }) {
     let wantLook: THREE.Vector3;
     let wantPos: THREE.Vector3;
     if (playing && controls.view === "chase" && !controls.touchMove && controls.touchAim === null) {
-      // over-the-shoulder. The camera heading follows your aim only when you point
-      // well off to the side, so you can aim freely across the screen.
+      // PUBG-style third person: the mouse turns the camera (yaw) and tilts it (pitch);
+      // you face where it looks and the crosshair sits dead centre.
       const a = controls.camYaw;
-      const px = p!.x / 256;
-      const pz = p!.y / 256;
+      const pitch = controls.camPitch;
       const ads = controls.adsK;
       const sniper = session.view?.me.weapon === 4;
-      let d = controls.chaseDist + ((sniper ? 3.0 : 3.6) - controls.chaseDist) * ads;
-      // don't let a wall sit between the camera and you: walk back from the player and stop before it
-      const steps = Math.ceil(d / 0.15);
+      const fx = Math.cos(a);
+      const fz = Math.sin(a);
+      const shoulder = 0.68 + 0.25 * ads;
+      // the point the camera orbits: just above and right of your shoulder
+      const tx = p!.x / 256 - fz * shoulder;
+      const tz = p!.y / 256 + fx * shoulder;
+      const ty = 1.15 + controls.chaseHeight * 0.06;
+      const dir = new THREE.Vector3(fx * Math.cos(pitch), -Math.sin(pitch), fz * Math.cos(pitch));
+      let d = controls.chaseDist * 0.62 + ((sniper ? 1.8 : 2.3) - controls.chaseDist * 0.62) * ads;
+      // pull in before a wall gets between the camera and you
+      const steps = Math.ceil(d / 0.12);
       for (let i = 1; i <= steps; i++) {
         const t = (i / steps) * d;
-        const sx = px - Math.cos(a) * t;
-        const sz = pz - Math.sin(a) * t;
-        const sy = 1.1 + (controls.chaseHeight - 1.1) * (t / d);
-        if (sy < 2.05 && isWall(Math.floor(sx), Math.floor(sz))) {
-          d = Math.max(1.2, t - 0.35);
+        const sx = tx - dir.x * t;
+        const sy = ty - dir.y * t;
+        const sz = tz - dir.z * t;
+        if (sy < 2.0 && isWall(Math.floor(sx), Math.floor(sz))) {
+          d = Math.max(0.9, t - 0.3);
           break;
         }
       }
-      // keep the height: a blocked camera comes in closer and looks down over the wall
-      const h = controls.chaseHeight + (2.2 - controls.chaseHeight) * ads;
-      const ahead = 3.2 + ads * (sniper ? 1.5 : 0);
-      // over the right shoulder when aiming down sights
-      const sx = -Math.sin(a) * 0.75 * ads;
-      const sz = Math.cos(a) * 0.75 * ads;
-      wantLook = new THREE.Vector3(px + Math.cos(a) * ahead + sx, 0.6 + ads * 0.1, pz + Math.sin(a) * ahead + sz);
-      wantPos = new THREE.Vector3(px - Math.cos(a) * d + sx, Math.max(h, 2.2), pz - Math.sin(a) * d + sz);
-      const k = 1 - Math.pow(10 ** (-9 + 6 * prefs.camSmooth), dt);
-      pos.current.lerp(wantPos, k);
-      look.current.lerp(wantLook, k);
+      wantPos = new THREE.Vector3(tx - dir.x * d, Math.max(0.45, ty - dir.y * d), tz - dir.z * d);
+      wantLook = new THREE.Vector3(tx + dir.x * 12, ty + dir.y * 12, tz + dir.z * 12);
+      // rigid: the camera is on your shoulder, it doesn't float behind
+      pos.current.copy(wantPos);
+      look.current.copy(wantLook);
     } else {
-      const tx = p && playing ? p.x / 256 : p ? p.x / 256 : 16;
-      const tz = p && playing ? p.y / 256 : p ? p.y / 256 : 16;
+      const tx = p ? p.x / 256 : MAP_W / 2;
+      const tz = p ? p.y / 256 : MAP_W / 2;
       const height = playing ? controls.topZoom : 30;
       const back = playing ? controls.topZoom * 0.38 : 14;
       wantLook = new THREE.Vector3(tx, 0, tz);
@@ -623,8 +646,8 @@ function CameraRig({ session }: { session: Session }) {
     }
     // shooter view: put the crosshair where your bullets actually go (6 tiles out, gun height)
     if (playing && controls.view === "chase") {
-      controls.cursorX = ((controls.vcx + 1) / 2) * window.innerWidth;
-      controls.cursorY = ((1 - controls.vcy) / 2) * window.innerHeight;
+      controls.cursorX = window.innerWidth / 2;
+      controls.cursorY = window.innerHeight / 2;
     }
   });
   return null;
@@ -725,7 +748,7 @@ function InputController({ session }: { session: Session }) {
       if (e.pointerType === "touch") return;
       // a second mouse button pressed while one is held arrives as pointermove, not pointerdown
       // (so "aim with RMB, then click to fire" needs this)
-      if (e.pointerType === "mouse") {
+      if (e.pointerType === "mouse" && (controls.view !== "chase" || document.pointerLockElement === el)) {
         const left = (e.buttons & 1) !== 0;
         if (left && !controls.fire) {
           controls.fire = true;
@@ -746,6 +769,11 @@ function InputController({ session }: { session: Session }) {
       audio.unlock();
       if (e.pointerType === "touch") return;
 
+      // third person needs the mouse: the first click captures it (and doesn't shoot)
+      if (controls.view === "chase" && document.pointerLockElement !== el) {
+        el.requestPointerLock?.();
+        return;
+      }
       if (e.button === 0) {
         controls.fire = true;
         controls.fireUntil = performance.now() + 160;
@@ -763,22 +791,11 @@ function InputController({ session }: { session: Session }) {
     const look = (e: MouseEvent) => {
       if (controls.view !== "chase") return;
       if (document.pointerLockElement === el) {
-        // locked: a virtual crosshair moves freely; past the side edges it turns you
-        // aiming down sights slows the mouse with the zoom, so it feels the same on screen
-        const k = (controls.sens / 18000) * (1 - controls.adsK * (session.view?.me.weapon === 4 ? 0.6 : 0.3));
-        controls.vcx += e.movementX * k;
-        controls.vcy -= e.movementY * k * (prefs.invertY ? -1 : 1);
-        const lim = 0.62;
-        if (Math.abs(controls.vcx) > lim) {
-          const over = controls.vcx - Math.sign(controls.vcx) * lim;
-          controls.camYaw += over * 1.6;
-          controls.vcx = Math.sign(controls.vcx) * lim;
-        }
-        controls.vcy = Math.max(-0.35, Math.min(0.85, controls.vcy));
-      } else {
-        const r = el.getBoundingClientRect();
-        controls.vcx = ((e.clientX - r.left) / r.width) * 2 - 1;
-        controls.vcy = Math.max(-0.35, Math.min(0.85, -(((e.clientY - r.top) / r.height) * 2 - 1)));
+        // mouse X turns you, mouse Y tilts the view; aiming down sights slows it with the zoom
+        const k = controls.sens * 0.00009 * (1 - controls.adsK * (session.view?.me.weapon === 4 ? 0.6 : 0.3));
+        controls.camYaw += e.movementX * k;
+        controls.camPitch += e.movementY * k * (prefs.invertY ? -1 : 1);
+        controls.camPitch = Math.max(0.02, Math.min(1.15, controls.camPitch));
       }
       controls.mouseActive = true;
     };
@@ -816,13 +833,12 @@ function InputController({ session }: { session: Session }) {
     if (camArrows) {
       // up/down tilt the crosshair (aim further out or closer in)
       const tilt = (controls.keys.has("arrowup") ? 1 : 0) - (controls.keys.has("arrowdown") ? 1 : 0);
-      if (tilt) controls.vcy = Math.max(-0.35, Math.min(0.85, controls.vcy + tilt * 0.012 * prefs.turnSpeed));
+      if (tilt) controls.camPitch = Math.max(0.02, Math.min(1.15, controls.camPitch - tilt * 0.02 * prefs.turnSpeed));
     }
     if (controls.touchAim !== null) aim = controls.touchAim;
     else if (controls.view === "chase" && p) {
-      // unlocked cursor near the side edges turns the camera
-      if (prefs.autoTurn && !controls.locked && Math.abs(controls.vcx) > 0.82) controls.camYaw += Math.sign(controls.vcx) * (Math.abs(controls.vcx) - 0.82) * 0.25;
-      ray.setFromCamera(new THREE.Vector2(controls.vcx, controls.vcy), camera);
+      // the crosshair is the centre of the screen
+      ray.setFromCamera(new THREE.Vector2(0, 0), camera);
       if (ray.ray.intersectPlane(plane, hit) && hit.distanceTo(ray.ray.origin) < 60) {
         const dx = hit.x - p.x / 256;
         const dz = hit.z - p.y / 256;
@@ -837,10 +853,6 @@ function InputController({ session }: { session: Session }) {
         off = Math.atan2(Math.sin(off), Math.cos(off));
         if (Math.abs(off) > 1.75) aim = radToAngle(controls.camYaw + Math.sign(off) * 1.75);
       }
-      // the camera eases round to follow your aim once it's well off-centre
-      let d = angleToRad(aim) - controls.camYaw;
-      d = Math.atan2(Math.sin(d), Math.cos(d));
-      if (prefs.autoTurn && Math.abs(d) > 0.45) controls.camYaw += (d - Math.sign(d) * 0.45) * 0.04;
     }
     else if (p && controls.mouseActive) {
       ray.setFromCamera(mouse.current, camera);
@@ -852,7 +864,8 @@ function InputController({ session }: { session: Session }) {
     const ar_ = !camArrows;
     const fwd = (k.has("w") || (ar_ && k.has("arrowup")) ? 1 : 0) - (k.has("s") || (ar_ && k.has("arrowdown")) ? 1 : 0);
     const side = (k.has("d") || (ar_ && k.has("arrowright")) ? 1 : 0) - (k.has("a") || (ar_ && k.has("arrowleft")) ? 1 : 0);
-    const ar = angleToRad(aim);
+    // third person: W is where the camera looks; top-down: W walks toward the cursor
+    const ar = controls.view === "chase" && controls.touchAim === null ? controls.camYaw : angleToRad(aim);
     const fx = Math.cos(ar);
     const fy = Math.sin(ar);
     let dx = fx * fwd - fy * side;

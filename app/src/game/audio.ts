@@ -489,6 +489,21 @@ class Audio {
     this.rain.gain.gain.setTargetAtTime(this.muted ? 0 : level * 0.05, c.currentTime, 0.8);
   }
 
+  /** Supply drop: a plane overhead, then the thud of the crate. */
+  airdrop() {
+    this.tone(70, 3.2, "sawtooth", 0.12, -0.6, 90, 0, 0.8);
+    this.tone(74, 3.2, "sawtooth", 0.1, 0.6, 95, 0.1, 0.8);
+    setTimeout(() => this.boom(), 2600);
+  }
+
+  /** The lights die (and come back). */
+  powerDown(on: boolean) {
+    if (on) {
+      this.tone(220, 1.2, "sawtooth", 0.18, 0, 40, 0, 0.7);
+      this.burst(0.4, 140, 0.6, 0.6, 0, "lowpass", 0.8);
+    } else this.tone(80, 0.6, "sine", 0.2, 0, 240, 0, 0.5);
+  }
+
   /** Your bullet landed. */
   hitmark() {
     this.tone(1800, 0.05, "square", 0.05, 0, 1400, 0, 0.1);

@@ -19,7 +19,7 @@ import {
   WEAPON_NAME,
   FIRE_MODE,
 } from "../chain/layout";
-import { inputVelocity, moveBody, packMoved, sprintStep, SPEED, SPRINT_SPEED, UNIT } from "./sim";
+import { inputVelocity, moveBody, packMoved, sprintStep, SPEED, SPRINT_SPEED, UNIT, COUNTDOWN_TICKS, blackoutTick, BLACKOUT_TICKS } from "./sim";
 import { banner, feel } from "./feel";
 import { audio } from "./audio";
 import { controls } from "./controls";
@@ -74,6 +74,10 @@ export class Session {
   private predAcc = 0;
   /** predicted stamina word (see sim.ts sprintStep) and whether you're sprinting right now */
   predMoved = 0;
+  /** night events: where the supply drop is (from its pings) and the kill leader's direction */
+  drop: { x: number; y: number; at: number } | null = null;
+  bounty: { angle: number; dist: number; at: number; seat: number } | null = null;
+  private lastLeader = -1;
   private streak = 0;
   private lastKillAt = 0;
   sprinting = false;
@@ -242,6 +246,35 @@ export class Session {
     this.lastFeedHead = r.feedHead;
     // match beats everyone feels
     if (prev && r.status === ST_LIVE && prev.status === ST_LIVE) {
+      const t0 = Math.max(0, prev.tick - COUNTDOWN_TICKS);
+      const t1 = Math.max(0, r.tick - COUNTDOWN_TICKS);
+      const bo = blackoutTick(r.matchLen);
+      const crossed = (at: number) => t0 < at && t1 >= at;
+      if (crossed(bo - 200)) banner("BLACKOUT IN 10s", "danger", "every flashlight in the Yard is about to die");
+      if (crossed(bo)) {
+        banner("BLACKOUT", "danger", "no lights for 10 seconds · hunt by sound");
+        audio.powerDown(true);
+      }
+      if (crossed(bo + BLACKOUT_TICKS)) {
+        banner("LIGHTS BACK", "event");
+        audio.powerDown(false);
+      }
+      // kill leader (kills are public): announce when it changes
+      let lead = -1;
+      let best = 1;
+      r.kills.forEach((k, i) => {
+        if (r.alive[i] === 1 && k > best) {
+          best = k;
+          lead = i;
+        }
+      });
+      if (lead !== this.lastLeader) {
+        this.lastLeader = lead;
+        if (lead >= 0)
+          lead === this.mySeat
+            ? banner("YOU ARE THE KILL LEADER", "kill", "everyone can hear where you are · +25 HP per kill")
+            : banner(`KILL LEADER: ${r.names[lead]}`, "event", `${best} kills · the bounty ping shows where`);
+      }
       if (r.zonePhase > prev.zonePhase) banner(r.zonePhase >= 3 ? "FINAL CIRCLE" : "THE ZONE IS MOVING", "danger", "get inside the dashed ring");
       if (prev.aliveCount > 3 && r.aliveCount === 3) banner("FINAL THREE", "event");
       else if (prev.aliveCount > 2 && r.aliveCount === 2) banner("LAST TWO STANDING", "event", "one of you walks out");
@@ -312,6 +345,7 @@ export class Session {
     if (v.me.alive && (v.status === ST_LIVE || v.status === ST_COUNTDOWN)) {
       if (!this.predValid) {
         controls.camYaw = (v.me.aim / 65536) * Math.PI * 2; // camera starts behind your spawn facing
+        controls.camPitch = 0.32;
         this.input.aim = v.me.aim;
         this.pred = { x: v.me.x, y: v.me.y };
         this.predPrev = { ...this.pred };
@@ -363,6 +397,22 @@ export class Session {
     for (let h = this.pingHead; h < v.pingHead; h++) {
       const p = v.pings[h % 12];
       if (!p || v.tick - p.tick > 40) continue;
+      if (p.kind === 5) {
+        // supply drop: we know its bearing and distance, so we know where it is
+        const a = (p.angle / 65536) * Math.PI * 2;
+        const fresh = !this.drop || now - this.drop.at > 6000;
+        this.drop = { x: v.me.x + Math.cos(a) * p.dist * UNIT, y: v.me.y + Math.sin(a) * p.dist * UNIT, at: now };
+        if (fresh) {
+          audio.airdrop();
+          banner("SUPPLY DROP", "danger", `Kar98k · full vest · full health · ${p.dist}m away, follow the red smoke`);
+        }
+        continue;
+      }
+      if (p.kind === 6) {
+        this.bounty = { angle: p.angle, dist: p.dist, at: now, seat: this.lastLeader };
+        this.addFx({ kind: "ping", x: v.me.x, y: v.me.y, angle: p.angle, sub: 6, dist: p.dist });
+        continue;
+      }
       this.addFx({ kind: "ping", x: v.me.x, y: v.me.y, angle: p.angle, sub: p.kind, dist: p.dist });
       audio.ping(p.kind, p.angle, p.dist, this.input.aim);
       if (p.kind === 1 || p.kind === 2) this.nearestHeard = { dist: Math.min(p.dist, now - this.nearestHeard.at < 1500 ? this.nearestHeard.dist : 99), at: now };

@@ -1,7 +1,7 @@
 import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { MAP_ROWS, LOOT_SPOTS } from "../game/gen";
+import { MAP_ROWS, LOOT_SPOTS, LAMPS, MAP_W, MAP_H, WALL_CHARS } from "../game/gen";
 
 /** Collision height on chain is just "wall"; visual heights vary for silhouette. */
 export const WALL_H = 1.25;
@@ -11,7 +11,7 @@ export interface WallBox {
   y: number;
   w: number;
   h: number;
-  kind: "border" | "container" | "concrete" | "pillar";
+  kind: "border" | "container" | "concrete" | "pillar" | "building" | "tower" | "fence" | "crates";
   tone: number;
   height: number;
 }
@@ -24,28 +24,30 @@ const rnd = (seed: number) => {
   };
 };
 
-/** Greedy-merge wall tiles into boxes, then give each a look. */
+/** Greedy-merge wall tiles of the same type into boxes, then give each a look. */
 export function wallBoxes(): WallBox[] {
   const H = MAP_ROWS.length;
   const W = MAP_ROWS[0].length;
   const used = Array.from({ length: H }, () => new Array(W).fill(false));
   const out: WallBox[] = [];
+  const isW = (x: number, y: number) => WALL_CHARS.includes(MAP_ROWS[y][x]);
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
-      if (MAP_ROWS[y][x] !== "#" || used[y][x]) continue;
+      if (!isW(x, y) || used[y][x]) continue;
+      const ch = MAP_ROWS[y][x];
       let w = 1;
-      while (x + w < W && MAP_ROWS[y][x + w] === "#" && !used[y][x + w]) w++;
+      while (x + w < W && MAP_ROWS[y][x + w] === ch && !used[y][x + w]) w++;
       let h = 1;
       outer: while (y + h < H) {
-        for (let k = 0; k < w; k++) if (MAP_ROWS[y + h][x + k] !== "#" || used[y + h][x + k]) break outer;
+        for (let k = 0; k < w; k++) if (MAP_ROWS[y + h][x + k] !== ch || used[y + h][x + k]) break outer;
         h++;
       }
       for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) used[yy][xx] = true;
       const r = rnd(x * 73 + y * 151 + w * 7 + h);
-      const border = x === 0 || y === 0 || x + w === W || y + h === H;
-      const long = Math.max(w, h);
-      const kind: WallBox["kind"] = border ? "border" : w * h === 1 ? "pillar" : long >= 3 && Math.min(w, h) === 1 && r() < 0.55 ? "container" : "concrete";
-      const height = border ? 1.9 : kind === "container" ? 1.35 + (r() < 0.3 ? 0.15 : 0) : kind === "pillar" ? 1.6 : 1.15 + r() * 0.2;
+      const kind: WallBox["kind"] =
+        ch === "#" ? "border" : ch === "C" ? "container" : ch === "B" ? "building" : ch === "T" ? "tower" : ch === "F" ? "fence" : "crates";
+      const height =
+        kind === "border" ? 2.2 : kind === "container" ? 1.35 + (r() < 0.3 ? 0.25 : 0) : kind === "building" ? 2.4 : kind === "tower" ? (w === 1 && h === 1 ? 2.4 : 1.0) : kind === "fence" ? 1.4 : 0.8 + r() * 0.25;
       out.push({ x, y, w, h, kind, tone: Math.floor(r() * 4), height });
     }
   }
@@ -147,6 +149,87 @@ function concreteTex(tone: number) {
   });
 }
 
+function buildingTex(tone: number) {
+  return canvasTex(256, 256, (g) => {
+    const base = 70 + tone * 5;
+    g.fillStyle = `rgb(${base},${base - 2},${base - 6})`;
+    g.fillRect(0, 0, 256, 256);
+    speckle(g, 256, 256, 5000, 0.15);
+    // brick courses
+    g.strokeStyle = "rgba(0,0,0,0.25)";
+    g.lineWidth = 1;
+    for (let y = 0; y < 256; y += 16) {
+      g.beginPath();
+      g.moveTo(0, y);
+      g.lineTo(256, y);
+      g.stroke();
+      for (let x = (y / 16) % 2 ? 0 : 16; x < 256; x += 32) {
+        g.beginPath();
+        g.moveTo(x, y);
+        g.lineTo(x, y + 16);
+        g.stroke();
+      }
+    }
+    // a window, some lit
+    g.fillStyle = Math.random() < 0.35 ? "rgba(255,200,110,0.85)" : "rgba(10,12,18,0.9)";
+    g.fillRect(96, 70, 64, 52);
+    g.strokeStyle = "rgba(30,30,30,0.9)";
+    g.lineWidth = 6;
+    g.strokeRect(96, 70, 64, 52);
+    g.beginPath();
+    g.moveTo(128, 70);
+    g.lineTo(128, 122);
+    g.stroke();
+    // grime at the foot
+    const grad = g.createLinearGradient(0, 180, 0, 256);
+    grad.addColorStop(0, "rgba(0,0,0,0)");
+    grad.addColorStop(1, "rgba(0,0,0,0.5)");
+    g.fillStyle = grad;
+    g.fillRect(0, 180, 256, 76);
+  });
+}
+
+function fenceTex() {
+  const t = canvasTex(128, 128, (g) => {
+    g.clearRect(0, 0, 128, 128);
+    g.strokeStyle = "rgba(180,190,200,0.9)";
+    g.lineWidth = 2;
+    for (let k = -128; k < 256; k += 16) {
+      g.beginPath();
+      g.moveTo(k, 0);
+      g.lineTo(k + 128, 128);
+      g.stroke();
+      g.beginPath();
+      g.moveTo(k + 128, 0);
+      g.lineTo(k, 128);
+      g.stroke();
+    }
+    g.fillStyle = "rgba(90,95,105,1)";
+    g.fillRect(0, 0, 128, 6);
+    g.fillRect(0, 0, 6, 128);
+  });
+  return t;
+}
+
+function crateTex() {
+  return canvasTex(128, 128, (g) => {
+    g.fillStyle = "#6b4f2e";
+    g.fillRect(0, 0, 128, 128);
+    for (let y = 0; y < 128; y += 21) {
+      g.fillStyle = `rgba(0,0,0,${0.15 + Math.random() * 0.15})`;
+      g.fillRect(0, y, 128, 2);
+    }
+    g.strokeStyle = "#3d2c18";
+    g.lineWidth = 8;
+    g.strokeRect(4, 4, 120, 120);
+    g.beginPath();
+    g.moveTo(4, 4);
+    g.lineTo(124, 124);
+    g.stroke();
+    speckle(g, 128, 128, 800, 0.2);
+  });
+}
+
 function borderTex() {
   return canvasTex(256, 256, (g) => {
     g.fillStyle = "#2a2d35";
@@ -171,38 +254,67 @@ function borderTex() {
 }
 
 function floorTexture() {
-  const size = 2048;
-  const cell = size / 32;
+  const cell = 64;
+  const size = MAP_W * cell;
+  const at = (x: number, y: number) => (x >= 0 && y >= 0 && x < MAP_W && y < MAP_H ? MAP_ROWS[y][x] : "#");
   return canvasTex(size, size, (g) => {
-    // asphalt/concrete base
-    g.fillStyle = "#24272f";
-    g.fillRect(0, 0, size, size);
-    speckle(g, size, size, 90000, 0.12);
-    // slab variation
-    for (let y = 0; y < 32; y += 2)
-      for (let x = 0; x < 32; x += 2) {
-        g.fillStyle = `rgba(255,255,255,${Math.random() * 0.03})`;
-        g.fillRect(x * cell, y * cell, cell * 2, cell * 2);
+    // ground per tile: concrete yard, asphalt road, dirt field, indoor floor
+    for (let y = 0; y < MAP_H; y++)
+      for (let x = 0; x < MAP_W; x++) {
+        const c = at(x, y);
+        g.fillStyle =
+          c === "=" ? "#1b1d22" : c === "," ? `rgb(${52 + ((x * 7 + y * 3) % 9)},${46 + ((x + y * 5) % 7)},${34})` : c === "_" ? "#3a3d44" : c === "#" ? "#111" : "#2a2d34";
+        g.fillRect(x * cell, y * cell, cell, cell);
       }
-    // expansion joints every 2 tiles
-    g.strokeStyle = "rgba(0,0,0,0.55)";
+    speckle(g, size, size, 160000, 0.12);
+    // indoor floor tiles
+    g.strokeStyle = "rgba(0,0,0,0.35)";
+    g.lineWidth = 2;
+    for (let y = 0; y < MAP_H; y++)
+      for (let x = 0; x < MAP_W; x++)
+        if (at(x, y) === "_") {
+          g.strokeRect(x * cell + 1, y * cell + 1, cell / 2 - 2, cell / 2 - 2);
+          g.strokeRect(x * cell + cell / 2 + 1, y * cell + cell / 2 + 1, cell / 2 - 2, cell / 2 - 2);
+        }
+    // grass tufts and stones in the field
+    for (let i = 0; i < 2600; i++) {
+      const x = Math.random() * size;
+      const y = Math.random() * size;
+      if (at(Math.floor(x / cell), Math.floor(y / cell)) !== ",") continue;
+      g.fillStyle = Math.random() < 0.7 ? `rgba(${70 + Math.random() * 30},${90 + Math.random() * 40},50,0.55)` : "rgba(120,115,105,0.5)";
+      g.fillRect(x, y, 2 + Math.random() * 3, 2 + Math.random() * 5);
+    }
+    // road edges + dashed centre lines
+    g.strokeStyle = "rgba(230,200,90,0.55)";
+    g.lineWidth = 5;
+    g.setLineDash([40, 30]);
+    g.beginPath();
+    g.moveTo(cell, 24 * cell);
+    g.lineTo(size - cell, 24 * cell);
+    g.moveTo(24 * cell, cell);
+    g.lineTo(24 * cell, size - cell);
+    g.stroke();
+    g.setLineDash([]);
+    g.strokeStyle = "rgba(220,220,220,0.3)";
     g.lineWidth = 3;
-    for (let i = 0; i <= 32; i += 2) {
+    for (const [x0, y0, x1, y1] of [[1, 22, 47, 22], [1, 26, 47, 26], [22, 1, 22, 47], [26, 1, 26, 47]]) {
       g.beginPath();
-      g.moveTo(i * cell, 0);
-      g.lineTo(i * cell, size);
-      g.stroke();
-      g.beginPath();
-      g.moveTo(0, i * cell);
-      g.lineTo(size, i * cell);
+      g.moveTo(x0 * cell, y0 * cell);
+      g.lineTo(x1 * cell, y1 * cell);
       g.stroke();
     }
-    // cracks
-    g.strokeStyle = "rgba(0,0,0,0.6)";
-    g.lineWidth = 1.5;
-    for (let i = 0; i < 70; i++) {
+    // concrete expansion joints in the yards
+    g.strokeStyle = "rgba(0,0,0,0.4)";
+    g.lineWidth = 2;
+    for (let y = 0; y < MAP_H; y += 2)
+      for (let x = 0; x < MAP_W; x += 2)
+        if (at(x, y) === "." || at(x, y) === "L" || at(x, y) === "S") g.strokeRect(x * cell, y * cell, cell * 2, cell * 2);
+    // cracks, oil and puddles
+    for (let i = 0; i < 120; i++) {
       let x = Math.random() * size;
       let y = Math.random() * size;
+      g.strokeStyle = "rgba(0,0,0,0.5)";
+      g.lineWidth = 1.5;
       g.beginPath();
       g.moveTo(x, y);
       for (let k = 0; k < 6; k++) {
@@ -212,69 +324,117 @@ function floorTexture() {
       }
       g.stroke();
     }
-    // oil stains
-    for (let i = 0; i < 40; i++) {
+    for (let i = 0; i < 60; i++) {
       const x = Math.random() * size;
       const y = Math.random() * size;
-      const r = 12 + Math.random() * 40;
+      const r = 14 + Math.random() * 46;
       const grad = g.createRadialGradient(x, y, 0, x, y, r);
-      grad.addColorStop(0, "rgba(0,0,0,0.45)");
+      const wet = Math.random() < 0.4;
+      grad.addColorStop(0, wet ? "rgba(120,140,170,0.22)" : "rgba(0,0,0,0.45)");
       grad.addColorStop(1, "rgba(0,0,0,0)");
       g.fillStyle = grad;
       g.beginPath();
       g.arc(x, y, r, 0, Math.PI * 2);
       g.fill();
     }
-    // painted lane lines along open corridors
-    g.strokeStyle = "rgba(230,230,210,0.22)";
-    g.lineWidth = 5;
-    g.setLineDash([36, 28]);
-    for (let y = 0; y < 32; y++) {
-      let run = 0;
-      for (let x = 0; x <= 32; x++) {
-        const open = x < 32 && MAP_ROWS[y][x] !== "#" && y > 0 && y < 31 && MAP_ROWS[y - 1][x] !== "#" && MAP_ROWS[y + 1][x] !== "#";
-        if (open) run++;
-        else {
-          if (run >= 5) {
-            g.beginPath();
-            g.moveTo((x - run) * cell + 8, y * cell + cell / 2);
-            g.lineTo(x * cell - 8, y * cell + cell / 2);
-            g.stroke();
-          }
-          run = 0;
-        }
-      }
-    }
-    g.setLineDash([]);
     // loot pads: hazard squares
     for (const [lx, ly] of LOOT_SPOTS) {
       const x0 = lx * cell + 6;
       const y0 = ly * cell + 6;
       const s = cell - 12;
-      g.save();
-      g.beginPath();
-      g.rect(x0, y0, s, s);
-      g.clip();
-      for (let k = -s; k < s * 2; k += 14) {
-        g.fillStyle = "rgba(255,190,40,0.35)";
-        g.beginPath();
-        g.moveTo(x0 + k, y0);
-        g.lineTo(x0 + k + 7, y0);
-        g.lineTo(x0 + k + 7 - s, y0 + s);
-        g.lineTo(x0 + k - s, y0 + s);
-        g.fill();
-      }
-      g.restore();
-      g.strokeStyle = "rgba(255,190,40,0.6)";
+      g.strokeStyle = "rgba(255,190,40,0.55)";
       g.lineWidth = 3;
       g.strokeRect(x0, y0, s, s);
     }
-    // a few big stencilled sector numbers
-    g.font = "bold 120px monospace";
-    g.fillStyle = "rgba(255,255,255,0.05)";
-    const sectors = [[4, 6, "A1"], [20, 4, "B2"], [12, 17, "C3"], [24, 21, "D4"], [5, 27, "E5"]] as const;
-    for (const [sx, sy, label] of sectors) g.fillText(label, sx * cell, sy * cell);
+    // district stencils
+    g.font = "bold 150px monospace";
+    g.fillStyle = "rgba(255,255,255,0.06)";
+    for (const [sx, sy, label] of [[6, 21, "YARD"], [31, 3, "WAREHOUSE"], [4, 28, "OFFICES"], [29, 32, "FIELD"]] as const) g.fillText(label, sx * cell, sy * cell);
   });
+}
+
+/** Street lamps: a post, a warm glow on the ground, dark during the blackout. */
+function Lamps() {
+  const lights = useRef<(THREE.PointLight | null)[]>([]);
+  const heads = useRef<(THREE.MeshBasicMaterial | null)[]>([]);
+  useFrame(() => {
+    const out = (globalThis as any).__boLightsOut === true;
+    lights.current.forEach((l) => l && (l.intensity = out ? 0 : 7));
+    heads.current.forEach((m) => m && m.color.set(out ? "#222" : "#ffd89a"));
+  });
+  return (
+    <>
+      {LAMPS.map(([x, y], i) => (
+        <group key={i} position={[x + 0.5, 0, y + 0.5]}>
+          <mesh position={[0, 1.6, 0]} castShadow>
+            <cylinderGeometry args={[0.05, 0.07, 3.2, 8]} />
+            <meshStandardMaterial color="#2a2d33" metalness={0.7} roughness={0.4} />
+          </mesh>
+          <mesh position={[0, 3.2, 0]}>
+            <boxGeometry args={[0.36, 0.1, 0.22]} />
+            <meshBasicMaterial ref={(m) => (heads.current[i] = m)} color="#ffd89a" toneMapped={false} />
+          </mesh>
+          <pointLight ref={(l) => (lights.current[i] = l)} position={[0, 3, 0]} color="#ffc777" intensity={7} distance={6.5} decay={1.4} />
+        </group>
+      ))}
+    </>
+  );
+}
+
+/** The two 2x2 towers: a water tower over the plaza, a watchtower with a sweeping searchlight. */
+function Towers({ boxes }: { boxes: WallBox[] }) {
+  const towers = boxes.filter((b) => b.kind === "tower" && b.w === 2 && b.h === 2);
+  const beam = useRef<THREE.SpotLight>(null);
+  const target = useMemo(() => new THREE.Object3D(), []);
+  useFrame(({ clock }) => {
+    const wt = towers.find((t) => t.x > 30);
+    if (!wt || !beam.current) return;
+    const a = clock.elapsedTime * 0.5;
+    target.position.set(wt.x + 1 + Math.cos(a) * 8, 0, wt.y + 1 + Math.sin(a) * 8);
+    target.updateMatrixWorld();
+    beam.current.target = target;
+    beam.current.intensity = (globalThis as any).__boLightsOut === true ? 0 : 40;
+  });
+  return (
+    <>
+      {towers.map((t, i) => {
+        const cx = t.x + 1;
+        const cz = t.y + 1;
+        const water = t.x < 30;
+        return (
+          <group key={i} position={[cx, 0, cz]}>
+            {[-0.8, 0.8].flatMap((dx) =>
+              [-0.8, 0.8].map((dz) => (
+                <mesh key={`${dx}${dz}`} position={[dx, water ? 2.6 : 2.2, dz]} castShadow>
+                  <boxGeometry args={[0.14, water ? 5.2 : 4.4, 0.14]} />
+                  <meshStandardMaterial color="#3a3d44" metalness={0.6} roughness={0.5} />
+                </mesh>
+              )),
+            )}
+            {water ? (
+              <mesh position={[0, 6.1, 0]} castShadow>
+                <cylinderGeometry args={[1.4, 1.4, 1.8, 24]} />
+                <meshStandardMaterial color="#5a6270" metalness={0.5} roughness={0.5} />
+              </mesh>
+            ) : (
+              <>
+                <mesh position={[0, 4.7, 0]} castShadow>
+                  <boxGeometry args={[2.2, 1.2, 2.2]} />
+                  <meshStandardMaterial color="#3d4630" roughness={0.8} />
+                </mesh>
+                <mesh position={[0, 5.45, 0]}>
+                  <coneGeometry args={[1.8, 0.6, 4]} />
+                  <meshStandardMaterial color="#2a3022" roughness={0.8} />
+                </mesh>
+                <spotLight ref={beam} position={[0, 5, 0]} angle={0.22} penumbra={0.3} distance={16} decay={1} intensity={40} color="#eaf2ff" />
+              </>
+            )}
+          </group>
+        );
+      })}
+      <primitive object={target} />
+    </>
+  );
 }
 
 // ------------------------------------------------------------- scene
@@ -331,6 +491,9 @@ export function Arena({ lit = false }: { lit?: boolean }) {
     const cont = CONTAINER_COLORS.map(containerTex);
     const conc = [0, 1, 2, 3].map(concreteTex);
     const border = borderTex();
+    const bld = [0, 1, 2, 3].map(buildingTex);
+    const fence = fenceTex();
+    const crate = crateTex();
     return boxes.map((b) => {
       let base: THREE.Texture;
       let rough = 0.85;
@@ -340,13 +503,28 @@ export function Arena({ lit = false }: { lit?: boolean }) {
         rough = 0.55;
         metal = 0.45;
       } else if (b.kind === "border") base = border;
+      else if (b.kind === "building") base = bld[b.tone];
+      else if (b.kind === "fence") base = fence;
+      else if (b.kind === "crates") base = crate;
       else base = conc[b.tone];
       const map = base.clone();
       map.needsUpdate = true;
       // repeat along the long side so ribs/panels keep their scale
-      map.repeat.set(Math.max(1, Math.max(b.w, b.h) / 2), 1);
-      const side = new THREE.MeshStandardMaterial({ map, roughness: rough, metalness: metal, color: lit ? "#bfc6d6" : "#ffffff" });
-      const top = new THREE.MeshStandardMaterial({ color: b.kind === "container" ? "#3a3f4a" : "#4a4f5a", roughness: 0.9 });
+      const per = b.kind === "fence" ? 1 : b.kind === "crates" ? 0.8 : 2;
+      map.repeat.set(Math.max(1, Math.max(b.w, b.h) / per), b.kind === "fence" ? 1.4 : 1);
+      const see = b.kind === "fence";
+      const side = new THREE.MeshStandardMaterial({
+        map,
+        roughness: rough,
+        metalness: see ? 0.6 : metal,
+        color: lit ? "#bfc6d6" : "#ffffff",
+        transparent: see,
+        alphaTest: see ? 0.3 : 0,
+        side: see ? THREE.DoubleSide : THREE.FrontSide,
+      });
+      const top = see
+        ? new THREE.MeshBasicMaterial({ visible: false })
+        : new THREE.MeshStandardMaterial({ map: b.kind === "crates" ? map : null, color: b.kind === "container" ? "#3a3f4a" : b.kind === "building" ? "#2b2e35" : "#4a4f5a", roughness: 0.9 });
       // box faces: +x -x +y -y +z -z
       return [side, side, top, top, side, side];
     });
@@ -391,11 +569,11 @@ export function Arena({ lit = false }: { lit?: boolean }) {
 
   return (
     <group>
-      <mesh rotation-x={-Math.PI / 2} position={[16, 0, 16]} receiveShadow>
-        <planeGeometry args={[32, 32]} />
+      <mesh rotation-x={-Math.PI / 2} position={[MAP_W / 2, 0, MAP_H / 2]} receiveShadow>
+        <planeGeometry args={[MAP_W, MAP_H]} />
         <meshStandardMaterial map={floor} roughness={0.88} metalness={0.05} />
       </mesh>
-      <mesh rotation-x={-Math.PI / 2} position={[16, -0.01, 16]}>
+      <mesh rotation-x={-Math.PI / 2} position={[MAP_W / 2, -0.01, MAP_H / 2]}>
         <planeGeometry args={[200, 200]} />
         <meshBasicMaterial color="#020203" />
       </mesh>
@@ -406,6 +584,8 @@ export function Arena({ lit = false }: { lit?: boolean }) {
         <lineBasicMaterial color={lit ? "#8fb4ff" : "#31406b"} transparent opacity={lit ? 0.45 : 0.5} />
       </lineSegments>
       <Beacons boxes={boxes} />
+      <Lamps />
+      <Towers boxes={boxes} />
     </group>
   );
 }

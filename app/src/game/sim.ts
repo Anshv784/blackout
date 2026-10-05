@@ -1,6 +1,6 @@
 // Bit-exact mirror of the movement/collision math in programs/blackout/src/sim.rs,
 // used for client-side prediction of your own body.
-import { WALLS, MAP_W, MAP_H, SIN_TABLE } from "./gen";
+import { MAP_ROWS, WALL_CHARS, MAP_W, MAP_H, SIN_TABLE } from "./gen";
 
 export const UNIT = 256;
 export const PLAYER_R = 90;
@@ -16,6 +16,12 @@ export const FLARE_TICKS = 100;
 export const BASE_MATCH_TICKS = 2700;
 export const MATCH_LENGTHS = [6000, 6000, 6000]; // every night is 5:00
 export const matchTicks = (len: number) => MATCH_LENGTHS[len] ?? 6000;
+// night events (mirror of sim.rs drop_ticks / blackout_tick)
+export const BLACKOUT_TICKS = 200;
+export const dropTicks = (len: number) => [Math.floor((matchTicks(len) * 3) / 10), Math.floor((matchTicks(len) * 62) / 100)];
+export const blackoutTick = (len: number) => Math.floor(matchTicks(len) / 2);
+export const lightsOut = (len: number, t: number) => t >= blackoutTick(len) && t < blackoutTick(len) + BLACKOUT_TICKS;
+
 export function zoneSchedule(len: number) {
   const k = matchTicks(len);
   const sc = (v: number) => Math.floor((v * k) / BASE_MATCH_TICKS);
@@ -28,9 +34,15 @@ export function zoneSchedule(len: number) {
 
 const tdiv = (a: number, b: number) => Math.trunc(a / b);
 
+// rows are 48 wide: past JS's 32-bit bit ops, so keep a byte grid instead of masks
+const GRID = new Uint8Array(MAP_W * MAP_H);
+MAP_ROWS.forEach((row, y) => {
+  for (let x = 0; x < MAP_W; x++) GRID[y * MAP_W + x] = WALL_CHARS.includes(row[x]) ? 1 : 0;
+});
+
 export function isWall(tx: number, ty: number) {
   if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) return true;
-  return ((WALLS[ty] >>> tx) & 1) === 1;
+  return GRID[ty * MAP_W + tx] === 1;
 }
 
 export function circleHitsWall(x: number, y: number, r: number) {

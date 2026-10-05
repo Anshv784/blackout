@@ -1,6 +1,6 @@
 // Re-derive a match from its revealed VRF seed (mirror of sim::seed_match) and
 // check it against the unsealed World: spawns, loot rolls and the zone plan.
-import { SPAWNS, LOOT_SPOTS } from "./gen";
+import { SPAWNS, LOOT_SPOTS, MAP_W } from "./gen";
 import type { Room, World, Recording } from "../chain/layout";
 
 const MASK64 = (1n << 64n) - 1n;
@@ -81,13 +81,16 @@ export function verifyMatch(room: Room, world: World, rec: Recording, occupied: 
     loot.push({ x: tc(lx), y: tc(ly), kind });
   }
   // zone
-  const c = 16 * 256;
-  const c1x = c + rng.range(-5 * 256, 5 * 256);
-  const c1y = c + rng.range(-5 * 256, 5 * 256);
-  const c2x = clamp(c1x + rng.range(-4 * 256, 4 * 256), 7 * 256, 25 * 256);
-  const c2y = clamp(c1y + rng.range(-4 * 256, 4 * 256), 7 * 256, 25 * 256);
-  const c3x = clamp(c2x + rng.range(-384, 384), 7 * 256, 25 * 256);
-  const c3y = clamp(c2y + rng.range(-384, 384), 7 * 256, 25 * 256);
+  // mirror of sim.rs seed_match (48x48 map)
+  const c = (MAP_W / 2) * 256;
+  const lo = 9 * 256;
+  const hi = (MAP_W - 9) * 256;
+  const c1x = c + rng.range(-7 * 256, 7 * 256);
+  const c1y = c + rng.range(-7 * 256, 7 * 256);
+  const c2x = clamp(c1x + rng.range(-6 * 256, 6 * 256), lo, hi);
+  const c2y = clamp(c1y + rng.range(-6 * 256, 6 * 256), lo, hi);
+  const c3x = clamp(c2x + rng.range(-512, 512), lo, hi);
+  const c3y = clamp(c2y + rng.range(-512, 512), lo, hi);
   const zone = [
     [c1x, c1y],
     [c2x, c2y],

@@ -13,7 +13,8 @@ export const controls = {
   fps: 0,
   view: ((typeof localStorage !== "undefined" && localStorage.getItem("bo-view-v2")) || "chase") as "chase" | "top",
   chaseAim: 0, // unused (kept for compatibility)
-  camYaw: 0, // behind-view camera heading (radians), follows your aim
+  camYaw: 0, // third-person camera heading (radians); you face where it looks
+  camPitch: 0.32, // camera tilt down (radians): mouse up looks further
   onTarget: false, // an enemy is on your line of fire
   // behind-view virtual cursor in normalized device coords (-1..1), moved by the mouse
   vcx: 0,
