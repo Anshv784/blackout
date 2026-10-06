@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../game/store";
+import { KeyGuide, ActionHints } from "./KeyGuide";
+import { useTouch } from "./TouchControls";
 import type { Session } from "../game/session";
 import { ST_COUNTDOWN, ST_ENDED, ST_LIVE, ST_STARTING, WEAPON_NAME, GADGET_NAME, NIGHT_MOD, DOWNED } from "../chain/layout";
 import { angleToRad } from "../game/sim";
@@ -16,6 +18,7 @@ const PING_GLYPH = ["", "👣", "💥", "✦", "⟳", "📦", "🎯", "☁", "�
 export function Hud({ session }: { session: Session }) {
   const room = useStore((s) => s.room);
   const view = useStore((s) => s.view);
+  const touch = useTouch();
   const [pings, setPings] = useState<{ id: number; angle: number; kind: number; at: number }[]>([]);
   const [hit, setHit] = useState<{ angle: number; at: number } | null>(null);
   const seen = useRef(0);
@@ -184,6 +187,8 @@ export function Hud({ session }: { session: Session }) {
 
       {me.alive && me.hp <= 35 && room.status === ST_LIVE && <div className="low-hp" style={{ ["--k" as any]: String(1 - me.hp / 35) }} />}
       {!countdown && me.alive !== 0 && <Banners />}
+      <KeyGuide session={session} touch={touch} />
+      <ActionHints session={session} touch={touch} />
       {me.alive && room.status === ST_LIVE && <ClickToPlay />}
       <div className="hud-health">
         <Stamina session={session} />

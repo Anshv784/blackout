@@ -1984,3 +1984,32 @@ button {
 .game.touch .death-card-in .dead{padding-bottom:12px;gap:2px}
 .game.touch .death-card-in .dead h2{font-size:40px!important}
 .game.touch .death-card-in .dead small{display:none}
+
+/* ---------- controls, in the game ---------- */
+.key-guide{position:absolute;left:16px;bottom:calc(max(16px, env(safe-area-inset-bottom)) + 4px);z-index:6;display:flex;gap:16px;max-width:400px;align-items:flex-start;padding:12px 14px;border-radius:12px;background:rgba(6,8,13,.78);border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(6px);pointer-events:auto;cursor:pointer;animation:kgin .35s ease-out both}
+@keyframes kgin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.key-guide.closed{display:flex;align-items:center;gap:7px;padding:6px 10px;font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:#8c94a8;text-transform:uppercase}
+.kg-group{display:flex;flex-direction:column;gap:5px}
+.kg-group>b{font-family:var(--mono);font-size:9px;letter-spacing:.24em;color:#ffd166;margin-bottom:2px}
+.kg-col{display:flex;flex-direction:column;gap:12px}
+.kg-row{display:grid;grid-template-columns:60px auto;align-items:center;gap:7px;font-size:11.5px;color:#d6dbe8;white-space:nowrap}
+.kg-keys{display:flex;gap:3px;justify-content:flex-end}
+.kg-what em{font-style:normal;color:#7d859a;font-size:10px;margin-left:6px}
+.key-guide small{position:absolute;right:10px;bottom:8px;font-family:var(--mono);font-size:9px;color:#7d859a;letter-spacing:.1em}
+.key-guide kbd,.action-hints kbd,.key-guide.closed kbd{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 5px;border-radius:5px;background:linear-gradient(#2a2f3c,#1a1e28);border:1px solid #3a4152;border-bottom-width:2px;color:#f2f4f8;font-family:var(--mono);font-size:10px;font-weight:700;line-height:1}
+.key-guide kbd.wide,.action-hints kbd.wide{padding:0 7px}
+.action-hints{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(max(18px, env(safe-area-inset-bottom)) + 100px);z-index:5;display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none}
+.ah{display:flex;align-items:center;gap:8px;padding:5px 12px 5px 6px;border-radius:999px;background:rgba(6,8,13,.72);border:1px solid rgba(255,255,255,.1);font-size:12px;color:#e8ecf4;animation:kgin .25s ease-out both;white-space:nowrap}
+.ah.gold{border-color:rgba(255,209,102,.55);color:#ffd166}
+.ah.red{border-color:rgba(255,77,106,.6);color:#ff8fa3;animation:kgin .25s ease-out both,clockpulse 1s ease-in-out infinite}
+.ah.dim{color:#a9b1c4}
+.ah .ah-icon{width:18px;height:18px}
+.hud.is-dead .key-guide,.hud.is-dead .action-hints{display:none}
+@media (max-width:1100px){.key-guide:not(.closed){transform:scale(.85);transform-origin:bottom left}}
+/* phone: words under the round buttons */
+.tb::after{content:attr(data-label);position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:2px;font-family:var(--mono);font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.7);text-shadow:0 1px 2px #000;white-space:nowrap;pointer-events:none}
+.game.touch .action-hints{bottom:auto;top:calc(max(14px, env(safe-area-inset-top)) + 124px)}
+.game.touch .ah{font-size:10px}
+.kg-group{display:grid;grid-template-columns:max-content auto;column-gap:7px;row-gap:5px;align-items:center}
+.kg-group>b{grid-column:1 / -1}
+.kg-row{display:contents}

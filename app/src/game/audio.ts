@@ -624,76 +624,96 @@ class Audio {
     this.thump({ f0: 60, f1: 40, dur: 0.5, vol: 0.35, wet: 0.5 });
   }
 
-  /** radio static with a voice-like formant buried in it */
   whisper(pan = 0) {
-    this.hit({ kind: "white", dur: 1.1, type: "bandpass", f: 1400, f2: 900, q: 5, vol: 0.06, pan, wet: 0.7, attack: 0.2 });
-    this.hit({ kind: "pink", dur: 0.9, type: "bandpass", f: 650, f2: 500, q: 9, vol: 0.08, pan, wet: 0.8, attack: 0.25, delay: 0.1 });
+    for (let i = 0; i < 3; i++) setTimeout(() => this.burst(0.35 + Math.random() * 0.3, 2400 + Math.random() * 1600, 4, 0.08, pan, "bandpass", 0.9), i * 180);
   }
 
-  /** a container's steel skin groaning in the cold (replaces the old wolves) */
+  /** Metal groan from a container somewhere. */
   creak(pan = 0) {
     const c = this.ensure();
     if (!c || this.muted) return;
     const t = c.currentTime;
-    const dur = 1.6 + Math.random() * 1.6;
+    const dur = 1.2 + Math.random();
     const o = c.createOscillator();
     o.type = "sawtooth";
-    const f0 = 70 + Math.random() * 60;
-    o.frequency.setValueAtTime(f0, t);
-    o.frequency.linearRampToValueAtTime(f0 * (0.7 + Math.random() * 0.6), t + dur);
-    const bp = c.createBiquadFilter();
-    bp.type = "bandpass";
-    bp.frequency.value = 600 + Math.random() * 500;
-    bp.Q.value = 7;
-    const g = this.out(pan, 0, 0.85);
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(0.08, t + 0.4);
-    g.gain.linearRampToValueAtTime(0.05, t + dur * 0.7);
+    o.frequency.setValueAtTime(70 + Math.random() * 40, t);
+    o.frequency.linearRampToValueAtTime(55 + Math.random() * 60, t + dur);
+    const fm = c.createOscillator();
+    fm.frequency.value = 23 + Math.random() * 14;
+    const fmAmt = c.createGain();
+    fmAmt.gain.value = 30;
+    fm.connect(fmAmt).connect(o.frequency);
+    const f = c.createBiquadFilter();
+    f.type = "bandpass";
+    f.frequency.value = 600;
+    f.Q.value = 3;
+    const g = this.out(pan, 0, 0.8);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.14, t + 0.3);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(bp).connect(g);
+    o.connect(f).connect(g);
     o.start(t);
-    o.stop(t + dur + 0.05);
+    fm.start(t);
+    o.stop(t + dur + 0.1);
+    fm.stop(t + dur + 0.1);
   }
 
-  /** kept for callers: no wolves any more, a far siren winding up instead */
+  /** Distant wolf: formant-filtered saw with a rising-then-falling glide and wobble. */
   howl(pan = 0, vol = 0.5, delay = 0) {
     const c = this.ensure();
     if (!c || this.muted) return;
     const t = c.currentTime + delay;
+    const dur = 2.6 + Math.random() * 1.2;
+    const base = 380 + Math.random() * 90;
     const o = c.createOscillator();
-    o.type = "triangle";
-    o.frequency.setValueAtTime(260, t);
-    o.frequency.linearRampToValueAtTime(520, t + 2.4);
-    o.frequency.linearRampToValueAtTime(260, t + 5);
-    const lp = c.createBiquadFilter();
-    lp.type = "lowpass";
-    lp.frequency.value = 900;
-    const g = this.out(pan, 0, 0.95);
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(0.06 * vol, t + 1.2);
-    g.gain.linearRampToValueAtTime(0.0001, t + 5);
-    o.connect(lp).connect(g);
+    o.type = "sawtooth";
+    o.frequency.setValueAtTime(base * 0.62, t);
+    o.frequency.exponentialRampToValueAtTime(base, t + 0.55);
+    o.frequency.setValueAtTime(base, t + dur * 0.55);
+    o.frequency.exponentialRampToValueAtTime(base * 0.55, t + dur);
+    const vib = c.createOscillator();
+    vib.frequency.value = 5.2;
+    const vibAmt = c.createGain();
+    vibAmt.gain.value = 7;
+    vib.connect(vibAmt).connect(o.frequency);
+    const f1 = c.createBiquadFilter();
+    f1.type = "bandpass";
+    f1.frequency.value = 700;
+    f1.Q.value = 6;
+    const f2 = c.createBiquadFilter();
+    f2.type = "bandpass";
+    f2.frequency.value = 1150;
+    f2.Q.value = 8;
+    const mix = c.createGain();
+    o.connect(f1).connect(mix);
+    o.connect(f2).connect(mix);
+    const far = c.createBiquadFilter();
+    far.type = "lowpass";
+    far.frequency.value = 1800;
+    const g = this.out(pan, 0, 0.85);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.45);
+    g.gain.setValueAtTime(vol, t + dur * 0.7);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    mix.connect(far).connect(g);
     o.start(t);
-    o.stop(t + 5.1);
+    vib.start(t);
+    o.stop(t + dur + 0.1);
+    vib.stop(t + dur + 0.1);
   }
 
-  /** chains / a loose panel tapping somewhere out there */
-  private chains(pan = 0) {
-    for (let i = 0; i < 5; i++) this.tick(1800 + Math.random() * 1400, 0.025, i * (0.08 + Math.random() * 0.1), pan);
-  }
 
-  /** Call often (every frame is fine): schedules the Yard's noises. */
+  /** Call often (every frame is fine): schedules howls and creaks at random. */
   ambientTick() {
     if (!this.ambience || this.muted) return;
     const now = performance.now();
+    if (now > this.nextHowl) {
+      this.howl(Math.random() * 1.6 - 0.8, 0.35 + Math.random() * 0.35);
+      this.nextHowl = now + 18000 + Math.random() * 26000;
+    }
     if (now > this.nextCreak) {
-      const r = Math.random();
-      const pan = Math.random() * 1.6 - 0.8;
-      if (r < 0.45) this.creak(pan);
-      else if (r < 0.7) this.chains(pan);
-      else if (r < 0.9) this.whisper(pan);
-      else this.howl(pan, 0.6);
-      this.nextCreak = now + 6000 + Math.random() * 11000;
+      this.creak(Math.random() * 1.6 - 0.8);
+      this.nextCreak = now + 7000 + Math.random() * 12000;
     }
   }
 

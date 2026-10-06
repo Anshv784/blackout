@@ -163,7 +163,7 @@ function HoldButton({ className, label, look, onDown, onUp, children }: { classN
   const ref = useRef<HTMLButtonElement>(null);
   useDrag(ref, { down: onDown, up: onUp, look });
   return (
-    <button ref={ref} className={className} aria-label={label}>
+    <button ref={ref} className={className} aria-label={label} data-label={label}>
       {children ?? <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" /><path d="M12 3v5M12 16v5M3 12h5M16 12h5" /></svg>}
     </button>
   );
@@ -173,7 +173,7 @@ function TapButton({ className, label, onTap, children }: { className: string; l
   const ref = useRef<HTMLButtonElement>(null);
   useDrag(ref, { down: onTap });
   return (
-    <button ref={ref} className={className} aria-label={label}>
+    <button ref={ref} className={className} aria-label={label} data-label={label}>
       {children}
     </button>
   );
