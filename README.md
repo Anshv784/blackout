@@ -140,11 +140,13 @@ No ghosting: when you die your View is emptied. Bots follow the same vision rule
 | **Gadgets** | Frag, smoke, flashbang, decoy, motion sensor and night vision. Hold G to see the arc and where it lands, let go to throw. The can flies, bounces off walls and rolls on-chain; you see and hear it. |
 | **Events** | Supply drops, a mid-night BLACKOUT that kills the lamps, and a bounty on the kill leader. |
 | **Duos** | Partners see each other through walls, get downed instead of dying, and revive by standing over each other. |
-| **Loot** | Medkits, armor, SMG, shotgun, and the flare, which lets you see everyone for 5 seconds. |
+| **Loot** | Medkits, armor, every gun and gadget above, and the flare, which lets you see everyone for 5 seconds. Supply drops carry the best of it. |
 | **The zone** | Three shrinking circles with rising damage, timed to the 5:00 night. The next circle is sealed until it's announced. |
 | **Bots** | Empty seats become on-chain bots with the same vision and hearing as you. The host picks easy, medium or hard. |
 | **Storm** | Rain, and lightning that lights up the walls (never the players). Thunder rolls in a second later. |
 | **Feel** | Tracers, sparks and blood, hit markers, kill streak banners, recoil and hit shake, a sprint camera, walls that fade when they block your view. |
+| **Death** | The body buckles and falls back, the gun clatters away and the dropped torch lights it on the ground while the camera rises. Players you watch die stay where they fell. |
+| **Controls** | A key card opens at the start of every night (H brings it back), and prompts appear only when a key matters: reload on an empty mag, how to throw a new gadget, swap to a new gun. |
 | **Replay** | After lights-on, scrub the whole night from your own view or everyone's, follow any player, and export a clip. |
 
 <p align="center">
@@ -160,7 +162,7 @@ No ghosting: when you die your View is emptied. Bots follow the same vision rule
 |---|---|
 | Gate | Create a room, a private room with a code, join by code, the staked table, open rooms to join |
 | Lobby | 3D pedestals per seat, host controls (seats, bot skill, solo or duos, make host, kick), invite link or room code |
-| Match | Countdown clock with the zone schedule, minimap and full map (Tab), phone controls (move stick, drag to look, fire/scope/jump/crouch/gadget buttons), settings (Esc): sensitivity, invert, arrow-key camera, FOV, smoothing, crosshair style/colour/size, laser sight, graphics, storm, volume |
+| Match | Countdown clock with the zone schedule, minimap and full map (Tab), phone controls (move stick, drag to look, labelled fire/scope/jump/crouch/reload/swap/gadget buttons), settings (Esc): sensitivity, invert, arrow-key camera, FOV, smoothing, crosshair style/colour/size, laser sight, graphics, storm, volume |
 | Verdict | Results, replay, clip export, and a VERIFY tab that re-derives the night from its VRF seed in your browser |
 | Leaderboard | Staked nights only: wins and SOL won, written by the `settle` Magic Action |
 | How it works | The live *Try to cheat* console, every building block, the timeline and the permission matrix |
@@ -174,15 +176,15 @@ No ghosting: when you die your View is emptied. Bots follow the same vision rule
 - `scripts/e2e.ts` plays full nights against the live TEE and checks that a player can read its own View but not another's, a spectator can't read the World, VRF seeds the match, the crank holds 20 ticks/s, and after `finish` the World and Recorder are readable and `settle` runs.
 - `scripts/e2e_stake.ts`: two funded players buy tickets on Solana, play a staked night, and the winner's wallet receives the pot from the `settle` Magic Action.
 - `scripts/mirror.ts`: 2,000 random movement steps, sprint, sneak, jump and stamina included, give identical results in the Rust program and the TypeScript prediction.
-- `cargo test`: 40 full 8-bot nights end with valid placements; 30 more check bots actually fight.
+- `cargo test`: 40 full 8-bot nights end with valid placements; 30 more check bots actually fight; frags, duos revives, supply drops and the blackout each have a test.
 - After every night, the VERIFY tab re-derives every spawn, loot roll and zone circle from the revealed VRF seed and checks them against the unsealed World.
-- `scripts/ui/`: Playwright runs of the full flows: guest play, private rooms with codes and kicks, closing a room, settings, the map, sprint.
+- `scripts/ui/`: Playwright runs of the full flows: guest play, private rooms with codes and kicks, closing a room, ending a night, duos, the phone layout and touch controls, and a console-error audit.
 
 ## Repository
 
 ```
 programs/blackout/       Anchor program
-  src/lib.rs             26 instructions: rooms, lobby, match, settle (Magic Action)
+  src/lib.rs             28 instructions: rooms, lobby, match, settle (Magic Action)
   src/sim.rs             deterministic integer simulation + vision + bots + recorder, with tests
   src/state.rs           Room, World, View, Recorder, Board layouts
   src/gen.rs             map and trig tables (generated)
@@ -191,8 +193,8 @@ app/                     Vite + React + react-three-fiber client
   src/game/              session (prediction, reconcile), sim.ts mirror, audio, settings
   src/scene/             the Yard, players, effects, replay
   src/ui/                gate, lobby, HUD, verdict, leaderboard, how it works
-scripts/                 devnet tooling: deploy, admin, e2e, mirror, verify
-scripts/ui/              Playwright flow tests and screenshots
+scripts/                 devnet tooling: deploy, admin, e2e, mirror, verify, kick stuck rooms
+scripts/ui/              Playwright flow tests
 ```
 
 ## Run it
