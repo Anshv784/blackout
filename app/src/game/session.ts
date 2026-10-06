@@ -22,7 +22,7 @@ import {
   NIGHT_MOD_SUB,
   DOWNED,
 } from "../chain/layout";
-import { inputVelocity, moveBody, packMoved, sprintStep, SPEED, SPRINT_SPEED, CRAWL_SPEED, UNIT, COUNTDOWN_TICKS, blackoutTick, BLACKOUT_TICKS } from "./sim";
+import { inputVelocity, moveBody, moveStep, SPEED, UNIT, COUNTDOWN_TICKS, blackoutTick, BLACKOUT_TICKS } from "./sim";
 import { banner, feel } from "./feel";
 import { audio } from "./audio";
 import { controls } from "./controls";
@@ -59,6 +59,8 @@ export interface Fx {
 const DEFAULT_KEY = "11111111111111111111111111111111";
 let fxId = 0;
 
+const GADGET_TAG = 1 << 20;
+
 export class Session {
   roomId: bigint;
   room: Room | null = null;
@@ -67,6 +69,8 @@ export class Session {
   mySeat: number | null = null;
   tracks = new Map<number, Track>();
   bullets: { x: number; y: number; vx: number; vy: number }[] = [];
+  /** gadgets in the air: kind 1 frag … 5 sensor, ttl = ticks of flight left (18 at the throw) */
+  nades: { x: number; y: number; vx: number; vy: number; kind: number; ttl: number }[] = [];
   bulletsAt = 0;
   fx: Fx[] = [];
 
@@ -77,6 +81,7 @@ export class Session {
   private predAcc = 0;
   /** predicted stamina word (see sim.ts sprintStep) and whether you're sprinting right now */
   predMoved = 0;
+  predSpeed = SPEED;
   /** night events: where the supply drop is (from its pings) and the kill leader's direction */
   drop: { x: number; y: number; at: number } | null = null;
   /** smoke clouds you can see from afar (from smoke pings), keyed by rounded position */
@@ -367,8 +372,9 @@ export class Session {
       } else {
         const lagTicks = Math.min(6, Math.max(1, Math.round(this.rtt / 2 / 50)));
         // stamina follows the chain (it only gates sprint, so a little lag is harmless)
-        this.predMoved = (v.me.moved & ~3) | (this.predMoved & 3);
-        const [vx, vy] = inputVelocity(this.input.dx, this.input.dy, this.sprinting ? SPRINT_SPEED : SPEED);
+        // fatigue / winded follow the chain; crouch, jump and sprint bits stay local
+        this.predMoved = (v.me.moved & 0xff04) | (this.predMoved & 0xfb);
+        const [vx, vy] = inputVelocity(this.input.dx, this.input.dy, this.predSpeed);
         const tx = v.me.x + (v.status === ST_LIVE ? vx * lagTicks : 0);
         const ty = v.me.y + (v.status === ST_LIVE ? vy * lagTicks : 0);
         const ex = tx - this.pred.x;
@@ -415,7 +421,16 @@ export class Session {
       if (now - last > 4000 && !(p.flags & 2)) audio.stinger();
       this.lastSeenAt.set(p.seat, now);
     }
-    this.bullets = v.bullets;
+    // the program tags a gadget in flight with 2^20 multiples in vx (kind) and vy (ticks left)
+    this.bullets = [];
+    this.nades = [];
+    for (const b of v.bullets) {
+      const kind = Math.round(b.vx / GADGET_TAG);
+      if (kind > 0) {
+        const ttl = Math.round(b.vy / GADGET_TAG);
+        this.nades.push({ x: b.x, y: b.y, vx: b.vx - kind * GADGET_TAG, vy: b.vy - ttl * GADGET_TAG, kind, ttl });
+      } else this.bullets.push(b);
+    }
     this.bulletsAt = now;
     // pings (sounds you can't see)
     if (this.pingHead < 0) this.pingHead = v.pingHead;
@@ -485,7 +500,8 @@ export class Session {
       audio.death();
     }
     if (prev && v.me.flare > prev.me.flare + 50) audio.flare();
-    if (prev && (v.me.weapon !== prev.me.weapon || v.me.hp > prev.me.hp + 10 || v.me.armor > prev.me.armor + 10 || v.me.flare > prev.me.flare + 50)) {
+    // pickups (only while playing: a new night "changes" your gun back to the pistol)
+    if (prev && v.status === ST_LIVE && prev.status === ST_LIVE && v.tick > prev.tick && (v.me.weapon !== prev.me.weapon || v.me.hp > prev.me.hp + 10 || v.me.armor > prev.me.armor + 10 || v.me.flare > prev.me.flare + 50)) {
       audio.pickup();
       const what = v.me.weapon !== prev.me.weapon ? 1 : v.me.flare > prev.me.flare + 50 ? 4 : v.me.armor > prev.me.armor + 10 ? 3 : 2;
       this.addFx({ kind: "loot", x: v.me.x, y: v.me.y, sub: what });
@@ -527,12 +543,14 @@ export class Session {
         this.predAcc -= 50;
         this.predPrev = { ...this.pred };
         const down = v?.me.alive === DOWNED;
-        const [sp, fat, winded] = sprintStep(this.predMoved, down ? 0 : this.input.buttons, this.input.dx, this.input.dy);
-        const [vx, vy] = inputVelocity(this.input.dx, this.input.dy, down ? CRAWL_SPEED : sp ? SPRINT_SPEED : SPEED);
+        const [speed, sp, word] = moveStep(this.predMoved, this.input.buttons, this.input.dx, this.input.dy, down);
+        const [vx, vy] = inputVelocity(this.input.dx, this.input.dy, speed);
         const ox = this.pred.x;
         const oy = this.pred.y;
         moveBody(this.pred, vx, vy);
-        this.predMoved = packMoved(ox !== this.pred.x || oy !== this.pred.y, sp, winded, fat);
+        const m = ox !== this.pred.x || oy !== this.pred.y;
+        this.predMoved = (m ? 1 : 0) | (sp && m ? word : word & ~2);
+        this.predSpeed = speed;
         this.sprinting = sp;
       }
     } else {

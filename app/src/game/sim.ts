@@ -12,7 +12,7 @@ export const AMBIENT_R = 2 * UNIT + 64;
 export const CONE_HALF = 7000;
 export const FLARE_TICKS = 100;
 
-// Night length (mirror of Room::match_ticks): the zone schedule stretches with it.
+// Night length (mirror of Room::match_ticks): fixed at 5:00; the zone schedule is stretched to it.
 export const BASE_MATCH_TICKS = 2700;
 export const MATCH_LENGTHS = [6000, 6000, 6000]; // every night is 5:00
 export const matchTicks = (len: number) => MATCH_LENGTHS[len] ?? 6000;
@@ -91,7 +91,7 @@ export const BTN_SPRINT = 4;
 export const CRAWL_SPEED = 18; // downed (duos)
 
 export function sprintStep(moved: number, buttons: number, dx: number, dy: number): [boolean, number, boolean] {
-  let fatigue = moved >>> 8;
+  let fatigue = (moved >>> 8) & 0xff;
   let winded = (moved & 4) !== 0;
   const wants = (buttons & BTN_SPRINT) !== 0 && (buttons & 1) === 0 && (dx !== 0 || dy !== 0);
   const sprinting = wants && !winded;
@@ -105,6 +105,30 @@ export function sprintStep(moved: number, buttons: number, dx: number, dy: numbe
 
 export const packMoved = (moved: boolean, sprinting: boolean, winded: boolean, fatigue: number) =>
   (moved ? 1 : 0) | (sprinting && moved ? 2 : 0) | (winded ? 4 : 0) | (fatigue << 8);
+
+// crouch + jump (mirror of sim.rs move_step)
+export const BTN_CROUCH = 32;
+export const BTN_JUMP = 64;
+export const SNEAK_SPEED = 28;
+export const JUMP_TICKS = 10;
+export const JUMP_COST = 15;
+
+/** One tick of movement state: [speed, sprinting, word without the moved bit]. */
+export function moveStep(moved: number, buttons: number, dx: number, dy: number, downed: boolean): [number, boolean, number] {
+  const crouch = !downed && (buttons & BTN_CROUCH) !== 0;
+  const btn = downed ? 0 : crouch ? buttons & ~BTN_SPRINT : buttons;
+  const [sprinting, fat0, winded] = sprintStep(moved, btn, dx, dy);
+  let fatigue = fat0;
+  let jt = (moved >>> 4) & 0xf;
+  if (jt > 0) jt -= 1;
+  else if (!downed && !crouch && (btn & BTN_JUMP) !== 0 && fatigue + JUMP_COST <= FATIGUE_MAX) {
+    jt = JUMP_TICKS;
+    fatigue += JUMP_COST;
+  }
+  const speed = downed ? CRAWL_SPEED : crouch ? SNEAK_SPEED : sprinting ? SPRINT_SPEED : SPEED;
+  const word = ((sprinting ? 1 : 0) << 1) | ((winded ? 1 : 0) << 2) | ((crouch ? 1 : 0) << 3) | (jt << 4) | ((fatigue & 0xff) << 8);
+  return [speed, sprinting, word];
+}
 
 export function moveBody(p: { x: number; y: number }, vx: number, vy: number) {
   if (vx !== 0) {

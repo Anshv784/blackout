@@ -320,7 +320,9 @@ function Settings({ onClose }: { onClose: () => void }) {
                   <span><b>W A S D</b> move</span>
                   <span><b>Shift</b> sprint (loud)</span>
                   <span><b>Mouse</b> aim</span>
-                  <span><b>Click / Space</b> fire</span>
+                  <span><b>Click</b> fire</span>
+                  <span><b>Space</b> jump</span>
+                  <span><b>C</b> crouch &amp; sneak (silent)</span>
                   <span><b>Right mouse</b> aim down sights</span>
                   <span><b>G</b> throw / use gadget</span>
                   <span><b>X / 1 / 2</b> swap guns</span>

@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import { EffectComposer, Bloom, Vignette, Noise, ChromaticAberration } from "@react-three/postprocessing";
@@ -9,7 +9,7 @@ import { Avatar, Gun, SEAT_COLORS, aimToRotY } from "./Avatar";
 import { stillMotion, type Motion } from "./Soldier";
 import type { Session } from "../game/session";
 import { ST_COUNTDOWN, ST_LIVE, ST_ENDED } from "../chain/layout";
-import { controls, wheelZoom } from "../game/controls";
+import { controls, wheelZoom, gadgetCancel } from "../game/controls";
 import { prefs, usePrefs } from "../game/prefs";
 import { feel } from "../game/feel";
 import { useStore } from "../game/store";
@@ -51,7 +51,11 @@ function MyPlayer({ session }: { session: Session }) {
   const lastShot = useRef(0);
   const lastPos = useRef({ x: 0, y: 0 });
   const myWeapon = useStore((s) => s.view?.me.weapon ?? 0);
+  const myAlive = useStore((s) => (s.view?.me.alive ?? 1) !== 0);
   const motion = useRef<Motion>(stillMotion());
+  const lastAir = useRef(0);
+  const diedAim = useRef(0);
+  const lastGadget = useRef(0);
   const lastCount = useRef(0);
   const gait = useRef(0);
   const { scene } = useThree();
@@ -88,11 +92,30 @@ function MyPlayer({ session }: { session: Session }) {
     mo.firing = (session.input.buttons & 1) === 1 && alive && v.me.reload === 0 && v.me.mag > 0;
     mo.reloading = v.me.reload > 0;
     mo.downed = v.me.alive === 2;
+    // killed: the body falls where you stood (the night after this one starts you alive again)
+    const killed = v.me.alive === 0 && session.room?.status === ST_LIVE;
+    if (killed && !mo.deadAt) {
+      mo.deadAt = performance.now();
+      diedAim.current = session.input.aim;
+      setTimeout(() => audio.bodyFall(0, 1), 450);
+    }
+    if (!killed) mo.deadAt = undefined;
+    // crouch / jump come from the predicted movement word (bit 3, bits 4-7)
+    const pm = session.predMoved;
+    mo.crouch = (pm & 8) !== 0;
+    const air = (pm >> 4) & 15;
+    if (air > lastAir.current) mo.jumpAt = performance.now();
+    lastAir.current = air;
     const cnt = v.inv?.count ?? 0;
-    if (cnt < lastCount.current && (v.inv?.gadget ?? 0) !== 6) mo.throwAt = performance.now();
+    // the slot empties after the last one, so go by what it held a frame ago
+    if (cnt < lastCount.current && lastGadget.current !== 6) {
+      mo.throwAt = performance.now();
+      audio.toss(lastGadget.current);
+    }
     lastCount.current = cnt;
+    lastGadget.current = v.inv?.gadget ?? 0;
     const aim = session.input.aim;
-    if (aimGroup.current) {
+    if (aimGroup.current && !killed) {
       aimGroup.current.rotation.y = aimToRotY(aim);
       aimGroup.current.rotation.z = 0;
     }
@@ -102,7 +125,19 @@ function MyPlayer({ session }: { session: Session }) {
     const r0 = session.room;
     const dark = !!r0 && r0.status === ST_LIVE && lightsOut(r0.matchLen, Math.max(0, r0.tick - 60));
     (globalThis as any).__boLightsOut = dark; // street lamps and the searchlight die too
-    if (spot.current) {
+    const now0 = performance.now();
+    if (spot.current && killed) {
+      // the torch fell with you: it lies by the gun and lights the body along the ground, flickering
+      const fa = angleToRad(diedAim.current);
+      spot.current.position.set(Math.cos(fa) * 0.5, 0.12, Math.sin(fa) * 0.5);
+      target.position.set(pos.x / 256 - Math.cos(fa) * 2.5, 0, pos.y / 256 - Math.sin(fa) * 2.5);
+      const t = (now0 - (mo.deadAt ?? now0)) / 1000;
+      spot.current.intensity = t < 0.6 ? 0 : 22 * (0.85 + 0.15 * Math.sin(now0 / 70) * Math.sin(now0 / 173)) * (Math.random() < 0.015 ? 0.2 : 1);
+      spot.current.angle = CONE_RAD * 1.3;
+      spot.current.distance = 5;
+      spot.current.color.set("#fff1d0");
+    } else if (spot.current) {
+      spot.current.position.set(0, 1.75, 0);
       const nvg = (v.inv?.nvg ?? 0) > 0;
       spot.current.intensity = alive && !dark ? (flare ? 0 : nvg ? 70 : 55) : 0;
       spot.current.angle = nvg ? CONE_RAD * 1.5 : CONE_RAD;
@@ -138,7 +173,7 @@ function MyPlayer({ session }: { session: Session }) {
   return (
     <group ref={group}>
       <group ref={aimGroup}>
-        <Avatar color={SEAT_COLORS[session.mySeat ?? 0]} me weapon={myWeapon} motion={motion} />
+        <Avatar color={SEAT_COLORS[session.mySeat ?? 0]} me weapon={myWeapon} motion={motion} ring={myAlive} />
         {/* volumetric beam: a cone lying along +x */}
         <mesh position={[VISION_TILES / 2 + 0.3, 0.75, 0]} rotation-z={Math.PI / 2} material={beam}>
           <coneGeometry args={[Math.tan(CONE_RAD) * VISION_TILES, VISION_TILES, 48, 1, true]} />
@@ -166,6 +201,45 @@ function MyPlayer({ session }: { session: Session }) {
   );
 }
 
+/** Bodies of players you saw go down: they fall where they were hit and stay for the night. */
+function Corpses({ session }: { session: Session }) {
+  type Body = { seat: number; x: number; y: number; aim: number; weapon: number; motion: { current: Motion } };
+  const [bodies, setBodies] = useState<Body[]>([]);
+  const lastFx = useRef(0);
+  const live = useStore((s) => s.room?.status === ST_LIVE);
+  useEffect(() => {
+    if (!live) setBodies([]);
+  }, [live]);
+  useFrame(() => {
+    let add: Body[] = [];
+    for (const f of session.fx) {
+      if (f.id <= lastFx.current) continue;
+      lastFx.current = f.id;
+      if (f.kind !== "death" || f.sub === undefined || f.sub === session.mySeat) continue;
+      const tr = session.tracks.get(f.sub);
+      const sm = tr?.samples[tr.samples.length - 1];
+      add.push({ seat: f.sub, x: f.x, y: f.y, aim: sm?.aim ?? 0, weapon: sm?.weapon ?? 0, motion: { current: { ...stillMotion(), deadAt: performance.now() } } });
+      const me = session.myPos();
+      if (me) {
+        const d = Math.hypot(f.x - me.x, f.y - me.y) / 256;
+        const pan = Math.sin(Math.atan2(f.y - me.y, f.x - me.x) - angleToRad(session.input.aim));
+        setTimeout(() => audio.bodyFall(pan, Math.max(0.15, 1 - d / 14)), 450);
+      }
+    }
+    if (add.length) setBodies((b) => [...b.filter((o) => !add.some((n) => n.seat === o.seat)), ...add]);
+    add = [];
+  });
+  return (
+    <>
+      {bodies.map((b) => (
+        <group key={`${b.seat}-${b.motion.current.deadAt}`} position={[b.x / 256, 0, b.y / 256]} rotation-y={aimToRotY(b.aim)}>
+          <Avatar color={SEAT_COLORS[b.seat]} weapon={b.weapon} motion={b.motion} ring={false} />
+        </group>
+      ))}
+    </>
+  );
+}
+
 function Others({ session }: { session: Session }) {
   const refs = useRef<(THREE.Group | null)[]>([]);
   const ghosts = useRef<(THREE.Group | null)[]>([]);
@@ -175,6 +249,7 @@ function Others({ session }: { session: Session }) {
   const lastAt = useRef<({ x: number; y: number } | null)[]>(Array(8).fill(null));
   const gaits = useRef<number[]>(Array(8).fill(0));
   const motions = useRef<Motion[]>(Array.from({ length: 8 }, stillMotion));
+  const airs = useRef<boolean[]>(Array(8).fill(false));
   const lastT = useRef<number[]>(Array(8).fill(0));
   const motionRefs = useMemo(() => Array.from({ length: 8 }, (_, i) => ({ get current() { return motions.current[i]; }, set current(v: Motion) { motions.current[i] = v; } })), []);
   // re-render only when someone's gun changes
@@ -222,6 +297,10 @@ function Others({ session }: { session: Session }) {
         mo.speed = gaits.current[s] < 0.5 ? 0 : spd > 1400 ? 2 : 1;
         mo.firing = (smp.flags & 4) !== 0;
         mo.downed = (smp.flags & 16) !== 0;
+        mo.crouch = (smp.flags & 256) !== 0;
+        const inAir = (smp.flags & 128) !== 0;
+        if (inAir && !airs.current[s]) mo.jumpAt = now;
+        airs.current[s] = inAir;
         // partners get their own tag
         if (lab) lab.classList.toggle("mate", (smp.flags & 32) !== 0);
         const hp = hpBars.current[s];
@@ -231,7 +310,8 @@ function Others({ session }: { session: Session }) {
         g.visible = false;
         if (lab) lab.style.display = "none";
         const k = (since - GRACE) / FADE;
-        gh.visible = k < 1;
+        // the dead leave a body (Corpses), not a standing silhouette
+        gh.visible = k < 1 && session.room?.alive[s] !== 0;
         if (k < 1) {
           gh.position.set(last.x / 256, 0, last.y / 256);
           gh.rotation.y = aimToRotY(last.aim);
@@ -619,6 +699,8 @@ function CameraRig({ session }: { session: Session }) {
     [],
   );
   const look = useRef(new THREE.Vector3(16, 0, 16));
+  const diedAt = useRef(0);
+  const diedYaw = useRef(0);
   const pos = useRef(new THREE.Vector3(16, 30, 30));
   useFrame((_, dt) => {
     const p = session.myPos();
@@ -626,7 +708,26 @@ function CameraRig({ session }: { session: Session }) {
     const playing = p && r && (r.status === ST_LIVE || r.status === ST_COUNTDOWN) && session.view?.me.alive;
     let wantLook: THREE.Vector3;
     let wantPos: THREE.Vector3;
-    if (playing && controls.view === "chase" && !controls.touchMove && controls.touchAim === null) {
+    // killed: the camera leaves your shoulder and rises slowly over the body
+    const killed = !!p && !!r && r.status === ST_LIVE && session.view?.me.alive === 0;
+    if (killed && !diedAt.current) {
+      diedAt.current = performance.now();
+      diedYaw.current = angleToRad(session.input.aim); // the way the body faced: it falls back from there
+    }
+    if (!killed) diedAt.current = 0;
+    if (killed) {
+      const t = (performance.now() - diedAt.current) / 1000;
+      const rise = 1 - Math.exp(-t / 1.6);
+      const yaw = diedYaw.current + t * 0.18;
+      const bx = p!.x / 256 - Math.cos(diedYaw.current) * 0.7; // the chest, after falling back
+      const bz = p!.y / 256 - Math.sin(diedYaw.current) * 0.7;
+      const dist = 2.4 + 3.2 * rise;
+      wantPos = new THREE.Vector3(bx - Math.cos(yaw) * dist, 1.5 + 5 * rise, bz - Math.sin(yaw) * dist);
+      wantLook = new THREE.Vector3(bx, 0.2, bz);
+      const k = 1 - Math.pow(0.02, dt);
+      pos.current.lerp(wantPos, k);
+      look.current.lerp(wantLook, k);
+    } else if (playing && controls.view === "chase" && controls.touchAim === null) {
       // PUBG-style third person: the mouse turns the camera (yaw) and tilts it (pitch);
       // you face where it looks and the crosshair sits dead centre.
       const a = controls.camYaw;
@@ -832,6 +933,11 @@ function InputController({ session }: { session: Session }) {
         el.requestPointerLock?.();
         return;
       }
+      // aiming a throw: right-click puts it away instead of scoping
+      if (e.button === 2 && controls.gadgetHeld) {
+        gadgetCancel();
+        return;
+      }
       if (e.button === 0) {
         controls.fire = true;
         controls.fireUntil = performance.now() + 160;
@@ -929,8 +1035,10 @@ function InputController({ session }: { session: Session }) {
     let dx = fx * fwd - fy * side;
     let dy = fy * fwd + fx * side;
     if (controls.touchMove) {
-      dx = controls.touchMove[0];
-      dy = controls.touchMove[1];
+      // the stick is camera-relative like WASD: up walks where you look
+      const [tx, ty] = controls.touchMove;
+      dx = fx * -ty - fy * tx;
+      dy = fy * -ty + fx * tx;
     }
     const m = Math.hypot(dx, dy);
     if (m > 1) {
@@ -943,7 +1051,10 @@ function InputController({ session }: { session: Session }) {
       (controls.fire || controls.touchFire || now < controls.fireUntil ? 1 : 0) |
       (controls.reload || now < controls.reloadUntil ? 2 : 0) |
       (sprint ? 4 : 0) |
-      (controls.keys.has("g") ? 8 : 0) |
+      // gadgets throw on release (night vision just switches on)
+      (now < controls.gadgetUntil || (controls.gadgetHeld && session.view?.inv?.gadget === 6) ? 8 : 0) |
+      (controls.crouch || controls.touchCrouch ? 32 : 0) |
+      (controls.keys.has(" ") || controls.touchJump ? 64 : 0) |
       (controls.keys.has("x") || controls.keys.has("1") || controls.keys.has("2") ? 16 : 0);
     session.setInput(dx * 127, dy * 127, aim, buttons);
     session.frame();
@@ -1019,6 +1130,7 @@ export const GameScene = memo(function GameScene({ session }: { session: Session
       <Arena />
       <MyPlayer session={session} />
       <Others session={session} />
+      <Corpses session={session} />
       <Effects session={session} />
       <LootCrates session={session} />
       <Zone session={session} />

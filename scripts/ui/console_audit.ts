@@ -1,0 +1,30 @@
+// Plays the gate → lobby → match path and prints every console error/warning (deduped).
+import { chromium } from "playwright";
+(async () => {
+  const b = await chromium.launch({ args: ["--use-gl=swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"] });
+  const ctx = await b.newContext({ viewport: { width: 1400, height: 860 } });
+  await ctx.addInitScript("localStorage.setItem('bo-intro-seen','1');localStorage.setItem('bo-guest','1');localStorage.setItem('bo-name','AUDIT')");
+  const p = await ctx.newPage();
+  const seen = new Map<string, number>();
+  const note = (k: string) => seen.set(k.slice(0, 220), (seen.get(k.slice(0, 220)) ?? 0) + 1);
+  p.on("pageerror", (e) => note("PAGEERROR " + String(e)));
+  p.on("console", (m) => (m.type() === "error" || m.type() === "warning") && note(m.type().toUpperCase() + " " + m.text()));
+  await p.goto("http://127.0.0.1:5173/");
+  await p.waitForTimeout(4000);
+  await p.goto("http://127.0.0.1:5173/#/board");
+  await p.waitForTimeout(3000);
+  await p.goto("http://127.0.0.1:5173/#/how");
+  await p.waitForTimeout(3000);
+  await p.goto("http://127.0.0.1:5173/#/");
+  await p.getByRole("button", { name: /CREATE A ROOM/ }).click({ timeout: 30000 });
+  await p.waitForURL(/\/r\//, { timeout: 60000 });
+  await p.getByRole("button", { name: "START THE NIGHT" }).click({ timeout: 60000 });
+  await p.locator(".night-card").waitFor({ timeout: 90000 });
+  await p.screenshot({ path: "demo/audit-countdown.png" });
+  await p.locator(".compass").waitFor({ timeout: 90000 });
+  await p.waitForTimeout(8000);
+  await p.screenshot({ path: "demo/audit-live.png" });
+  for (const [k, n] of seen) console.log(`${n}× ${k}`);
+  console.log("done");
+  await b.close();
+})();

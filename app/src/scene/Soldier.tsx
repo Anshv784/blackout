@@ -18,6 +18,9 @@ export interface Motion {
   reloading: boolean;
   downed: boolean;
   throwAt: number; // performance.now() of the last throw
+  crouch?: boolean;
+  jumpAt?: number; // performance.now() a jump started
+  deadAt?: number; // performance.now() they were killed: knees go, then they fall back and the gun drops
 }
 export const stillMotion = (): Motion => ({ speed: 0, firing: false, reloading: false, downed: false, throwAt: 0 });
 
@@ -112,6 +115,10 @@ export function Soldier({ color: _color, weapon = 0, ghost = false, motion }: { 
       lFore: b("LeftForeArm"),
       lHand: b("LeftHand"),
       hips: b("Hips"),
+      lUp: b("LeftUpLeg"),
+      lLeg: b("LeftLeg"),
+      rUp: b("RightUpLeg"),
+      rLeg: b("RightLeg"),
     };
     return { model, mixer, actions, bones, scale };
   }, [gltf, ghost]);
@@ -120,6 +127,8 @@ export function Soldier({ color: _color, weapon = 0, ghost = false, motion }: { 
 
   const w = useRef({ idle: 1, walk: 0, run: 0 });
   const kick = useRef(0);
+  const crouchK = useRef(0);
+  const pool = useRef<THREE.Mesh>(null);
   const lastFire = useRef(false);
   const target = useMemo(() => new THREE.Vector3(), []);
   const pole = useMemo(() => new THREE.Vector3(), []);
@@ -138,19 +147,74 @@ export function Soldier({ color: _color, weapon = 0, ghost = false, motion }: { 
     });
     actions.walk.timeScale = m.downed ? 0.45 : 1.25;
     actions.run.timeScale = 1.15;
-    mixer.update(dt);
+    // the dead stop breathing once they're down
+    const deadT = m.deadAt ? (performance.now() - m.deadAt) / 1000 : -1;
+    mixer.update(deadT > 0.9 ? 0 : dt);
+    if (deadT >= 0) {
+      // 0-0.25 s the knees buckle, 0.2-0.75 s the body goes over backwards with a small bounce
+      const buckle = Math.min(1, deadT / 0.25);
+      const fall = THREE.MathUtils.clamp((deadT - 0.2) / 0.55, 0, 1);
+      const ease = fall * fall * (3 - 2 * fall);
+      const bounce = fall >= 1 ? Math.exp(-(deadT - 0.75) * 9) * Math.sin((deadT - 0.75) * 30) * 0.06 : 0;
+      model.rotation.x = -1.42 * ease - bounce; // negative: over backwards
+      model.rotation.z = 0.2 * ease;
+      model.position.y = (-0.32 * buckle * (1 - ease) + 0.12 * ease) / scale;
+      const bend = buckle * (1 - ease * 0.85);
+      bones.lUp.rotation.x -= 1.1 * bend;
+      bones.rUp.rotation.x -= 0.8 * bend;
+      bones.lLeg.rotation.x += 1.6 * bend;
+      bones.rLeg.rotation.x += 1.2 * bend;
+      // arms fly out and go limp
+      bones.lArm.rotation.z += 0.9 * ease;
+      bones.rArm.rotation.z -= 0.7 * ease;
+      bones.neck.rotation.x += 0.4 * ease;
+      if (gunRef.current) {
+        // the gun leaves the hands and clatters down beside the body
+        const gt = Math.min(1, deadT / 0.6);
+        gunRef.current.visible = true;
+        gunRef.current.position.set(GUN_POS.x + 0.35 * gt, Math.max(0.04, GUN_POS.y * (1 - gt * gt)), GUN_POS.z + 0.25 * gt);
+        gunRef.current.rotation.set(Math.PI / 2 * gt, 0, 0);
+      }
+      if (pool.current) {
+        const k = THREE.MathUtils.clamp((deadT - 0.6) / 4, 0, 1);
+        pool.current.visible = !ghost;
+        pool.current.scale.setScalar(0.15 + 0.85 * Math.sqrt(k));
+        // spreads from under the chest, wherever the fall left it
+        bones.spine.updateWorldMatrix(true, false);
+        g.worldToLocal(tmpA.setFromMatrixPosition(bones.spine.matrixWorld));
+        pool.current.position.set(tmpA.x, 0.015, tmpA.z);
+      }
+      return;
+    }
+    if (pool.current) pool.current.visible = false;
 
     // lying on the floor when downed
     model.rotation.x += ((m.downed ? -1.35 : 0) - model.rotation.x) * k;
-    model.position.y = m.downed ? 0.18 / scale : 0;
+    model.rotation.z = 0;
+    // crouch: sink the hips, bend hips and knees, lean in
+    crouchK.current += ((m.crouch && !m.downed ? 1 : 0) - crouchK.current) * (1 - Math.pow(0.0001, dt));
+    const ck = crouchK.current;
+    // jump: a half-second arc with the legs tucked
+    const jp = m.jumpAt ? (performance.now() - m.jumpAt) / 500 : 1;
+    const jk = jp >= 0 && jp < 1 ? Math.sin(jp * Math.PI) : 0;
+    const lift = -0.26 * ck + 0.55 * jk; // how far the whole body (and the gun with it) moves
+    model.position.y = m.downed ? 0.18 / scale : lift / scale;
+    if (ck > 0.01 || jk > 0.01) {
+      const bend = Math.max(ck, jk * 0.7);
+      bones.lUp.rotation.x -= 0.95 * bend;
+      bones.rUp.rotation.x -= 0.95 * bend;
+      bones.lLeg.rotation.x += 1.45 * bend;
+      bones.rLeg.rotation.x += 1.45 * bend;
+      bones.spine.rotation.x += 0.18 * ck;
+    }
 
     // shots kick the gun back
     if (m.firing && !lastFire.current) kick.current = 1;
     lastFire.current = m.firing;
     kick.current *= Math.pow(0.0002, dt);
     if (gunRef.current) {
-      gunRef.current.position.set(GUN_POS.x - kick.current * 0.07, GUN_POS.y + kick.current * 0.02, GUN_POS.z);
-      gunRef.current.rotation.z = kick.current * 0.12;
+      gunRef.current.position.set(GUN_POS.x - kick.current * 0.07, GUN_POS.y + kick.current * 0.02 + (m.downed ? 0 : lift), GUN_POS.z);
+      gunRef.current.rotation.set(0, 0, kick.current * 0.12);
       gunRef.current.visible = !m.downed;
     }
     if (m.downed) return;
@@ -184,6 +248,11 @@ export function Soldier({ color: _color, weapon = 0, ghost = false, motion }: { 
       <group rotation-y={-Math.PI / 2} scale={scale}>
         <primitive object={model} />
       </group>
+      {/* blood spreading under a body */}
+      <mesh ref={pool} rotation-x={-Math.PI / 2} visible={false}>
+        <circleGeometry args={[0.55, 24]} />
+        <meshStandardMaterial color="#3a0408" roughness={0.15} metalness={0.2} transparent opacity={0.85} depthWrite={false} />
+      </mesh>
       <group ref={gunRef} position={GUN_POS.toArray()}>
         <group position={[-0.17, 0, -0.12]} scale={0.85}>
           <Gun weapon={weapon} ghost={ghost} />

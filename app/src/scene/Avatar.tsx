@@ -7,11 +7,11 @@ import { SEAT_COLORS } from "../game/colors";
 export { SEAT_COLORS };
 
 /** A player: a rigged soldier holding their gun, with their seat colour as a ring at the feet. */
-export const Avatar = forwardRef<THREE.Group, { color: string; weapon?: number; me?: boolean; ghost?: boolean; motion?: React.MutableRefObject<Motion> }>(
-  function Avatar({ color, weapon = 0, me = false, ghost = false, motion }, ref) {
+export const Avatar = forwardRef<THREE.Group, { color: string; weapon?: number; me?: boolean; ghost?: boolean; ring?: boolean; motion?: React.MutableRefObject<Motion> }>(
+  function Avatar({ color, weapon = 0, me = false, ghost = false, ring = true, motion }, ref) {
     return (
       <group ref={ref}>
-        <mesh rotation-x={-Math.PI / 2} position={[0, 0.02, 0]}>
+        <mesh rotation-x={-Math.PI / 2} position={[0, 0.02, 0]} visible={ring}>
           <ringGeometry args={[0.36, me ? 0.44 : 0.41, 32]} />
           <meshBasicMaterial color={color} transparent opacity={me ? 0.9 : ghost ? 0.25 : 0.6} toneMapped={false} />
         </mesh>

@@ -686,7 +686,7 @@ button {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle, rgba(60, 0, 10, 0.35), rgba(0, 0, 0, 0.75));
+  background: radial-gradient(circle, rgba(0, 0, 0, 0.15) 30%, rgba(0, 0, 0, 0.7));
   text-align: center;
   padding: 16px;
 }
@@ -927,44 +927,49 @@ button {
   }
 }
 
-/* touch */
+/* touch: left thumb moves, right thumb looks; buttons under the right thumb */
+.touch-ui { position: absolute; inset: 0; pointer-events: none; z-index: 6; }
+.touch-ui > * { pointer-events: auto; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+.look-pad { position: absolute; top: 0; bottom: 0; right: 0; left: 42%; }
+.stick-zone { position: absolute; left: 0; bottom: 0; width: 42%; height: 62%; }
 .stick {
-  position: absolute;
-  bottom: max(70px, calc(env(safe-area-inset-bottom) + 60px));
-  width: 124px;
-  height: 124px;
-  border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.03);
-  touch-action: none;
+  position: absolute; left: 92px; top: calc(100% - 120px);
+  width: 112px; height: 112px; margin: -56px 0 0 -56px; border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.14); background: rgba(255, 255, 255, 0.04);
+  transition: opacity 0.2s; opacity: 0.55;
 }
-.stick.left {
-  left: 22px;
-}
-.stick.right {
-  right: 22px;
-}
+.stick.live { opacity: 1; transition: none; }
 .knob {
-  position: absolute;
-  left: 37px;
-  top: 37px;
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
-  background: rgba(255, 209, 102, 0.35);
-  border: 2px solid rgba(255, 209, 102, 0.7);
+  position: absolute; left: 31px; top: 31px; width: 46px; height: 46px; border-radius: 50%;
+  background: rgba(255, 209, 102, 0.3); border: 2px solid rgba(255, 209, 102, 0.75);
 }
-.touch-reload {
-  position: absolute;
-  right: 160px;
-  bottom: max(90px, calc(env(safe-area-inset-bottom) + 80px));
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  background: rgba(0, 0, 0, 0.4);
-  color: var(--fg);
-  font-size: 22px;
+.tb {
+  position: absolute; display: grid; place-items: center; padding: 0;
+  width: 50px; height: 50px; border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.28); background: rgba(8, 10, 14, 0.42);
+  color: rgba(255, 255, 255, 0.86); backdrop-filter: blur(2px);
+}
+.tb svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.tb.down { background: rgba(255, 209, 102, 0.32); border-color: #ffd166; }
+.tb.on { color: #ffd166; border-color: #ffd166; }
+.tb.fire { width: 78px; height: 78px; border-color: rgba(255, 90, 70, 0.7); background: rgba(120, 20, 10, 0.32); }
+.tb.fire svg { width: 34px; height: 34px; stroke: #ff7a5c; }
+.tb.fire.left { left: 26px; bottom: auto; top: 34%; width: 58px; height: 58px; }
+.tb.fire.left svg { width: 26px; height: 26px; }
+.tb-cluster { position: absolute; right: 0; bottom: 0; width: 1px; height: 1px; pointer-events: none; }
+.tb-cluster .tb { pointer-events: auto; touch-action: none; }
+/* right thumb arc, measured from the bottom-right corner */
+.tb-cluster .fire { right: max(28px, env(safe-area-inset-right)); bottom: max(54px, calc(env(safe-area-inset-bottom) + 40px)); }
+.tb-cluster .jump { right: 120px; bottom: 40px; }
+.tb-cluster .crouch { right: 124px; bottom: 102px; }
+.tb-cluster .ads { right: 100px; bottom: 160px; }
+.tb-cluster .reload { right: 36px; bottom: 156px; }
+.tb-cluster .swap { right: 40px; bottom: 216px; }
+.tb-cluster .gadget { right: 168px; bottom: 150px; }
+.tb.gadget .gadget-icon { width: 26px; height: 26px; }
+.tb.gadget.empty { opacity: 0.35; }
+@media (orientation: portrait) {
+  .tb-cluster .gadget { right: 24px; bottom: 274px; }
 }
 
 /* ---------- reveal ---------- */
@@ -1159,7 +1164,7 @@ button {
 
 .rc-meta .stake{color:var(--gold)}
 .seat-name .away{color:var(--dim);font-weight:400;font-size:12px}
-@media (max-width:640px){.stick{width:104px;height:104px}.knob{left:27px;top:27px}.hud-bottom-left{bottom:auto;top:112px;width:44vw}.hud-bottom-right{bottom:auto;top:118px}.chain{display:none}.feed{top:250px}}
+@media (max-width:640px){.hud-bottom-left{bottom:auto;top:112px;width:44vw}.hud-bottom-right{bottom:auto;top:118px}.chain{display:none}.feed{top:250px}}
 
 .checks .ok{color:var(--green);font-weight:700}.checks .bad{color:var(--red);font-weight:700}
 
@@ -1263,7 +1268,11 @@ button {
 .chip-btn .dot{width:7px;height:7px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold)}
 .chip-input{background:#070910;border:1px solid var(--gold);color:var(--fg);font-family:var(--mono);font-size:12px;padding:7px 10px;border-radius:9px;width:150px;letter-spacing:.08em}
 .topbar .sound-toggle{padding:6px 10px}
-@media (max-width:820px){.topbar nav{display:none}.topbar{padding:12px 14px}.chip-btn.ghost{display:none}}
+/* narrow screens: one row always; short nav labels, no logo text, no guest tag */
+.topbar nav a,.chip-btn{white-space:nowrap}
+@media (max-width:1100px){.guest-tag{display:none}.topbar{gap:12px}.topbar nav{margin-left:0}.topbar nav a{padding:6px 9px}}
+@media (max-width:820px){.topbar{padding:10px 12px;gap:8px}.chip-btn.ghost{display:none}.topbar nav a{font-size:0;padding:6px 7px}.topbar nav a::after{content:attr(data-short);font-size:12px}}
+@media (max-width:520px){.topbar .logo-mark span{display:none}}
 
 /* gate */
 .gate{position:fixed;inset:0;overflow:hidden}
@@ -1856,3 +1865,122 @@ button {
 .slam.left{left:7vw;right:auto;bottom:16vh;align-items:flex-start;text-align:left;animation:slamleft .4s cubic-bezier(.2,1.4,.4,1)}
 .slam.left b{font-size:clamp(40px,6.5vw,92px)}
 @keyframes slamleft{from{opacity:0;transform:translateX(-40px);filter:blur(6px)}to{opacity:1;transform:none;filter:none}}
+
+/* ===================== loadout: icons, not words ===================== */
+.hud-weapon,.hud-slots{display:none!important}
+.hud-loadout{position:absolute;right:16px;bottom:calc(max(16px, env(safe-area-inset-bottom)) + 4px);display:flex;flex-direction:column;align-items:flex-end;gap:6px;pointer-events:none}
+.hud-loadout kbd{position:absolute;right:4px;top:3px;font-family:var(--mono);font-size:8px;color:#0a0a0f;background:rgba(255,209,102,.85);border-radius:3px;padding:0 3px;line-height:12px}
+.lo-gadget-row{display:flex;gap:6px;align-items:flex-end}
+.lo-gadget{position:relative;width:46px;height:46px;display:grid;place-items:center;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.14);border-radius:8px;color:#ffd166}
+.lo-gadget .gadget-icon{width:28px;height:28px}
+.lo-gadget b{position:absolute;right:4px;bottom:2px;font-family:var(--mono);font-size:12px;color:#fff}
+.lo-gadget.empty{color:rgba(255,255,255,.18)}
+.lo-gadget.empty kbd{opacity:.4}
+.lo-chip{position:relative;width:46px;height:46px;display:grid;place-items:center;border-radius:8px;background:rgba(0,0,0,.5);border:1px solid rgba(60,255,120,.5);color:#7dffa8;overflow:hidden}
+.lo-chip .mini-icon{width:24px;height:24px}
+.lo-chip i{position:absolute;left:0;bottom:0;height:3px;background:#3cff7a}
+.lo-slot{position:relative;display:flex;align-items:center;gap:8px;background:linear-gradient(270deg,rgba(0,0,0,.6),rgba(0,0,0,.25));border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#e8ecf6}
+.lo-slot .gun-icon{display:block}
+.lo-slot.sec{width:150px;height:40px;padding:0 10px;opacity:.6}
+.lo-slot.sec .gun-icon{width:90px;height:34px}
+.lo-slot.sec em{font-style:normal;font-family:var(--mono);font-size:12px;margin-left:auto;margin-right:14px}
+.lo-slot.sec.empty{opacity:.25;justify-content:center}
+.lo-plus{font-size:20px;color:#fff}
+.lo-slot.main{width:230px;flex-wrap:wrap;padding:8px 12px 8px;border-color:rgba(255,209,102,.35)}
+.lo-slot.main .gun-icon{width:130px;height:48px;color:#fff;filter:drop-shadow(0 0 6px rgba(255,255,255,.25))}
+.lo-ammo{display:flex;flex-direction:column;align-items:flex-end;margin-left:auto;gap:4px}
+.lo-ammo b{font-family:var(--mono);font-size:34px;line-height:1;color:#fff}
+.lo-slot.empty-mag .lo-ammo b{color:#ff4d6a;animation:clockpulse .6s infinite}
+.lo-slot.empty-mag{border-color:rgba(255,77,106,.6)}
+.lo-reload{display:block;width:44px;height:6px;border-radius:3px;background:rgba(255,255,255,.12);overflow:hidden;margin:14px 0}
+.lo-reload i{display:block;height:100%;background:var(--gold);animation:reloadfill 1.6s linear infinite}
+@keyframes reloadfill{from{width:0}to{width:100%}}
+.fire-mode{display:flex;gap:3px}
+.fire-mode i{width:5px;height:5px;border-radius:50%;background:var(--gold)}
+.fire-mode i.bolt{width:14px;height:4px;border-radius:2px}
+.ammo-ticks{display:flex;gap:2px;width:100%;margin-top:6px}
+.ammo-ticks i{flex:1;height:9px;border-radius:1px;background:rgba(255,255,255,.12)}
+.ammo-ticks i.on{background:#f2e6c4}
+.ammo-ticks.dense i{height:7px}
+.hp-row,.armor-row{display:flex;align-items:center;gap:6px}
+.hp-row .bar{flex:1}
+.mini-icon{width:13px;height:13px;flex:none}
+.hp-row .mini-icon{color:#f2f2f2}
+.armor-row .mini-icon{color:#90e0ef}
+@media (max-width:640px){.hud-loadout{transform:scale(.78);transform-origin:bottom right}}
+
+/* ---------- phone HUD: everything clears the thumbs ---------- */
+.game.touch .chain{display:none}
+.game.touch .hud-health{bottom:calc(max(8px, env(safe-area-inset-bottom)));width:min(300px,34vw)}
+.game.touch .hud-loadout{right:auto;left:50%;bottom:calc(max(8px, env(safe-area-inset-bottom)) + 26px);transform:translateX(-50%) scale(.6);transform-origin:bottom center}
+.game.touch .hud-loadout .lo-gadget-row,.game.touch .hud-loadout .lo-slot.sec{display:none}
+.tb .tb-n{position:absolute;right:-2px;top:-2px;min-width:18px;height:18px;border-radius:9px;background:#ffd166;color:#111;font:700 11px/18px var(--mono);text-align:center}
+.game.touch .game-tools{right:auto;left:16px;top:calc(max(14px, env(safe-area-inset-top)) + 46px);gap:4px}
+.game.touch .game-tools button{font-size:10px;padding:6px 8px}
+.game.touch .game-tools button i{display:none}
+.game.touch .minimap{width:96px;height:96px}
+.game.touch .banners{top:150px}
+.tb.ads{font-size:0}
+.game.touch .banner b{font-size:22px}
+.game.touch .banner small{font-size:9px}
+.game.touch .feed{top:calc(max(14px, env(safe-area-inset-top)) + 96px);right:auto;left:50%;transform:translateX(-50%) scale(.8);transform-origin:top center;align-items:center}
+.game.touch .banners{top:178px}
+@media (max-height:500px){
+  .game.touch .compass{transform:translateX(-50%) scale(.8);transform-origin:top center}
+  .game.touch .hud-clock{transform:translateX(-50%) scale(.8);transform-origin:top center}
+  .game.touch .mod-chip{display:none}
+}
+.night-card{z-index:7;pointer-events:none}
+@media (max-height:500px){.night-card h1{font-size:56px}.night-card{gap:4px}}
+
+/* ---------- lobby on phones: the dock scrolls, nothing hides (the private code must be reachable) ---------- */
+@media (max-width:820px){
+  .dock-cell.invite,.dock-cell.bots{display:flex!important}
+  .dock{max-height:calc(100dvh - 190px);overflow-y:auto;align-items:stretch!important}
+  .dock-cell.main{order:-1;min-width:0!important}
+}
+@media (max-height:520px){
+  .lobby2-head,.keys-hint{display:none}
+  .exit-room{top:58px;left:12px;padding:7px 11px;font-size:11px}
+  .dock{top:auto;bottom:10px!important;max-height:calc(100dvh - 196px);overflow-y:auto;grid-template-columns:1fr 1fr!important;align-items:start!important;align-content:start;width:calc(100vw - 24px)!important}
+  .dock-cell.main{grid-column:1 / -1;order:-1;padding:0!important}
+  .dock-cell.main .btn.huge{padding:12px;font-size:18px}
+}
+@media (max-width:520px){
+  .topbar{gap:4px;padding:8px 8px}
+  .topbar nav a{padding:6px 5px}
+  .topbar-right{gap:4px}
+  .topbar .chip-btn{padding:6px 8px}
+  .topbar .cw-word,.topbar .cs-pen{display:none}
+  .topbar .sound-toggle{display:none}
+}
+@media (max-width:520px){.exit-room{top:54px;left:10px;padding:6px 10px;font-size:11px}.lobby2-head{top:92px}}
+.rotate-hint{display:none}
+@media (orientation:portrait){
+  .game.touch .rotate-hint{display:flex;position:absolute;inset:0;z-index:40;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:rgba(3,4,8,.94);text-align:center}
+  .rotate-hint svg{width:64px;height:64px;fill:none;stroke:#ffd166;stroke-width:1.5;animation:rot 2.4s ease-in-out infinite}
+  .rotate-hint b{letter-spacing:.2em;font-size:16px}
+  .rotate-hint small{color:var(--dim);font-family:var(--mono);font-size:11px;letter-spacing:.14em}
+}
+@keyframes rot{0%,30%{transform:rotate(0)}60%,100%{transform:rotate(-90deg)}}
+
+/* ---------- dying ---------- */
+.death-grade{position:absolute;inset:0;pointer-events:none;z-index:3;backdrop-filter:grayscale(.85) contrast(1.08) brightness(.8);-webkit-backdrop-filter:grayscale(.85) contrast(1.08) brightness(.8);background:radial-gradient(ellipse at center,transparent 35%,rgba(120,0,12,.55) 100%);animation:dgrade 1.6s ease-out both}
+@keyframes dgrade{0%{opacity:0;background-color:rgba(255,40,60,.35)}12%{opacity:1;background-color:rgba(255,40,60,.18)}100%{opacity:1;background-color:transparent}}
+.death-stamp{position:absolute;left:50%;top:30%;transform:translateX(-50%);z-index:8;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none}
+.death-stamp b{font-size:clamp(40px,7vw,86px);letter-spacing:.22em;font-weight:800;color:#ff2e4d;text-shadow:0 0 40px rgba(255,46,77,.55),0 4px 0 rgba(0,0,0,.6);animation:dstamp 2.6s cubic-bezier(.2,1.4,.4,1) both}
+.death-stamp small{font-family:var(--mono);letter-spacing:.2em;font-size:13px;color:#d6dbe8;animation:dfade 2.6s ease both .25s}
+@keyframes dstamp{0%{transform:scale(2.2);opacity:0;filter:blur(8px)}14%{transform:scale(1);opacity:1;filter:blur(0)}85%{opacity:1}100%{opacity:0;transform:scale(.96)}}
+@keyframes dfade{0%{opacity:0;transform:translateY(6px)}15%{opacity:1;transform:none}85%{opacity:1}100%{opacity:0}}
+.death-card-in{position:absolute;inset:0;z-index:8;pointer-events:none;animation:dcard .9s ease-out both}
+.death-card-in .dead{animation:none}
+@keyframes dcard{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.game.touch .death-stamp{top:22%}
+.game.touch .death-stamp b{font-size:40px}
+.hud.is-dead .hud-loadout,.hud.is-dead .hud-health,.hud.is-dead .mod-chip,.hud.is-dead .ping-ring,.hud.is-dead .compass{opacity:0;transition:opacity .8s}
+.game:has(.hud.is-dead) .touch-ui{display:none}
+.death-card-in .dead{justify-content:flex-end;padding-bottom:max(7vh,24px);background:linear-gradient(transparent 40%,rgba(0,0,0,.78))}
+.death-card-in .dead h2{font-size:clamp(48px,7vw,84px)!important}
+.game.touch .death-card-in .dead{padding-bottom:12px;gap:2px}
+.game.touch .death-card-in .dead h2{font-size:40px!important}
+.game.touch .death-card-in .dead small{display:none}

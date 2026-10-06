@@ -7,7 +7,8 @@ import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import type { Session } from "../game/session";
 import { ST_LIVE, ST_COUNTDOWN } from "../chain/layout";
-import { isWall, angleToRad } from "../game/sim";
+import { isWall, angleToRad, sinFx, PLAYER_R } from "../game/sim";
+import { controls } from "../game/controls";
 import { audio } from "../game/audio";
 import { feel } from "../game/feel";
 import { MAP_W } from "../game/gen";
@@ -125,8 +126,21 @@ function Tracers({ session }: { session: Session }) {
           }
           if (!hit) continue;
           const back = Math.atan2(-b.vy, -b.vx);
-          if (hit === "wall") sparks(hx / 256, 0.7, hy / 256, "#ffc56b", 9, { speed: 3.2, dir: back, spread: 2.2, up: 2.2, life: 0.35 });
+          if (hit === "wall") {
+            sparks(hx / 256, 0.7, hy / 256, "#ffc56b", 9, { speed: 3.2, dir: back, spread: 2.2, up: 2.2, life: 0.35 });
+            const me = session.myPos();
+            if (me && Math.hypot(hx - me.x, hy - me.y) < 6 * 256) audio.ricochet(Math.sin(Math.atan2(hy - me.y, hx - me.x) - angleToRad(session.input.aim)));
+          }
           else sparks(hx / 256, 0.75, hy / 256, "#ff2e4d", 12, { speed: 2.2, dir: back + Math.PI, spread: 1.6, up: 1.6, life: 0.5, grav: 7 });
+        }
+      }
+      // a round that came from further out and is now right next to you: it cracked past your head
+      const me = session.myPos();
+      if (me) {
+        for (const nb of session.bullets) {
+          const dn = Math.hypot(nb.x - me.x, nb.y - me.y);
+          const db = Math.hypot(nb.x - nb.vx - me.x, nb.y - nb.vy - me.y);
+          if (dn < 1.3 * 256 && db > 2.2 * 256) audio.whiz(Math.sin(Math.atan2(nb.y - me.y, nb.x - me.x) - angleToRad(session.input.aim)));
         }
       }
       prev.current = { list: session.bullets, at: session.bulletsAt };
@@ -162,6 +176,163 @@ function Tracers({ session }: { session: Session }) {
         <boxGeometry args={[1.05, 0.14, 0.14]} />
         <meshBasicMaterial color="#ff9a3c" transparent opacity={0.22} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
       </instancedMesh>
+    </>
+  );
+}
+
+// ------------------------------------------------------------------ thrown gadgets
+
+const NADE_TTL = 18; // ticks of flight (the program's throw)
+const NADE_COLOR = ["#000", "#4a5233", "#7d8a8f", "#3c4450", "#6b5a2e", "#2d4a5a"];
+const NADE_LIGHT = ["#000", "#ff3030", "#000", "#ffffff", "#ffb347", "#3cf0ff"];
+const BLAST_R = [0, 3, 2.5, 7, 1, 1]; // tiles: frag, smoke, flash, decoy, sensor
+
+/** Height above the ground `t` ticks after the throw: a lob, one short hop, then rolling. */
+function nadeY(t: number) {
+  if (t < 11) {
+    const u = t / 11;
+    return 1.25 * (1 - u) + 0.07 * u + 3.0 * u * (1 - u);
+  }
+  if (t < 15) return 0.07 + 0.3 * Math.sin((Math.PI * (t - 11)) / 4);
+  return 0.07;
+}
+
+/** The program's flight, tick by tick (same integer maths, so the arc is where it really lands). */
+function flightPath(x0: number, y0: number, aim: number) {
+  const c = sinFx(aim + 16384);
+  const sn = sinFx(aim);
+  let x = x0 + Math.trunc((c * (PLAYER_R + 40)) / 1024);
+  let y = y0 + Math.trunc((sn * (PLAYER_R + 40)) / 1024);
+  if (isWall(x >> 8, y >> 8)) return null;
+  let vx = Math.trunc((c * 120) / 1024);
+  let vy = Math.trunc((sn * 120) / 1024);
+  const pts: [number, number][] = [[x, y]];
+  for (let i = 0; i < NADE_TTL; i++) {
+    const nx = x + vx;
+    if (isWall(nx >> 8, y >> 8)) vx = Math.trunc(-vx / 2);
+    else x = nx;
+    const ny = y + vy;
+    if (isWall(x >> 8, ny >> 8)) vy = Math.trunc(-vy / 2);
+    else y = ny;
+    vx = Math.trunc((vx * 7) / 8);
+    vy = Math.trunc((vy * 7) / 8);
+    pts.push([x, y]);
+  }
+  return pts;
+}
+
+function Nades({ session }: { session: Session }) {
+  const groups = useRef<(THREE.Group | null)[]>([]);
+  const prev = useRef<{ list: Session["nades"]; at: number }>({ list: [], at: 0 });
+  useFrame(() => {
+    const now = performance.now();
+    const me = session.myPos();
+    const aimR = angleToRad(session.input.aim);
+    if (session.bulletsAt !== prev.current.at) {
+      // bounces off walls and the first touch-down get a clink; matched to last update's can
+      for (const n of session.nades) {
+        const o = prev.current.list.find((q) => q.kind === n.kind && q.ttl > n.ttl && Math.hypot(q.x - n.x, q.y - n.y) < 500);
+        if (!o) continue;
+        const d = me ? Math.hypot(n.x - me.x, n.y - me.y) / 256 : 10;
+        const vol = Math.max(0.15, 1 - d / 16);
+        const pan = me ? Math.sin(Math.atan2(n.y - me.y, n.x - me.x) - aimR) : 0;
+        const landed = NADE_TTL - o.ttl < 11 && NADE_TTL - n.ttl >= 11;
+        const hopped = NADE_TTL - o.ttl < 15 && NADE_TTL - n.ttl >= 15;
+        const wall = Math.sign(o.vx) * Math.sign(n.vx) < 0 || Math.sign(o.vy) * Math.sign(n.vy) < 0;
+        if (landed || wall) audio.clink(vol, pan);
+        if (hopped) audio.roll(vol, pan);
+      }
+      prev.current = { list: session.nades, at: session.bulletsAt };
+    }
+    const k = Math.min(1.2, (now - session.bulletsAt) / 50);
+    for (let i = 0; i < 6; i++) {
+      const g = groups.current[i];
+      if (!g) continue;
+      const n = session.nades[i];
+      g.visible = !!n;
+      if (!n) continue;
+      const t = Math.min(NADE_TTL, NADE_TTL - n.ttl + k);
+      g.position.set((n.x + n.vx * k) / 256, nadeY(t), (n.y + n.vy * k) / 256);
+      // tumbling in the air, rolling on the ground
+      g.rotation.set(now / (t < 11 ? 70 : 160), Math.atan2(n.vy, n.vx), 0);
+      const body = g.children[0] as THREE.Mesh;
+      (body.material as THREE.MeshStandardMaterial).color.set(NADE_COLOR[n.kind] ?? "#555");
+      const led = g.children[1] as THREE.Mesh;
+      led.visible = NADE_LIGHT[n.kind] !== "#000" && Math.floor(now / (n.ttl < 6 ? 60 : 160)) % 2 === 0;
+      (led.material as THREE.MeshBasicMaterial).color.set(NADE_LIGHT[n.kind] ?? "#fff");
+    }
+  });
+  return (
+    <>
+      {Array.from({ length: 6 }, (_, i) => (
+        <group key={i} ref={(el) => (groups.current[i] = el)} visible={false}>
+          <mesh castShadow>
+            <capsuleGeometry args={[0.07, 0.08, 4, 8]} />
+            <meshStandardMaterial roughness={0.6} metalness={0.5} />
+          </mesh>
+          <mesh position={[0, 0.13, 0]}>
+            <sphereGeometry args={[0.03, 6, 6]} />
+            <meshBasicMaterial toneMapped={false} />
+          </mesh>
+        </group>
+      ))}
+    </>
+  );
+}
+
+/** Holding G: a dotted arc to where the throw lands, and a ring for what it'll cover. */
+function ThrowPreview({ session }: { session: Session }) {
+  const dots = useRef<THREE.InstancedMesh>(null);
+  const ring = useRef<THREE.Mesh>(null);
+  const tmp = useMemo(() => new THREE.Object3D(), []);
+  const wasHeld = useRef(0);
+  useFrame(() => {
+    const d = dots.current;
+    const r = ring.current;
+    if (!d || !r) return;
+    const v = session.view;
+    const p = session.myPos();
+    const kind = v?.inv?.gadget ?? 0;
+    const show = !!controls.gadgetHeld && !!p && v?.me.alive === 1 && (v?.inv?.count ?? 0) > 0 && kind >= 1 && kind <= 5 && session.room?.status === ST_LIVE;
+    if (controls.gadgetHeld && controls.gadgetHeld !== wasHeld.current && show) audio.fuse();
+    wasHeld.current = controls.gadgetHeld;
+    const path = show ? flightPath(p!.x, p!.y, session.input.aim) : null;
+    if (!path) {
+      d.count = 0;
+      r.visible = false;
+      return;
+    }
+    // dots every half tick along the lob
+    let n = 0;
+    for (let t = 0; t < NADE_TTL && n < 36; t += 0.5) {
+      const a = path[Math.floor(t)];
+      const b = path[Math.min(NADE_TTL, Math.floor(t) + 1)];
+      const f = t - Math.floor(t);
+      tmp.position.set((a[0] + (b[0] - a[0]) * f) / 256, nadeY(t), (a[1] + (b[1] - a[1]) * f) / 256);
+      const s = 1 - (t / NADE_TTL) * 0.5;
+      tmp.scale.set(s, s, s);
+      tmp.updateMatrix();
+      d.setMatrixAt(n++, tmp.matrix);
+    }
+    d.count = n;
+    d.instanceMatrix.needsUpdate = true;
+    const end = path[NADE_TTL];
+    r.visible = true;
+    r.position.set(end[0] / 256, 0.04, end[1] / 256);
+    const rad = BLAST_R[kind] ?? 1;
+    r.scale.set(rad, rad, 1);
+    (r.material as THREE.MeshBasicMaterial).color.set(kind === 1 ? "#ff5a3c" : kind === 3 ? "#ffffff" : "#ffd84a");
+  });
+  return (
+    <>
+      <instancedMesh ref={dots} args={[undefined, undefined, 36]} frustumCulled={false}>
+        <sphereGeometry args={[0.055, 6, 6]} />
+        <meshBasicMaterial color="#ffd84a" transparent opacity={0.9} toneMapped={false} depthWrite={false} />
+      </instancedMesh>
+      <mesh ref={ring} rotation-x={-Math.PI / 2} visible={false}>
+        <ringGeometry args={[0.94, 1, 48]} />
+        <meshBasicMaterial transparent opacity={0.55} toneMapped={false} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
     </>
   );
 }
@@ -384,6 +555,14 @@ function Reactions({ session }: { session: Session }) {
         sparks(f.x / 256, 0.3, f.y / 256, "#9fb4ff", 16, { speed: 1, up: 4, life: 1.4, grav: -0.5 });
       } else if (f.kind === "shot") {
         const a = angleToRad(f.angle ?? 0);
+        const me = session.myPos();
+        if (me) {
+          const d = Math.hypot(f.x - me.x, f.y - me.y) / 256;
+          const rel = Math.atan2(f.y - me.y, f.x - me.x) - angleToRad(session.input.aim);
+          const tr = session.tracks.get(f.sub ?? -1);
+          const w = tr?.samples[tr.samples.length - 1]?.weapon ?? 0;
+          audio.shotAt(w, d, Math.sin(rel));
+        }
         sparks(f.x / 256 + Math.cos(a) * 0.7, 0.72, f.y / 256 + Math.sin(a) * 0.7, "#ffcf7a", 5, { speed: 4, dir: a, spread: 0.7, up: 0.4, life: 0.12, grav: 0 });
       }
     }
@@ -418,6 +597,7 @@ function Reactions({ session }: { session: Session }) {
       const every = session.sprinting ? 150 : 230;
       if (s.acc > every) {
         s.acc = 0;
+        if (!(session.input.buttons & 32)) audio.step(0, session.sprinting ? 0.5 : 0.28, session.sprinting);
         sparks(p.x / 256, 0.05, p.y / 256, session.sprinting ? "#8a8fa0" : "#5c606c", session.sprinting ? 6 : 3, { speed: 0.6, up: 0.5, life: 0.5, grav: 0.5 });
       }
     }
@@ -554,6 +734,8 @@ export function Effects({ session }: { session: Session }) {
       <Reactions session={session} />
       <DropBeacon session={session} />
       <SmokeAndBooms session={session} />
+      <Nades session={session} />
+      <ThrowPreview session={session} />
       {p.weather && <Lightning session={session} />}
       {p.weather && rich && <Rain session={session} />}
       {rich && <DustMotes session={session} />}

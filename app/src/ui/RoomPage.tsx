@@ -6,7 +6,8 @@ import { client } from "../game/identity";
 import { ST_LOBBY, ST_STARTING, ST_COUNTDOWN, ST_LIVE, ST_ENDED, ST_REVEALED, STATUS_NAME, type Room } from "../chain/layout";
 import { Hud } from "./Hud";
 import { Reveal } from "./Reveal";
-import { TouchControls } from "./TouchControls";
+import { TouchControls, useTouch } from "./TouchControls";
+import { controls } from "../game/controls";
 import { ChainPanel } from "./ChainPanel";
 import { Crosshair } from "./Crosshair";
 import { roomLink } from "../config";
@@ -26,6 +27,7 @@ const EMPTY = "11111111111111111111111111111111";
 const flags = () => new URLSearchParams(window.location.hash.split("?")[1] ?? "");
 
 export function RoomPage({ roomId }: { roomId: bigint }) {
+  const touch = useTouch();
   const session = useMemo(() => new Session(roomId), [roomId]);
   const room = useStore((s) => s.room);
   const mySeat = useStore((s) => s.mySeat);
@@ -35,6 +37,8 @@ export function RoomPage({ roomId }: { roomId: bigint }) {
     useStore.getState().set({ room: null, view: null, mySeat: null, reveal: null });
     session.start().catch((e) => setErr(String(e?.message ?? e)));
     (window as any).__session = session;
+    (window as any).__controls = controls;
+    (window as any).__store = useStore;
     const bye = () => {
       // walking away from a lobby frees your seat (and the room, if you were alone)
       if (session.room?.status === ST_LOBBY && session.mySeat !== null) session.leave().catch(() => {});
@@ -54,12 +58,19 @@ export function RoomPage({ roomId }: { roomId: bigint }) {
   if (room.status === ST_REVEALED) return <Reveal session={session} />;
   if (playing)
     return (
-      <div className="game">
+      <div className={`game ${touch ? "touch" : ""}`}>
         <Suspense fallback={null}>
           <GameScene session={session} />
         </Suspense>
         <Hud session={session} />
-        <TouchControls />
+        <TouchControls session={session} />
+        {touch && (
+          <div className="rotate-hint">
+            <svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2" /><path d="M20 9a8 8 0 0 1 0 6M4 9a8 8 0 0 0 0 6" /></svg>
+            <b>TURN YOUR PHONE</b>
+            <small>the night plays sideways</small>
+          </div>
+        )}
         <ChainPanel session={session} />
         <Crosshair />
       </div>
@@ -523,6 +534,8 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
         <span>mouse aim</span>
         <span>WASD move</span>
         <span>Shift sprint</span>
+        <span>Space jump</span>
+        <span>C sneak</span>
         <span>RMB scope</span>
         <span>G gadget</span>
         <span>X swap</span>

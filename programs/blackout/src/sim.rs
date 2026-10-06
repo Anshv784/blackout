@@ -56,6 +56,8 @@ pub const BTN_SWAP: u32 = 16;
 /// bullet.weapon >= EFF_FLY marks a gadget, not a round: EFF_FLY + kind while flying
 pub const EFF_FLY: u32 = 16;
 pub const EFF_SMOKE: u32 = 32;
+/// VisBullet tag for a gadget in flight (velocities are far below this)
+pub const GADGET_TAG: i32 = 1 << 20;
 pub const EFF_DECOY: u32 = 33;
 pub const EFF_SENSOR: u32 = 34;
 pub const SMOKE_R: i32 = 5 * UNIT / 2;
@@ -335,10 +337,35 @@ pub const SPRINT_SPEED: i32 = 84;
 pub const FATIGUE_MAX: u32 = 100;
 pub const FATIGUE_RECOVERED: u32 = 30;
 pub const BTN_SPRINT: u32 = 4;
+pub const BTN_CROUCH: u32 = 32;
+pub const BTN_JUMP: u32 = 64;
+/// sneaking: slow and silent (mirrored in sim.ts)
+pub const SNEAK_SPEED: i32 = 28;
+pub const JUMP_TICKS: u32 = 10;
+pub const JUMP_COST: u32 = 15;
+
+/// One tick of how you move: (speed, new `moved` word without the moved bit).
+/// `moved` packs: bit 1 sprinting, bit 2 winded, bit 3 crouched, bits 4-7 jump ticks left,
+/// bits 8-15 fatigue. Mirrored in sim.ts moveStep.
+pub fn move_step(moved: u32, buttons: u32, dx: i32, dy: i32, downed: bool) -> (i32, bool, u32) {
+    let crouch = !downed && buttons & BTN_CROUCH != 0;
+    let btn = if downed { 0 } else if crouch { buttons & !BTN_SPRINT } else { buttons };
+    let (sprinting, mut fatigue, winded) = sprint_step(moved, btn, dx, dy);
+    let mut jt = (moved >> 4) & 0xf;
+    if jt > 0 {
+        jt -= 1;
+    } else if !downed && !crouch && btn & BTN_JUMP != 0 && fatigue + JUMP_COST <= FATIGUE_MAX {
+        jt = JUMP_TICKS;
+        fatigue += JUMP_COST;
+    }
+    let speed = if downed { CRAWL_SPEED } else if crouch { SNEAK_SPEED } else if sprinting { SPRINT_SPEED } else { SPEED };
+    let word = (sprinting as u32) << 1 | (winded as u32) << 2 | (crouch as u32) << 3 | jt << 4 | (fatigue & 0xff) << 8;
+    (speed, sprinting, word)
+}
 
 /// One tick of stamina: returns (sprinting, new fatigue, winded).
 pub fn sprint_step(moved: u32, buttons: u32, dx: i32, dy: i32) -> (bool, u32, bool) {
-    let mut fatigue = moved >> 8;
+    let mut fatigue = (moved >> 8) & 0xff;
     let mut winded = moved & 4 != 0;
     let wants = buttons & BTN_SPRINT != 0 && buttons & 1 == 0 && (dx != 0 || dy != 0);
     let sprinting = wants && !winded;
@@ -514,7 +541,7 @@ pub fn seed_match(room: &mut Room, w: &mut World, seed: [u8; 32]) {
     w.start_x = c;
     w.start_y = c;
     w.start_r = 35 * UNIT;
-    // the schedule is written for a 2:15 night and stretched to the length the host picked
+    // the schedule is written for a 2:15 night and stretched to the 5:00 night
     let k = room.match_ticks();
     let sc = |v: u32| v * k / ZONE_BASE;
     w.zone = [
@@ -630,9 +657,9 @@ fn bot_think(w: &mut World, room: &Room, seat: usize, tick: u32) {
     let next = (room.next_x, room.next_y, room.next_r);
     let p = w.players[seat];
     let mut b = w.bots[seat];
-    let mut dx = 0i32;
-    let mut dy = 0i32;
-    let mut aim = p.aim;
+    let mut dx: i32;
+    let mut dy: i32;
+    let aim: u32;
     let mut buttons = 0u32;
     let wpn = &WEAPONS[p.weapon as usize];
 
@@ -758,14 +785,12 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
                 continue;
             }
             let downed = p.alive == DOWNED;
-            let btn = if downed { 0 } else { p.buttons };
-            let (sprinting, fatigue, winded) = sprint_step(p.moved, btn, p.in_dx, p.in_dy);
-            let speed = if downed { CRAWL_SPEED } else if sprinting { SPRINT_SPEED } else { SPEED };
+            let (speed, sprinting, word) = move_step(p.moved, p.buttons, p.in_dx, p.in_dy, downed);
             let (vx, vy) = input_velocity_at(p.in_dx, p.in_dy, speed);
             let (ox, oy) = (p.x, p.y);
             move_body(&mut p.x, &mut p.y, vx, vy);
             let moved = ox != p.x || oy != p.y;
-            p.moved = moved as u32 | ((sprinting && moved) as u32) << 1 | (winded as u32) << 2 | (fatigue & 0xff) << 8;
+            p.moved = moved as u32 | if sprinting && moved { word } else { word & !2 };
             let blind = blind_of(&p);
             if blind > 0 {
                 p.hit_angle = (p.hit_angle & 0xffff) | ((blind - 1) << 16);
@@ -1256,7 +1281,7 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
             } else if blind {
                 // a flashbang took your eyes: only what's right next to you
             } else if !lights_out
-                && d2 <= (vr as i64).pow(2)
+                && d2 <= (if pq.moved & 8 != 0 { vr * 7 / 10 } else { vr } as i64).pow(2)
                 && angle_diff(pv.aim, atan2(pq.y - pv.y, pq.x - pv.x)) <= cone
                 && line_of_sight(pv.x, pv.y, pq.x, pq.y)
                 && !smoked(smokes, pv.x, pv.y, pq.x, pq.y)
@@ -1281,6 +1306,12 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
             }
             if f != 0 && pq.alive == DOWNED {
                 f |= 16;
+            }
+            if f != 0 && (pq.moved >> 4) & 0xf != 0 {
+                f |= 128; // in the air
+            }
+            if f != 0 && pq.moved & 8 != 0 {
+                f |= 256; // crouched
             }
             vis[v][q] = f;
         }
@@ -1315,7 +1346,7 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
                 if same_team(room, v, q) {
                     continue;
                 }
-                if (pq.last_shot == tick + 1 && d2 <= (SHOT_R as i64).pow(2)) || (pq.moved & 1 == 1 && d2 <= (STEP_R as i64).pow(2) / 2)
+                if (pq.last_shot == tick + 1 && d2 <= (SHOT_R as i64).pow(2)) || (pq.moved & 1 == 1 && pq.moved & 8 == 0 && d2 <= (STEP_R as i64).pow(2) / 2)
                     || (pq.moved & 2 != 0 && d2 <= (STEP_R as i64 * 3 / 2).pow(2)) {
                     b.ping_angle = atan2(pq.y - pv.y, pq.x - pv.x);
                     b.ping_tick = tick;
@@ -1369,7 +1400,7 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
             } else if pq.moved & 2 != 0 && d2 <= (STEP_R as i64 * 3 / 2).pow(2) && (tick + q as u32) % 4 == 0 {
                 // sprinting is loud: heard further away, twice as often
                 push_ping(view, tick, ang & !0xfff, PING_STEP, dist);
-            } else if pq.moved & 1 == 1 && d2 <= (STEP_R as i64).pow(2) && (tick + q as u32) % 8 == 0 {
+            } else if pq.moved & 1 == 1 && pq.moved & 8 == 0 && d2 <= (STEP_R as i64).pow(2) && (tick + q as u32) % 8 == 0 {
                 push_ping(view, tick, ang & !0xfff, PING_STEP, dist);
             } else if pq.reload > 0 && pq.reload == WEAPONS[pq.weapon as usize].reload - 1 && d2 <= (RELOAD_R as i64).pow(2) {
                 push_ping(view, tick, ang & !0xfff, PING_RELOAD, dist);
@@ -1445,7 +1476,7 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
         // bullets in sight (your own always)
         let mut nb = 0usize;
         for b in w.bullets.iter() {
-            if b.ttl == 0 || nb >= VIS_B || b.weapon >= EFF_FLY {
+            if b.ttl == 0 || nb >= VIS_B || b.weapon >= EFF_SMOKE {
                 continue;
             }
             let mine = b.owner == v as u32;
@@ -1458,7 +1489,12 @@ pub fn tick(room: &mut Room, w: &mut World, views: &mut [&mut View], recs: &mut 
                         && line_of_sight(pv.x, pv.y, b.x, b.y)
                 };
             if seen {
-                view.bullets[nb] = VisBullet { x: b.x, y: b.y, vx: b.vx, vy: b.vy };
+                // a thrown gadget rides along as a bullet tagged in the high bits: kind in vx, ticks left in vy
+                view.bullets[nb] = if b.weapon >= EFF_FLY {
+                    VisBullet { x: b.x, y: b.y, vx: b.vx + ((b.weapon - EFF_FLY) as i32) * GADGET_TAG, vy: b.vy + b.ttl as i32 * GADGET_TAG }
+                } else {
+                    VisBullet { x: b.x, y: b.y, vx: b.vx, vy: b.vy }
+                };
                 nb += 1;
             }
         }
@@ -1657,6 +1693,8 @@ mod stats {
         w.players[0].buttons = 0;
         assert_eq!(inv_gadget(&w.bots[0]), (G_FRAG, 1), "one frag thrown");
         assert!(views[0]._pad >> 14 & 0xf == 1, "client sees 1 frag left");
+        let fly = views[0].bullets[..views[0].n_bullets as usize].iter().find(|b| b.vx > GADGET_TAG / 2);
+        assert!(fly.map_or(false, |b| (b.vx + GADGET_TAG / 2) / GADGET_TAG == G_FRAG as i32), "thrower sees the frag in the air");
         for _ in 0..25 {
             w.players[3].x = x + 2 * UNIT; // hold the target still
             w.players[3].y = y;
@@ -1758,14 +1796,14 @@ mod mirror {
                 s = s.wrapping_mul(1103515245).wrapping_add(12345);
                 let dy = ((s >> 16) % 255) as i32 - 127;
                 // every 7th stretch holds sprint, some of it while firing
-                let buttons = if (s >> 9) % 7 < 3 { BTN_SPRINT | ((s >> 12) & 1) } else { 0 };
-                let (sprinting, fatigue, winded) = sprint_step(moved, buttons, dx, dy);
-                let (vx, vy) = input_velocity_at(dx, dy, if sprinting { SPRINT_SPEED } else { SPEED });
+                let buttons = if (s >> 9) % 7 < 3 { BTN_SPRINT | ((s >> 12) & 1) } else { 0 } | if (s >> 14) % 9 == 0 { BTN_CROUCH } else { 0 } | if (s >> 17) % 11 == 0 { BTN_JUMP } else { 0 };
+                let (speed, sprinting, word) = move_step(moved, buttons, dx, dy, false);
+                let (vx, vy) = input_velocity_at(dx, dy, speed);
                 let (ox, oy) = (x, y);
                 move_body(&mut x, &mut y, vx, vy);
                 let m = ox != x || oy != y;
-                moved = m as u32 | ((sprinting && m) as u32) << 1 | (winded as u32) << 2 | fatigue << 8;
-                out.push_str(&format!("{x},{y},{fatigue};"));
+                moved = m as u32 | if sprinting && m { word } else { word & !2 };
+                out.push_str(&format!("{x},{y},{};", moved >> 8));
             }
         }
         std::fs::write("/tmp/blackout-mirror-rust.txt", out).unwrap();

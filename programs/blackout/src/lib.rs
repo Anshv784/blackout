@@ -527,7 +527,7 @@ pub mod blackout {
         Ok(())
     }
 
-    /// Host picks the night's length: 0 = standard 2:15, 1 = quick 1:30, 2 = long 3:30.
+    /// Legacy length field: kept for the account layout, every night is 5:00 (6000 ticks).
     /// The zone schedule stretches to fit (see sim::seed_match).
     pub fn set_length(ctx: Context<Heartbeat>, level: u8) -> Result<()> {
         let mut room = ctx.accounts.room.load_mut()?;
@@ -943,9 +943,7 @@ pub mod blackout {
             (room.room_id.to_le_bytes(), staked)
         };
         let _ = staked;
-        let room_seeds: &[&[u8]] = &[ROOM_SEED, &rid_bytes, &[ctx.bumps.room]];
         let world_seeds: &[&[u8]] = &[WORLD_SEED, &rid_bytes, &[ctx.bumps.world]];
-        let room_ai = ctx.accounts.room.to_account_info();
         set_sealed(
             &ctx.accounts.room.to_account_info(),
             &rid_bytes,

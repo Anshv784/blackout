@@ -71,9 +71,9 @@ flowchart LR
 ```
 
 1. **Create or join a room.** The creator claims a free room and becomes its host. Public rooms are listed on the gate; private rooms get a 6-character code. Taking a seat calls `join`, which rewrites that seat's View permission so only your browser's session key can read it.
-2. **The host sets the night.** Seats (2–8, empty seats become on-chain bots), bot skill (easy / medium / hard) and length (1:30, 2:15 or 3:30, and the zone schedule stretches to fit). The host can hand the room over or kick a player; in a private room a kick also rotates the code.
+2. **The host sets the night.** Seats (2–8, empty seats become on-chain bots), bot skill (easy / medium / hard) and solo or duos. Every night is a fixed 5:00, and some roll a night modifier (fog, hunter's moon, sniper night, no lamps, gadget night). The host can hand the room over or kick a player; in a private room a kick also rotates the code.
 3. **VRF rolls it.** `start_match` requests a MagicBlock VRF seed and schedules a crank. The callback derives spawns, loot contents and every zone centre straight into the sealed World.
-4. **20 ticks a second, inside the TEE.** Every 50 ms `tick` runs inputs → movement → weapons → bullets → pickups → zone → deaths, then for each seat computes **vision** (a 77° flashlight cone with line-of-sight, a 2-tile "feel" circle, muzzle flashes that give shooters away, flares that reveal everyone) and **sound** (directional pings for footsteps, sprinting, gunshots and reloads you *can't* see), and writes only that into the seat's private View.
+4. **20 ticks a second, inside the TEE.** Every 50 ms `tick` runs inputs → movement → weapons → bullets → pickups → zone → deaths, then for each seat computes **vision** (a 77° flashlight cone with line-of-sight, a 2-tile "feel" circle, muzzle flashes that give shooters away, flares that reveal everyone) and **sound** (directional pings for footsteps, sprinting, gunshots and reloads you *can't* see; a crouched player makes no footsteps and is only seen at 70% range), and writes only that into the seat's private View.
 5. **Lights on.** At the final kill, anyone calls `finish`: World and Recorder flip public, the seed becomes verifiable, the replay unlocks, and the room commits to Solana with the `settle` Magic Action, which pays the staked pot and writes the leaderboard.
 6. **Reset.** `reset` re-seals everything for the next night on the same accounts.
 
@@ -91,7 +91,7 @@ sequenceDiagram
       Program->>Program: cone + walls + feel circle + flashes → visible set
       Program->>View: me, players I can see, bullets, loot, sound pings
     end
-    Program->>World: flight recorder frame (10 Hz)
+    Program->>World: flight recorder frame (5 Hz)
     Note over View: the player's browser is subscribed<br/>to its own View over the TEE websocket
 ```
 
@@ -135,9 +135,13 @@ No ghosting: when you die your View is emptied. Bots follow the same vision rule
 | | |
 |---|---|
 | **Stealth first** | You see only your flashlight cone. Shooting lights you up for everyone nearby; footsteps, reloads and loot pickups make directional sound pings. |
-| **Sprint** | Hold Shift to run 1.5× faster for ~2.5 s. It's loud: footsteps carry further and twice as often. Stamina is simulated on-chain and mirrored bit-for-bit for prediction. |
+| **Move** | Shift sprints (1.5×, loud, burns stamina), C crouches to sneak (slow and silent), Space jumps. Stamina, crouch and jump are simulated on-chain and mirrored bit-for-bit for prediction. |
+| **Guns** | P92, UMP, S12K, M416 and Kar98k, two slots, aim down sights, recoil. Each has its own layered sound: crack, body, tail, and the slide, pump or bolt. |
+| **Gadgets** | Frag, smoke, flashbang, decoy, motion sensor and night vision. Hold G to see the arc and where it lands, let go to throw. The can flies, bounces off walls and rolls on-chain; you see and hear it. |
+| **Events** | Supply drops, a mid-night BLACKOUT that kills the lamps, and a bounty on the kill leader. |
+| **Duos** | Partners see each other through walls, get downed instead of dying, and revive by standing over each other. |
 | **Loot** | Medkits, armor, SMG, shotgun, and the flare, which lets you see everyone for 5 seconds. |
-| **The zone** | Three shrinking circles with rising damage, timed to the night's length. The next circle is sealed until it's announced. |
+| **The zone** | Three shrinking circles with rising damage, timed to the 5:00 night. The next circle is sealed until it's announced. |
 | **Bots** | Empty seats become on-chain bots with the same vision and hearing as you. The host picks easy, medium or hard. |
 | **Storm** | Rain, and lightning that lights up the walls (never the players). Thunder rolls in a second later. |
 | **Feel** | Tracers, sparks and blood, hit markers, kill streak banners, recoil and hit shake, a sprint camera, walls that fade when they block your view. |
@@ -155,8 +159,8 @@ No ghosting: when you die your View is emptied. Bots follow the same vision rule
 | Screen | What's there |
 |---|---|
 | Gate | Create a room, a private room with a code, join by code, the staked table, open rooms to join |
-| Lobby | 3D pedestals per seat, host controls (seats, bot skill, night length, make host, kick), invite link or room code |
-| Match | Countdown clock with the zone schedule, minimap and full map (Tab), settings (Esc): sensitivity, invert, arrow-key camera, FOV, smoothing, crosshair style/colour/size, laser sight, graphics, storm, volume |
+| Lobby | 3D pedestals per seat, host controls (seats, bot skill, solo or duos, make host, kick), invite link or room code |
+| Match | Countdown clock with the zone schedule, minimap and full map (Tab), phone controls (move stick, drag to look, fire/scope/jump/crouch/gadget buttons), settings (Esc): sensitivity, invert, arrow-key camera, FOV, smoothing, crosshair style/colour/size, laser sight, graphics, storm, volume |
 | Verdict | Results, replay, clip export, and a VERIFY tab that re-derives the night from its VRF seed in your browser |
 | Leaderboard | Staked nights only: wins and SOL won, written by the `settle` Magic Action |
 | How it works | The live *Try to cheat* console, every building block, the timeline and the permission matrix |
@@ -169,7 +173,7 @@ No ghosting: when you die your View is emptied. Bots follow the same vision rule
 
 - `scripts/e2e.ts` plays full nights against the live TEE and checks that a player can read its own View but not another's, a spectator can't read the World, VRF seeds the match, the crank holds 20 ticks/s, and after `finish` the World and Recorder are readable and `settle` runs.
 - `scripts/e2e_stake.ts`: two funded players buy tickets on Solana, play a staked night, and the winner's wallet receives the pot from the `settle` Magic Action.
-- `scripts/mirror.ts`: 2,000 random movement steps, sprint and stamina included, give identical results in the Rust program and the TypeScript prediction.
+- `scripts/mirror.ts`: 2,000 random movement steps, sprint, sneak, jump and stamina included, give identical results in the Rust program and the TypeScript prediction.
 - `cargo test`: 40 full 8-bot nights end with valid placements; 30 more check bots actually fight.
 - After every night, the VERIFY tab re-derives every spawn, loot roll and zone circle from the revealed VRF seed and checks them against the unsealed World.
 - `scripts/ui/`: Playwright runs of the full flows: guest play, private rooms with codes and kicks, closing a room, settings, the map, sprint.

@@ -104,7 +104,7 @@ export interface Room {
   unlisted: boolean;
   /** 0 = medium, 1 = easy, 2 = hard */
   botLevel: number;
-  /** 0 = standard 2:15, 1 = quick 1:30, 2 = long 3:30 */
+  /** legacy, ignored: every night is 5:00 */
   matchLen: number;
   /** the night's modifier, rolled from the seed (see NIGHT_MOD) */
   nightMod: number;

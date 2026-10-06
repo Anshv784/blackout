@@ -40,7 +40,8 @@ export const DEFAULT_PREFS: Prefs = {
   xStyle: "cross",
   xColor: "#ffd166",
   xSize: 1,
-  quality: "high",
+  // phones start on low (no rain particles, no dust, 1x pixels); it can be raised in settings
+  quality: typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches ? "low" : "high",
   exposure: 1.1,
   names: true,
   netStats: true,

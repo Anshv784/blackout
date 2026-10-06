@@ -223,95 +223,6 @@ class Audio {
     this.ambience = null;
   }
 
-  /** Call often (every frame is fine): schedules howls and creaks at random. */
-  ambientTick() {
-    if (!this.ambience || this.muted) return;
-    const now = performance.now();
-    if (now > this.nextHowl) {
-      this.howl(Math.random() * 1.6 - 0.8, 0.35 + Math.random() * 0.35);
-      this.nextHowl = now + 18000 + Math.random() * 26000;
-    }
-    if (now > this.nextCreak) {
-      this.creak(Math.random() * 1.6 - 0.8);
-      this.nextCreak = now + 7000 + Math.random() * 12000;
-    }
-  }
-
-  /** Distant wolf: formant-filtered saw with a rising-then-falling glide and wobble. */
-  howl(pan = 0, vol = 0.5, delay = 0) {
-    const c = this.ensure();
-    if (!c || this.muted) return;
-    const t = c.currentTime + delay;
-    const dur = 2.6 + Math.random() * 1.2;
-    const base = 380 + Math.random() * 90;
-    const o = c.createOscillator();
-    o.type = "sawtooth";
-    o.frequency.setValueAtTime(base * 0.62, t);
-    o.frequency.exponentialRampToValueAtTime(base, t + 0.55);
-    o.frequency.setValueAtTime(base, t + dur * 0.55);
-    o.frequency.exponentialRampToValueAtTime(base * 0.55, t + dur);
-    const vib = c.createOscillator();
-    vib.frequency.value = 5.2;
-    const vibAmt = c.createGain();
-    vibAmt.gain.value = 7;
-    vib.connect(vibAmt).connect(o.frequency);
-    const f1 = c.createBiquadFilter();
-    f1.type = "bandpass";
-    f1.frequency.value = 700;
-    f1.Q.value = 6;
-    const f2 = c.createBiquadFilter();
-    f2.type = "bandpass";
-    f2.frequency.value = 1150;
-    f2.Q.value = 8;
-    const mix = c.createGain();
-    o.connect(f1).connect(mix);
-    o.connect(f2).connect(mix);
-    const far = c.createBiquadFilter();
-    far.type = "lowpass";
-    far.frequency.value = 1800;
-    const g = this.out(pan, 0, 0.85);
-    g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(vol, t + 0.45);
-    g.gain.setValueAtTime(vol, t + dur * 0.7);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    mix.connect(far).connect(g);
-    o.start(t);
-    vib.start(t);
-    o.stop(t + dur + 0.1);
-    vib.stop(t + dur + 0.1);
-  }
-
-  /** Metal groan from a container somewhere. */
-  creak(pan = 0) {
-    const c = this.ensure();
-    if (!c || this.muted) return;
-    const t = c.currentTime;
-    const dur = 1.2 + Math.random();
-    const o = c.createOscillator();
-    o.type = "sawtooth";
-    o.frequency.setValueAtTime(70 + Math.random() * 40, t);
-    o.frequency.linearRampToValueAtTime(55 + Math.random() * 60, t + dur);
-    const fm = c.createOscillator();
-    fm.frequency.value = 23 + Math.random() * 14;
-    const fmAmt = c.createGain();
-    fmAmt.gain.value = 30;
-    fm.connect(fmAmt).connect(o.frequency);
-    const f = c.createBiquadFilter();
-    f.type = "bandpass";
-    f.frequency.value = 600;
-    f.Q.value = 3;
-    const g = this.out(pan, 0, 0.8);
-    g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(0.14, t + 0.3);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(f).connect(g);
-    o.start(t);
-    fm.start(t);
-    o.stop(t + dur + 0.1);
-    fm.stop(t + dur + 0.1);
-  }
-
-  /** Low thump-thump. Faster/louder as danger rises (0..1). */
   setHeartbeat(level: number) {
     const lv = Math.max(0, Math.min(1, level));
     this.heart.level = lv;
@@ -330,100 +241,9 @@ class Audio {
     this.heart.timer = window.setInterval(beat, 60000 / bpm);
   }
 
-  /** Dissonant hit when someone steps into your light. */
-  stinger() {
-    const c = this.ensure();
-    if (!c || this.muted) return;
-    for (const f of [185, 196, 277]) this.tone(f, 1.4, "sawtooth", 0.07, 0, f * 0.97, 0, 0.7);
-    this.burst(0.5, 3200, 0.6, 0.18, 0, "highpass", 0.8);
-    this.tone(36, 0.9, "sine", 0.45, 0, 30, 0, 0.3);
-  }
-
-  /** Sub boom + reverse swell, for the intro and the lights-on reveal. */
-  boom() {
-    this.tone(42, 2.4, "sine", 0.7, 0, 28, 0, 0.6);
-    this.burst(1.6, 160, 0.4, 0.5, 0, "lowpass", 0.8);
-  }
-
-  whisper(pan = 0) {
-    for (let i = 0; i < 3; i++) setTimeout(() => this.burst(0.35 + Math.random() * 0.3, 2400 + Math.random() * 1600, 4, 0.08, pan, "bandpass", 0.9), i * 180);
-  }
-
-  // ------------------------------------------------------------ game sfx
-
-  shoot(weapon: number) {
-    if (weapon === 4) {
-      // Kar98k: a crack that rolls across the Yard, then the bolt
-      this.burst(0.5, 700, 0.5, 1.1, 0, "lowpass", 0.85);
-      this.burst(0.06, 3800, 1.4, 0.7, 0, "bandpass", 0.3);
-      this.tone(60, 0.6, "sine", 0.8, 0, 28, 0, 0.7);
-      this.tone(900, 0.05, "square", 0.05, 0, 600, 0.55, 0.2);
-      this.tone(700, 0.05, "square", 0.05, 0, 500, 0.75, 0.2);
-      return;
-    }
-    if (weapon === 3) {
-      // M416: tight, punchy
-      this.burst(0.09, 1900, 1.1, 0.7, 0, "bandpass", 0.4);
-      this.tone(110, 0.09, "square", 0.2, 0, 60, 0, 0.35);
-      return;
-    }
-    if (weapon === 2) {
-      this.burst(0.32, 900, 0.7, 1.0, 0, "bandpass", 0.5);
-      this.tone(80, 0.25, "sine", 0.7, 0, 36, 0, 0.4);
-    } else if (weapon === 1) {
-      this.burst(0.08, 2400, 1.2, 0.55, 0, "bandpass", 0.35);
-      this.tone(150, 0.07, "square", 0.12, 0, 80, 0, 0.3);
-    } else {
-      this.burst(0.14, 1500, 0.9, 0.8, 0, "bandpass", 0.5);
-      this.tone(120, 0.12, "triangle", 0.45, 0, 55, 0, 0.4);
-    }
-  }
-
-  /** A sound from something you cannot see. angle/aim in 0..65535. */
-  ping(kind: number, angle: number, dist: number, aim: number) {
-    const rel = ((angle - aim + 65536 + 32768) % 65536) - 32768;
-    const pan = Math.sin((rel / 65536) * Math.PI * 2);
-    const vol = Math.max(0.08, 1 - dist / 26);
-    const behind = Math.abs(rel) > 16384;
-    if (kind === 1) {
-      // footsteps: two muffled thuds on gravel
-      this.burst(0.1, behind ? 200 : 320, 1.6, 0.6 * vol, pan, "lowpass", 0.5);
-      setTimeout(() => this.burst(0.09, behind ? 190 : 300, 1.6, 0.45 * vol, pan, "lowpass", 0.5), 260);
-    } else if (kind === 2) {
-      this.burst(0.35, 600, 0.6, 0.75 * vol, pan, "lowpass", 0.85);
-      this.tone(60, 0.5, "sine", 0.35 * vol, pan, 34, 0, 0.8);
-    } else if (kind === 3) {
-      this.tone(660, 0.25, "sine", 0.18 * vol, pan, 990, 0, 0.8);
-    } else if (kind === 4) {
-      this.burst(0.05, 3000, 3, 0.35 * vol, pan, "bandpass", 0.6);
-      setTimeout(() => this.burst(0.05, 2600, 3, 0.35 * vol, pan, "bandpass", 0.6), 120);
-    }
-  }
-
-  hurt() {
-    this.tone(200, 0.22, "sawtooth", 0.28, 0, 70, 0, 0.3);
-    this.burst(0.12, 500, 1, 0.45, 0, "bandpass", 0.3);
-  }
-
-  kill() {
-    this.tone(330, 0.5, "sawtooth", 0.12, 0, 160, 0, 0.7);
-    this.tone(220, 0.7, "sawtooth", 0.12, 0, 110, 0.05, 0.7);
-  }
-
-  death() {
-    this.tone(260, 2.2, "sawtooth", 0.3, 0, 30, 0, 0.8);
-    this.burst(1.5, 180, 0.5, 0.5, 0, "lowpass", 0.9);
-    this.howl(0.2, 0.5, 1.2);
-  }
-
   pickup() {
     this.tone(440, 0.12, "triangle", 0.2, 0, undefined, 0, 0.5);
     this.tone(660, 0.18, "triangle", 0.18, 0, undefined, 0.08, 0.5);
-  }
-
-  reload() {
-    this.burst(0.04, 3200, 4, 0.3, 0, "bandpass", 0.3);
-    this.burst(0.05, 2500, 4, 0.3, 0, "bandpass", 0.3);
   }
 
   flare() {
@@ -504,14 +324,6 @@ class Audio {
     } else this.tone(80, 0.6, "sine", 0.2, 0, 240, 0, 0.5);
   }
 
-  /** Frag / flashbang going off; `flash` adds the ringing. */
-  explosion(dist: number, flash = false) {
-    const vol = Math.max(0.15, 1 - dist / 30);
-    this.burst(0.9, 160, 0.5, 1.0 * vol, 0, "lowpass", 0.8);
-    this.tone(48, 1.1, "sine", 0.6 * vol, 0, 28, 0, 0.7);
-    if (flash && dist < 8) this.tone(3400, 2.6, "sine", 0.08, 0, 3000, 0.05, 0.2);
-  }
-
   smoke() {
     this.burst(1.6, 2200, 0.4, 0.25, 0, "highpass", 0.4);
   }
@@ -525,12 +337,6 @@ class Audio {
     this.tone(400, 0.5, "sine", 0.08, 0, 2400, 0, 0.3);
   }
 
-  /** Your bullet landed. */
-  hitmark() {
-    this.tone(1800, 0.05, "square", 0.05, 0, 1400, 0, 0.1);
-  }
-
-  /** Kill streak sting: higher for every extra kill. */
   streak(n: number) {
     const base = 220 * Math.pow(1.26, Math.min(n, 5));
     this.tone(base, 0.35, "triangle", 0.12, 0, base * 1.5, 0, 0.6);
@@ -556,6 +362,341 @@ class Audio {
     }
     this.hum.gain.gain.setTargetAtTime(this.muted ? 0 : level * 0.14, c.currentTime, 0.2);
   }
+  // ================================================================ sound design
+  // Everything below is layered synthesis: transient + body + low end + room tail,
+  // shaped per weapon/event, positioned (pan) and muffled with distance.
+
+  private bufs: Record<string, AudioBuffer> = {};
+  /** cached noise colours: white, pink, brown (2 s, looped/sliced as needed) */
+  private nbuf(kind: "white" | "pink" | "brown") {
+    const c = this.ctx!;
+    if (this.bufs[kind]) return this.bufs[kind];
+    const len = c.sampleRate * 2;
+    const b = c.createBuffer(1, len, c.sampleRate);
+    const d = b.getChannelData(0);
+    let b0 = 0, b1 = 0, b2 = 0, last = 0;
+    for (let i = 0; i < len; i++) {
+      const w = Math.random() * 2 - 1;
+      if (kind === "white") d[i] = w;
+      else if (kind === "pink") {
+        b0 = 0.997 * b0 + w * 0.029591;
+        b1 = 0.985 * b1 + w * 0.032534;
+        b2 = 0.95 * b2 + w * 0.048056;
+        d[i] = (b0 + b1 + b2 + w * 0.05) * 2.2;
+      } else {
+        last = (last + 0.02 * w) / 1.02;
+        d[i] = last * 3.5;
+      }
+    }
+    this.bufs[kind] = b;
+    return b;
+  }
+
+  /** one shaped noise hit: colour → filter → envelope → panned bus with reverb send */
+  private hit(o: { kind?: "white" | "pink" | "brown"; dur: number; type?: BiquadFilterType; f: number; f2?: number; q?: number; vol: number; pan?: number; wet?: number; delay?: number; attack?: number }) {
+    const c = this.ensure();
+    if (!c || this.muted) return;
+    const t = c.currentTime + (o.delay ?? 0);
+    const src = c.createBufferSource();
+    src.buffer = this.nbuf(o.kind ?? "white");
+    const f = c.createBiquadFilter();
+    f.type = o.type ?? "bandpass";
+    f.frequency.setValueAtTime(o.f, t);
+    if (o.f2) f.frequency.exponentialRampToValueAtTime(o.f2, t + o.dur);
+    f.Q.value = o.q ?? 0.8;
+    const g = this.out(o.pan ?? 0, 0, o.wet ?? 0.3);
+    const a = o.attack ?? 0.002;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(o.vol, t + a);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + o.dur);
+    src.connect(f).connect(g);
+    const off = Math.random() * 1.5;
+    src.start(t, off, o.dur + 0.05);
+  }
+
+  /** a low "thump": sine sweeping down, lightly driven */
+  private thump(o: { f0: number; f1: number; dur: number; vol: number; pan?: number; delay?: number; wet?: number }) {
+    const c = this.ensure();
+    if (!c || this.muted) return;
+    const t = c.currentTime + (o.delay ?? 0);
+    const osc = c.createOscillator();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(o.f0, t);
+    osc.frequency.exponentialRampToValueAtTime(o.f1, t + o.dur);
+    const sh = c.createWaveShaper();
+    const curve = new Float32Array(256);
+    for (let i = 0; i < 256; i++) {
+      const x = (i / 255) * 2 - 1;
+      curve[i] = Math.tanh(x * 2.2);
+    }
+    sh.curve = curve;
+    const g = this.out(o.pan ?? 0, 0, o.wet ?? 0.25);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(o.vol, t + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + o.dur);
+    osc.connect(sh).connect(g);
+    osc.start(t);
+    osc.stop(t + o.dur + 0.05);
+  }
+
+  /** a tiny metallic tick (slides, bolts, mags) */
+  private tick(freq: number, vol: number, delay = 0, pan = 0) {
+    this.hit({ kind: "white", dur: 0.035, type: "bandpass", f: freq, q: 6, vol, pan, wet: 0.15, delay });
+    this.tone(freq * 0.5, 0.03, "square", vol * 0.25, pan, undefined, delay, 0.1);
+  }
+
+  /**
+   * A gunshot. `dist` in tiles (0 = yours), `pan` -1..1.
+   * Distance pulls the crack out first (high end dies fast), then the body; the room tail stays.
+   */
+  shotAt(weapon: number, dist = 0, pan = 0) {
+    const c = this.ensure();
+    if (!c || this.muted) return;
+    // [crack freq, body freq, body len, thump f0, thump len, tail len, loudness]
+    const P = [
+      [3600, 1100, 0.07, 150, 0.12, 0.7, 0.8], // P92: dry snap
+      [4200, 1500, 0.05, 130, 0.08, 0.5, 0.6], // UMP: tight, quick
+      [2600, 520, 0.14, 95, 0.26, 1.2, 1.1], // S12K: big boom
+      [3800, 900, 0.07, 120, 0.14, 0.9, 0.85], // M416: punchy crack
+      [3000, 700, 0.12, 80, 0.32, 2.2, 1.25], // KAR98K: thunderclap that rolls away
+    ][weapon] ?? [3600, 1100, 0.07, 150, 0.12, 0.7, 0.8];
+    const [crack, body, blen, tf, tlen, tail, loud] = P;
+    const far = Math.min(1, dist / 26);
+    const v = loud * (1 - far * 0.75);
+    const dull = 1 - far * 0.85; // high end fades with distance
+    if (dist < 18) this.hit({ kind: "white", dur: 0.012, type: "highpass", f: crack * dull + 400, q: 0.7, vol: 0.9 * v * dull, pan, wet: 0.05 });
+    this.hit({ kind: "pink", dur: blen, type: "bandpass", f: body * (0.6 + 0.4 * dull), q: 0.9, vol: 1.1 * v, pan, wet: 0.2 });
+    this.thump({ f0: tf, f1: 38, dur: tlen, vol: 0.9 * v, pan, wet: 0.2 });
+    // the Yard answers: long dark tail mostly in the reverb
+    this.hit({ kind: "brown", dur: tail, type: "lowpass", f: 900 * (0.5 + 0.5 * dull), q: 0.5, vol: 0.55 * loud, pan, wet: 0.95, attack: 0.02 });
+    if (weapon === 4 && dist < 30) {
+      // the shot rolls across the containers
+      this.hit({ kind: "brown", dur: 1.4, type: "lowpass", f: 500, q: 0.5, vol: 0.3 * loud, pan: -pan, wet: 1, delay: 0.28, attack: 0.05 });
+    }
+    if (dist === 0) {
+      // your own gun's mechanism
+      if (weapon === 0) this.tick(5200, 0.08, 0.05);
+      if (weapon === 1 || weapon === 3) this.tick(6200, 0.05, 0.03);
+      if (weapon === 2) {
+        this.hit({ kind: "white", dur: 0.06, type: "bandpass", f: 1800, q: 2, vol: 0.18, wet: 0.1, delay: 0.32 });
+        this.hit({ kind: "white", dur: 0.07, type: "bandpass", f: 1400, q: 2, vol: 0.2, wet: 0.1, delay: 0.45 });
+      }
+      if (weapon === 4) {
+        this.tick(3200, 0.1, 0.55);
+        this.tick(2600, 0.12, 0.72);
+      }
+    }
+  }
+
+  /** your own gun */
+  shoot(weapon: number) {
+    this.shotAt(weapon, 0, 0);
+  }
+
+  /** a round cracking past your head */
+  whiz(pan = 0) {
+    this.hit({ kind: "white", dur: 0.16, type: "bandpass", f: 5200, f2: 1600, q: 3, vol: 0.18, pan, wet: 0.05 });
+  }
+
+  /** a round hitting concrete or steel near you */
+  ricochet(pan = 0) {
+    this.hit({ kind: "white", dur: 0.05, type: "highpass", f: 2400, vol: 0.12, pan, wet: 0.2 });
+    this.tone(2200 + Math.random() * 1600, 0.18, "sine", 0.03, pan, 900, 0.01, 0.4);
+  }
+
+  /** pin out, spoon flick, the arm swing */
+  toss(kind = 1) {
+    if (kind === 1 || kind === 3) {
+      this.tick(3400, 0.06);
+      this.tick(5200, 0.04, 0.05);
+    }
+    this.hit({ kind: "pink", dur: 0.22, type: "bandpass", f: 700, f2: 1800, q: 0.8, vol: 0.14, wet: 0.1, delay: 0.12, attack: 0.08 });
+  }
+
+  /** a can hitting concrete or a wall: metal clink over a dull knock */
+  clink(vol = 1, pan = 0) {
+    this.tone(1900 + Math.random() * 500, 0.09, "triangle", 0.05 * vol, pan, 1500, 0, 0.3);
+    this.tone(3100 + Math.random() * 600, 0.06, "sine", 0.025 * vol, pan, undefined, 0.004, 0.3);
+    this.hit({ kind: "brown", dur: 0.06, type: "lowpass", f: 500, vol: 0.25 * vol, pan, wet: 0.25 });
+  }
+
+  /** a rolling can: soft rattles that die away */
+  roll(vol = 1, pan = 0) {
+    for (let i = 0; i < 4; i++) this.tone(2300 + Math.random() * 400, 0.04, "triangle", 0.018 * vol * (1 - i / 4), pan, undefined, 0.07 * i + Math.random() * 0.03, 0.2);
+  }
+
+  /** the fuse in your hand while you cook the throw */
+  fuse() {
+    this.tick(1600, 0.035);
+  }
+
+  /** A sound from something you cannot see. angle/aim in 0..65535. */
+  ping(kind: number, angle: number, dist: number, aim: number) {
+    const rel = ((angle - aim + 65536 + 32768) % 65536) - 32768;
+    const pan = Math.sin((rel / 65536) * Math.PI * 2);
+    const behind = Math.abs(rel) > 16384;
+    const vol = Math.max(0.1, 1 - dist / 26);
+    if (kind === 1) this.step(pan, vol * (behind ? 0.8 : 1), false);
+    else if (kind === 2) this.shotAt(0, Math.max(6, dist), pan);
+    else if (kind === 3) {
+      // someone opening a crate: latch + rummage
+      this.tick(2800, 0.07 * vol, 0, pan);
+      this.hit({ kind: "pink", dur: 0.25, type: "bandpass", f: 900, q: 1, vol: 0.12 * vol, pan, wet: 0.5, delay: 0.08 });
+    } else if (kind === 4) {
+      this.tick(3600, 0.07 * vol, 0, pan);
+      this.tick(2400, 0.08 * vol, 0.18, pan);
+    }
+  }
+
+  /** a boot on wet concrete (sneaking is near-silent, sprinting is heavy) */
+  step(pan = 0, vol = 0.6, heavy = false) {
+    this.hit({ kind: "brown", dur: heavy ? 0.12 : 0.09, type: "lowpass", f: heavy ? 380 : 300, q: 0.7, vol: 0.5 * vol, pan, wet: 0.35 });
+    this.hit({ kind: "white", dur: 0.04, type: "bandpass", f: 2600, q: 1.5, vol: 0.05 * vol, pan, wet: 0.2, delay: 0.01 });
+  }
+
+  /** mag out, mag in, charge */
+  reload() {
+    this.tick(2400, 0.1, 0);
+    this.hit({ kind: "white", dur: 0.08, type: "bandpass", f: 1200, q: 2, vol: 0.1, wet: 0.1, delay: 0.05 });
+    this.thump({ f0: 220, f1: 120, dur: 0.06, vol: 0.18, delay: 0.55, wet: 0.1 });
+    this.tick(3100, 0.12, 0.6);
+    this.tick(4200, 0.09, 0.85);
+    this.tick(2900, 0.1, 0.95);
+  }
+
+  /** you got hit: a dull body thud and a sharp intake */
+  hurt() {
+    this.thump({ f0: 160, f1: 50, dur: 0.18, vol: 0.55, wet: 0.1 });
+    this.hit({ kind: "pink", dur: 0.12, type: "lowpass", f: 700, vol: 0.4, wet: 0.1 });
+    this.hit({ kind: "white", dur: 0.25, type: "bandpass", f: 3000, f2: 1200, q: 2, vol: 0.05, wet: 0.2, delay: 0.05, attack: 0.05 });
+  }
+
+  /** your shot landed: a tight, dry tick */
+  hitmark() {
+    this.tick(5400, 0.09);
+    this.thump({ f0: 300, f1: 160, dur: 0.05, vol: 0.12, wet: 0 });
+  }
+
+  /** you took someone out: a low, final hit and a rising sting */
+  kill() {
+    this.thump({ f0: 90, f1: 30, dur: 0.6, vol: 0.5, wet: 0.5 });
+    this.tone(196, 0.9, "triangle", 0.07, 0, 392, 0.05, 0.8);
+    this.tone(293, 0.9, "triangle", 0.05, 0, 587, 0.12, 0.8);
+  }
+
+  /** you're out: everything drops away */
+  death() {
+    this.thump({ f0: 70, f1: 25, dur: 2.2, vol: 0.6, wet: 0.7 });
+    this.hit({ kind: "brown", dur: 2.4, type: "lowpass", f: 400, f2: 80, vol: 0.5, wet: 0.9, attack: 0.05 });
+    this.tone(220, 2.6, "sine", 0.06, 0, 110, 0.2, 0.9);
+  }
+
+  /** a body hitting wet concrete, then the gun clattering after it */
+  bodyFall(pan = 0, vol = 1) {
+    this.thump({ f0: 90, f1: 40, dur: 0.35, vol: 0.45 * vol, pan, wet: 0.4 });
+    this.hit({ kind: "brown", dur: 0.25, type: "lowpass", f: 600, f2: 200, vol: 0.4 * vol, pan, wet: 0.4 });
+    this.hit({ kind: "white", dur: 0.12, type: "bandpass", f: 1800, q: 0.7, vol: 0.06 * vol, pan, wet: 0.3, delay: 0.02 });
+    this.clink(0.8 * vol, pan);
+    setTimeout(() => this.clink(0.4 * vol, pan), 130);
+  }
+
+  /** frag / flashbang */
+  explosion(dist: number, flash = false) {
+    const v = Math.max(0.2, 1 - dist / 30);
+    const dull = 1 - Math.min(1, dist / 30) * 0.8;
+    this.hit({ kind: "white", dur: 0.05, type: "highpass", f: 1500 * dull + 300, vol: 0.7 * v * dull, wet: 0.1 });
+    this.thump({ f0: 90, f1: 22, dur: 1.1, vol: 1.2 * v, wet: 0.3 });
+    this.hit({ kind: "brown", dur: 2.4, type: "lowpass", f: 900 * dull, f2: 120, vol: 0.9 * v, wet: 0.9, attack: 0.01 });
+    // debris raining down
+    for (let i = 0; i < 9; i++) this.tick(1500 + Math.random() * 3000, 0.03 * v, 0.25 + Math.random() * 1.1, Math.random() * 1.6 - 0.8);
+    if (flash && dist < 8) this.tone(3400, 2.6, "sine", 0.08, 0, 3000, 0.05, 0.2);
+  }
+
+  boom() {
+    this.thump({ f0: 70, f1: 24, dur: 1.6, vol: 0.8, wet: 0.7 });
+    this.hit({ kind: "brown", dur: 2.2, type: "lowpass", f: 500, f2: 90, vol: 0.6, wet: 0.95, attack: 0.02 });
+  }
+
+  /** someone just stepped into your light: a stab of strings + sub */
+  stinger() {
+    this.tone(466, 0.7, "sawtooth", 0.05, -0.3, 440, 0, 0.8);
+    this.tone(494, 0.7, "sawtooth", 0.05, 0.3, 470, 0, 0.8);
+    this.thump({ f0: 60, f1: 40, dur: 0.5, vol: 0.35, wet: 0.5 });
+  }
+
+  /** radio static with a voice-like formant buried in it */
+  whisper(pan = 0) {
+    this.hit({ kind: "white", dur: 1.1, type: "bandpass", f: 1400, f2: 900, q: 5, vol: 0.06, pan, wet: 0.7, attack: 0.2 });
+    this.hit({ kind: "pink", dur: 0.9, type: "bandpass", f: 650, f2: 500, q: 9, vol: 0.08, pan, wet: 0.8, attack: 0.25, delay: 0.1 });
+  }
+
+  /** a container's steel skin groaning in the cold (replaces the old wolves) */
+  creak(pan = 0) {
+    const c = this.ensure();
+    if (!c || this.muted) return;
+    const t = c.currentTime;
+    const dur = 1.6 + Math.random() * 1.6;
+    const o = c.createOscillator();
+    o.type = "sawtooth";
+    const f0 = 70 + Math.random() * 60;
+    o.frequency.setValueAtTime(f0, t);
+    o.frequency.linearRampToValueAtTime(f0 * (0.7 + Math.random() * 0.6), t + dur);
+    const bp = c.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 600 + Math.random() * 500;
+    bp.Q.value = 7;
+    const g = this.out(pan, 0, 0.85);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.08, t + 0.4);
+    g.gain.linearRampToValueAtTime(0.05, t + dur * 0.7);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(bp).connect(g);
+    o.start(t);
+    o.stop(t + dur + 0.05);
+  }
+
+  /** kept for callers: no wolves any more, a far siren winding up instead */
+  howl(pan = 0, vol = 0.5, delay = 0) {
+    const c = this.ensure();
+    if (!c || this.muted) return;
+    const t = c.currentTime + delay;
+    const o = c.createOscillator();
+    o.type = "triangle";
+    o.frequency.setValueAtTime(260, t);
+    o.frequency.linearRampToValueAtTime(520, t + 2.4);
+    o.frequency.linearRampToValueAtTime(260, t + 5);
+    const lp = c.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = 900;
+    const g = this.out(pan, 0, 0.95);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.06 * vol, t + 1.2);
+    g.gain.linearRampToValueAtTime(0.0001, t + 5);
+    o.connect(lp).connect(g);
+    o.start(t);
+    o.stop(t + 5.1);
+  }
+
+  /** chains / a loose panel tapping somewhere out there */
+  private chains(pan = 0) {
+    for (let i = 0; i < 5; i++) this.tick(1800 + Math.random() * 1400, 0.025, i * (0.08 + Math.random() * 0.1), pan);
+  }
+
+  /** Call often (every frame is fine): schedules the Yard's noises. */
+  ambientTick() {
+    if (!this.ambience || this.muted) return;
+    const now = performance.now();
+    if (now > this.nextCreak) {
+      const r = Math.random();
+      const pan = Math.random() * 1.6 - 0.8;
+      if (r < 0.45) this.creak(pan);
+      else if (r < 0.7) this.chains(pan);
+      else if (r < 0.9) this.whisper(pan);
+      else this.howl(pan, 0.6);
+      this.nextCreak = now + 6000 + Math.random() * 11000;
+    }
+  }
+
 }
 
 // one engine per page, even across hot reloads (otherwise an old engine keeps playing unmuted)

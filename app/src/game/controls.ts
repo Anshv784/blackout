@@ -8,7 +8,11 @@ export const controls = {
   touchAim: null as number | null,
   touchFire: false,
   touchSprint: false, // left stick pushed to the rim
+  touchCrouch: false,
+  touchJump: false,
   fireUntil: 0, // a click always fires for >= 3 server ticks
+  gadgetHeld: 0, // performance.now() G (or the touch button) went down: aiming the throw; 0 = not held
+  gadgetUntil: 0, // released: the throw goes out for a few ticks
   reloadUntil: 0,
   fps: 0,
   view: ((typeof localStorage !== "undefined" && localStorage.getItem("bo-view-v2")) || "chase") as "chase" | "top",
@@ -24,6 +28,7 @@ export const controls = {
   locked: false,
   menu: false,
   ads: false, // right mouse: aim down sights
+  crouch: false, // C toggles (not Ctrl: Ctrl+W would close the tab)
   adsK: 0, // eased 0..1 // a settings/map overlay is open: game keys are ignored
   // player-tunable camera (persisted)
   chaseDist: num("bo-chase-dist-v2", 7.5),
@@ -102,20 +107,35 @@ export function installKeyboard() {
       controls.reload = true;
       controls.reloadUntil = performance.now() + 200;
     }
-    if (k === " ") {
-      controls.fire = true;
-      controls.fireUntil = performance.now() + 160;
-    }
+    if (k === "g" && !e.repeat) gadgetDown();
+    if (k === "c" && !e.repeat) controls.crouch = !controls.crouch;
+    if ((k === "shift" || k === " ") && !e.repeat) controls.crouch = false; // sprint / jump stands you up
+    if (k === " ") e.preventDefault(); // Space jumps (and must not scroll the page)
   });
   window.addEventListener("keyup", (e) => {
     const k = norm(e.key);
     controls.keys.delete(k);
     if (k === "r") controls.reload = false;
-    if (k === " ") controls.fire = false;
+    if (k === "g") gadgetUp();
   });
   window.addEventListener("blur", () => {
     controls.keys.clear();
     controls.fire = false;
     controls.reload = false;
+    controls.gadgetHeld = 0;
   });
+}
+
+/** Hold to aim the throw (an arc shows where it lands), let go to throw. */
+export function gadgetDown() {
+  controls.gadgetHeld = performance.now();
+}
+export function gadgetUp() {
+  if (!controls.gadgetHeld) return;
+  controls.gadgetHeld = 0;
+  controls.gadgetUntil = performance.now() + 160;
+}
+/** right-click / Esc while aiming a throw puts it away */
+export function gadgetCancel() {
+  controls.gadgetHeld = 0;
 }

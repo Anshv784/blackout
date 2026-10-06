@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../game/store";
 import type { Session } from "../game/session";
-import { ST_COUNTDOWN, ST_ENDED, ST_LIVE, ST_STARTING, WEAPON_NAME, FIRE_MODE, GADGET_NAME, NIGHT_MOD, DOWNED } from "../chain/layout";
+import { ST_COUNTDOWN, ST_ENDED, ST_LIVE, ST_STARTING, WEAPON_NAME, GADGET_NAME, NIGHT_MOD, DOWNED } from "../chain/layout";
 import { angleToRad } from "../game/sim";
 import { SEAT_COLORS } from "../game/colors";
 import { GameMenu, MatchClock } from "./GameMenu";
 import { onBanner, type Banner } from "../game/feel";
+import { GunIcon, GadgetIcon, FireMode, AmmoTicks, EyeIcon, VestIcon, CrossIcon } from "./Icons";
 import { FATIGUE_MAX } from "../game/sim";
 import { controls } from "../game/controls";
 
@@ -49,7 +50,7 @@ export function Hud({ session }: { session: Session }) {
   const outside = myPos && Math.hypot(myPos.x - room.zone.x, myPos.y - room.zone.y) > room.zone.r;
 
   return (
-    <div className="hud">
+    <div className={`hud ${room.status === ST_LIVE && !me.alive ? "is-dead" : ""}`}>
       <div className="hud-top-left pubg">
         <div className="chip-stat">
           <b>{room.aliveCount}</b>
@@ -61,8 +62,9 @@ export function Hud({ session }: { session: Session }) {
         </div>
       </div>
       <Compass session={session} />
-      <MatchClock room={room} />
-      {room.nightMod > 0 && <div className="mod-chip">{NIGHT_MOD[room.nightMod]}</div>}
+      {/* the night card owns the top of the screen during the countdown */}
+      {!countdown && <MatchClock room={room} />}
+      {!countdown && room.nightMod > 0 && <div className="mod-chip">{NIGHT_MOD[room.nightMod]}</div>}
       {view.inv.nvg > 0 && me.alive === 1 && <div className="nvg-tint" />}
       {view.inv.blind > 0 && <div className="flash-white" style={{ opacity: Math.min(1, view.inv.blind / 40) }} />}
       {room.duos && <Partner view={view} room={room} mySeat={session.mySeat} />}
@@ -117,6 +119,11 @@ export function Hud({ session }: { session: Session }) {
         </div>
       )}
       {room.status === ST_LIVE && !me.alive && (
+        <DeathScreen
+          line={death ? (death.killer === 255 ? "THE ZONE TOOK YOU" : <>
+              <b style={{ color: SEAT_COLORS[death.killer] }}>{room.names[death.killer]}</b> · {WEAPON_NAME[death.weapon] ?? "?"}
+            </>) : null}
+        >
         <div className="dead">
           <div className="dead-kicker">THE DARK TOOK YOU</div>
           <h2>#{view.place || "?"}</h2>
@@ -148,6 +155,7 @@ export function Hud({ session }: { session: Session }) {
             LEAVE TO THE GATE
           </a>
         </div>
+        </DeathScreen>
       )}
       {outside && room.status === ST_LIVE && me.alive ? <div className="zone-warn">OUTSIDE THE ZONE — GET TO THE CIRCLE</div> : null}
 
@@ -175,54 +183,60 @@ export function Hud({ session }: { session: Session }) {
       {me.flare > 0 && <div className="flare-banner">FLARE · YOU SEE EVERYONE · {Math.ceil(me.flare / 20)}s</div>}
 
       {me.alive && me.hp <= 35 && room.status === ST_LIVE && <div className="low-hp" style={{ ["--k" as any]: String(1 - me.hp / 35) }} />}
-      <Banners />
-      {me.alive && (room.status === ST_LIVE || room.status === ST_COUNTDOWN) && <ClickToPlay />}
+      {!countdown && me.alive !== 0 && <Banners />}
+      {me.alive && room.status === ST_LIVE && <ClickToPlay />}
       <div className="hud-health">
         <Stamina session={session} />
         {me.armor > 0 && (
           <div className="armor-row">
-            <span>VEST</span>
+            <VestIcon />
             <div className="bar armor">
               <i style={{ width: `${me.armor}%` }} />
             </div>
           </div>
         )}
-        <div className={`bar hp ${me.hp <= 35 ? "low" : ""}`}>
-          <i style={{ width: `${me.hp}%` }} />
-          <span>{me.hp}</span>
-        </div>
-      </div>
-      <div className="hud-weapon">
-        <div className="hw-top">
-          <span className="hw-name">{WEAPON_NAME[me.weapon]}</span>
-          <span className="hw-mode">{FIRE_MODE[me.weapon]}</span>
-        </div>
-        <div className={`hw-ammo ${me.mag === 0 && me.reload === 0 ? "empty" : ""}`}>
-          {me.reload > 0 ? (
-            <span className="reloading">RELOADING…</span>
-          ) : (
-            <>
-              <b>{me.mag}</b>
-              <small>/ {MAX_MAG[me.weapon]}</small>
-            </>
-          )}
-        </div>
-        <div className="hw-hint">{me.mag === 0 && me.reload === 0 ? "PRESS R TO RELOAD" : "RMB AIM · R RELOAD"}</div>
-      </div>
-      <div className="hud-slots">
-        <div className={`slot ${view.inv.sec >= 0 ? "" : "empty"}`}>
-          <i>X</i>
-          <span>{view.inv.sec >= 0 ? `${WEAPON_NAME[view.inv.sec]} · ${view.inv.secMag}` : "2ND GUN"}</span>
-        </div>
-        <div className={`slot gadget ${view.inv.gadget ? "" : "empty"}`}>
-          <i>G</i>
-          <span>{view.inv.gadget ? `${GADGET_NAME[view.inv.gadget]} ×${view.inv.count}` : "GADGET"}</span>
-        </div>
-        {view.inv.nvg > 0 && (
-          <div className="slot nvg">
-            <span>NIGHT VISION {Math.ceil(view.inv.nvg / 20)}s</span>
+        <div className="hp-row">
+          <CrossIcon />
+          <div className={`bar hp ${me.hp <= 35 ? "low" : ""}`}>
+            <i style={{ width: `${me.hp}%` }} />
+            <span>{me.hp}</span>
           </div>
-        )}
+        </div>
+      </div>
+      {/* weapons & pockets: icons, not words */}
+      <div className="hud-loadout">
+        <div className="lo-gadget-row">
+          {view.inv.nvg > 0 && (
+            <div className="lo-chip nvg" title="night vision">
+              <EyeIcon />
+              <i style={{ width: `${(view.inv.nvg / 300) * 100}%` }} />
+            </div>
+          )}
+          <div className={`lo-gadget ${view.inv.gadget ? "" : "empty"}`} title={view.inv.gadget ? GADGET_NAME[view.inv.gadget] : "no gadget"}>
+            <GadgetIcon gadget={view.inv.gadget || 1} />
+            {view.inv.gadget > 0 && <b>{view.inv.count}</b>}
+            <kbd>G</kbd>
+          </div>
+        </div>
+        <div className={`lo-slot sec ${view.inv.sec >= 0 ? "" : "empty"}`} title={view.inv.sec >= 0 ? WEAPON_NAME[view.inv.sec] : "second slot"}>
+          {view.inv.sec >= 0 ? <GunIcon weapon={view.inv.sec} /> : <span className="lo-plus">+</span>}
+          {view.inv.sec >= 0 && <em>{view.inv.secMag}</em>}
+          <kbd>X</kbd>
+        </div>
+        <div className={`lo-slot main ${me.mag === 0 && me.reload === 0 ? "empty-mag" : ""}`} title={WEAPON_NAME[me.weapon]}>
+          <GunIcon weapon={me.weapon} />
+          <div className="lo-ammo">
+            {me.reload > 0 ? (
+              <span className="lo-reload">
+                <i />
+              </span>
+            ) : (
+              <b>{me.mag}</b>
+            )}
+            <FireMode weapon={me.weapon} />
+          </div>
+          <AmmoTicks mag={me.reload > 0 ? 0 : me.mag} max={MAX_MAG[me.weapon]} />
+        </div>
       </div>
       <div className="aim-hint" style={{ display: "none" }}>{aim}</div>
     </div>
@@ -354,6 +368,27 @@ function Compass({ session }: { session: Session }) {
 }
 
 /** Third person needs the mouse captured: say so whenever it isn't. */
+/** The moment you die: colour drains, a stamp, the body falls on screen; the results come a beat later. */
+function DeathScreen({ line, children }: { line: React.ReactNode; children: React.ReactNode }) {
+  const [card, setCard] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setCard(true), 2600);
+    return () => clearTimeout(t);
+  }, []);
+  return (
+    <>
+      <div className="death-grade" />
+      {!card && (
+        <div className="death-stamp">
+          <b>ELIMINATED</b>
+          {line && <small>{line}</small>}
+        </div>
+      )}
+      {card && <div className="death-card-in">{children}</div>}
+    </>
+  );
+}
+
 function ClickToPlay() {
   const [locked, setLocked] = useState(!!document.pointerLockElement);
   const [, tick] = useState(0);
@@ -370,7 +405,7 @@ function ClickToPlay() {
   return (
     <div className="click-to-play">
       <b>CLICK TO PLAY</b>
-      <small>mouse turns · WASD moves · click fire · right-click aim · Shift sprint · Esc menu</small>
+      <small>mouse turns · WASD moves · click fire · right-click aim · Shift sprint · Space jump · C sneak · Esc menu</small>
     </div>
   );
 }

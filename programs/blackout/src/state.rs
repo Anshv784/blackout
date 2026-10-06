@@ -119,7 +119,7 @@ impl Room {
     /// The host is whoever created the room. No hand-offs: if they're gone, the room is closed.
     pub fn fix_host(&mut self, _slot: u64) {}
 
-    /// cfg bits 11-12: match length. 0 = standard 2:15, 1 = quick 1:30, 2 = long 3:30
+    /// cfg bits 11-12: legacy match length, ignored (every night is 5:00)
     pub fn match_ticks(&self) -> u32 {
         6000 // one length for every night: 5:00 (cfg bits 11-12 are ignored)
     }

@@ -311,7 +311,7 @@ export function How() {
             {Y}
           </div>
           <div className="mx-row">
-            <span>The 10 Hz flight recorder (the replay)</span>
+            <span>The 5 Hz flight recorder (the replay)</span>
             {N}
             {N}
             {N}
@@ -333,7 +333,7 @@ export function How() {
           <Box x={610} y={56} w={260} h={110} title="View × 8 (private)" sub={"what seat i may see this tick\ncomputed in the TEE\npermission: seat i only"} tone="#ffd166" />
           <Box x={30} y={186} w={250} h={104} title="Crank · 20 Hz" sub={"tick(): move, shoot, loot,\nzone, vision, sound, bots\nno server anywhere"} tone="#06d6a0" />
           <Box x={320} y={186} w={250} h={104} title="VRF" sub={"spawns, loot rolls, every\nzone centre, sealed until\neach circle is announced"} tone="#c77dff" />
-          <Box x={610} y={186} w={260} h={104} title="Recorder × 5 (sealed)" sub={"10 Hz flight recorder\nflipped public at the end\n→ the lights-on replay"} tone="#ff8c42" />
+          <Box x={610} y={186} w={260} h={104} title="Recorder × 5 (sealed)" sub={"5 Hz flight recorder\nflipped public at the end\n→ the lights-on replay"} tone="#ff8c42" />
           <rect x={10} y={340} width={880} height={120} rx={14} fill="none" stroke="#ffd166" strokeDasharray="6 6" />
           <text x={28} y={366} fill="#ffd166" fontSize={13} fontWeight={700}>
             SOLANA (base layer)

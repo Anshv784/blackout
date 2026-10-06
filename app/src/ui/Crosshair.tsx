@@ -27,7 +27,7 @@ export function Crosshair() {
           sc.style.setProperty("--sx", `${controls.cursorX}px`);
           sc.style.setProperty("--sy", `${controls.cursorY}px`);
         }
-        el.style.opacity = on > 0.6 ? "0" : "1";
+        el.style.opacity = on > 0.6 || useStore.getState().view?.me.alive === 0 ? "0" : "1";
       }
       el.classList.toggle("hot", controls.onTarget);
       el.classList.toggle("firing", controls.fire);

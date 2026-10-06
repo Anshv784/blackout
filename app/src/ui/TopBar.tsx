@@ -43,7 +43,7 @@ function Callsign() {
     />
   ) : (
     <button className="chip-btn" onClick={() => setEdit(true)} title="Change your callsign">
-      <i className="dot" /> {name || "GHOST"} <em>✎</em>
+      <i className="dot" /> {name || "GHOST"} <em className="cs-pen">✎</em>
     </button>
   );
 }
@@ -96,7 +96,7 @@ function Wallet() {
         onClick={() => useStore.getState().set({ walletGate: { then: () => {} } })}
         title="Connect to save your nights and appear on the leaderboard"
       >
-        ◎ connect wallet
+        ◎ <span className="cw-word">connect wallet</span>
       </button>
     </>
   );
@@ -116,16 +116,16 @@ export function TopBar({ active }: { active?: "play" | "board" | "how" }) {
     <header className="topbar">
       <Logo />
       <nav>
-        <a className={active === "play" ? "on" : ""} onClick={() => go("/")}>
+        <a className={active === "play" ? "on" : ""} data-short="Play" onClick={() => go("/")}>
           Play
         </a>
-        <a className={active === "board" ? "on" : ""} onClick={() => go("/board")}>
+        <a className={active === "board" ? "on" : ""} data-short="Board" onClick={() => go("/board")}>
           Leaderboard
         </a>
-        <a className={active === "how" ? "on" : ""} onClick={() => go("/how")}>
+        <a className={active === "how" ? "on" : ""} data-short="How" onClick={() => go("/how")}>
           How it works
         </a>
-        <a onClick={() => (window as any).__replayIntro?.()}>Story</a>
+        <a data-short="Story" onClick={() => (window as any).__replayIntro?.()}>Story</a>
       </nav>
       <div className="topbar-right">
         <Callsign />
