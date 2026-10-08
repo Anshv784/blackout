@@ -189,9 +189,10 @@ function ActorView({ a, t }: { a: Actor; t: React.MutableRefObject<number> }) {
   }, [scene, tgt]);
   useFrame(() => {
     const now = t.current;
-    const p = poseAt(a, now);
-    const on = inWin(a.show, now);
     const dead = a.dead !== undefined && now >= a.dead;
+    // a body stays exactly where and how it fell
+    const p = poseAt(a, dead ? a.dead! : now);
+    const on = inWin(a.show, now);
     const fa = deg(dead ? p.face : faceAt(a, now, p.face));
     if (g.current) {
       g.current.visible = on;
@@ -215,7 +216,7 @@ function ActorView({ a, t }: { a: Actor; t: React.MutableRefObject<number> }) {
     if (spot.current && dropped) {
       spot.current.position.set(p.x + Math.cos(fa) * 0.55, 0.12, p.z + Math.sin(fa) * 0.55);
       tgt.position.set(p.x - Math.cos(fa) * 2.5, 0, p.z - Math.sin(fa) * 2.5);
-      spot.current.intensity = 26 * (0.85 + 0.15 * Math.sin(now * 13) * Math.sin(now * 5.7));
+      spot.current.intensity = 26; // steady: a flickering light on a body reads as the body shaking
       spot.current.color.set("#fff1d0");
     } else if (spot.current) {
       spot.current.position.set(p.x + Math.cos(fa) * 0.2, m.crouch ? 1.1 : 1.6, p.z + Math.sin(fa) * 0.2);
@@ -269,7 +270,7 @@ function ActorView({ a, t }: { a: Actor; t: React.MutableRefObject<number> }) {
       <mesh ref={beam} visible={false} material={beamMat}>
         <coneGeometry args={[2.0, 6.0, 32, 1, true]} />
       </mesh>
-      <spotLight ref={spot} angle={0.55} penumbra={0.35} distance={13} decay={1.05} intensity={0} castShadow={a.name === "DUSK" || a.name === "NYX"} />
+      <spotLight ref={spot} angle={0.55} penumbra={0.35} distance={13} decay={1.05} intensity={0} castShadow={a.name === "DUSK" || a.name === "NYX"} shadow-bias={-0.0006} shadow-normalBias={0.04} />
       <pointLight ref={flash} color="#ffb347" distance={9} decay={1.3} intensity={0} />
       <mesh ref={tracer} visible={false}>
         <boxGeometry args={[1, 0.035, 0.035]} />

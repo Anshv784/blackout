@@ -141,7 +141,7 @@ function MyPlayer({ session }: { session: Session }) {
       const dp = deadPos.current ?? pos;
       target.position.set(dp.x / 256 - Math.cos(fa) * 2.5, 0, dp.y / 256 - Math.sin(fa) * 2.5);
       const t = (now0 - (mo.deadAt ?? now0)) / 1000;
-      spot.current.intensity = t < 0.6 ? 0 : 22 * (0.85 + 0.15 * Math.sin(now0 / 70) * Math.sin(now0 / 173)) * (Math.random() < 0.015 ? 0.2 : 1);
+      spot.current.intensity = t < 0.6 ? 0 : 22; // steady: flicker on a body reads as it shaking
       spot.current.angle = CONE_RAD * 1.3;
       spot.current.distance = 5;
       spot.current.color.set("#fff1d0");
@@ -201,6 +201,7 @@ function MyPlayer({ session }: { session: Session }) {
         castShadow
         shadow-mapSize={[1024, 1024]}
         shadow-bias={-0.0004}
+        shadow-normalBias={0.04}
         shadow-camera-near={0.2}
         shadow-camera-far={13}
       />
