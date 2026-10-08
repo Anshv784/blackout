@@ -1,4 +1,5 @@
 import { useMemo, useRef, useEffect } from "react";
+import { TOUCH } from "../game/device";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Html, OrbitControls } from "@react-three/drei";
 import { EffectComposer, Bloom, Vignette } from "@react-three/postprocessing";
@@ -302,10 +303,10 @@ export function ReplayScene({
 }) {
   return (
     <Canvas
-      shadows
-      dpr={[1, 1.75]}
+      shadows={!TOUCH}
+      dpr={TOUCH ? 1 : [1, 1.75]}
       camera={{ fov: 46, position: [MAP_W / 2, 48, MAP_W / 2 + 26], near: 0.1, far: 200 }}
-      gl={{ antialias: true, preserveDrawingBuffer: true }}
+      gl={{ antialias: !TOUCH, preserveDrawingBuffer: true }}
       onCreated={({ gl }) => {
         gl.toneMapping = THREE.ACESFilmicToneMapping;
         gl.toneMappingExposure = 1.1;
@@ -318,10 +319,12 @@ export function ReplayScene({
       <ZoneRing world={world} ctl={ctl} rec={rec} />
       <Driver rec={rec} me={me} ctl={ctl} onTime={onTime} />
       <OrbitControls target={[MAP_W / 2, 0, MAP_W / 2]} enabled={!follow} maxPolarAngle={1.35} />
-      <EffectComposer multisampling={0}>
-        <Bloom intensity={0.9} luminanceThreshold={0.3} mipmapBlur />
-        <Vignette offset={0.2} darkness={0.75} />
-      </EffectComposer>
+      {!TOUCH && (
+        <EffectComposer multisampling={0}>
+          <Bloom intensity={0.9} luminanceThreshold={0.3} mipmapBlur />
+          <Vignette offset={0.2} darkness={0.75} />
+        </EffectComposer>
+      )}
     </Canvas>
   );
 }

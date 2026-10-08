@@ -1,5 +1,6 @@
 // The holding cell: eight pedestals under spotlights. Taken seats show the survivor,
 // open seats are a faint hologram you can click to take.
+import { TOUCH } from "../game/device";
 import { memo, useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
@@ -145,7 +146,7 @@ export const LobbyStage = memo(function LobbyStage({ seats, onTake, onMakeHost, 
   }, []);
   return (
     <div className="backdrop">
-      <Canvas shadows dpr={[1, 1.5]} camera={{ fov: 40, position: [0, 3.4, 10.5] }} onCreated={({ gl }) => (gl.toneMapping = THREE.ACESFilmicToneMapping)}>
+      <Canvas shadows={!TOUCH} dpr={TOUCH ? 1 : [1, 1.5]} gl={{ antialias: !TOUCH }} camera={{ fov: 40, position: [0, 3.4, 10.5] }} onCreated={({ gl }) => (gl.toneMapping = THREE.ACESFilmicToneMapping)}>
         <color attach="background" args={["#020203"]} />
         <fog attach="fog" args={["#020203", 12, 26]} />
         <ambientLight intensity={0.05} color="#9fb4ff" />
@@ -157,11 +158,11 @@ export const LobbyStage = memo(function LobbyStage({ seats, onTake, onMakeHost, 
         {seats.map((s, i) => (
           <Pedestal key={i} i={i} n={seats.length} seat={s} onTake={onTake} onMakeHost={onMakeHost} onKick={onKick} />
         ))}
-        <EffectComposer multisampling={0}>
+        {!TOUCH && <EffectComposer multisampling={0}>
           <Bloom intensity={1.0} luminanceThreshold={0.25} mipmapBlur />
           <Noise opacity={0.06} premultiply />
           <Vignette offset={0.2} darkness={0.85} />
-        </EffectComposer>
+        </EffectComposer>}
       </Canvas>
     </div>
   );

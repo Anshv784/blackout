@@ -1,5 +1,6 @@
 // Living background for the gate and lobby: the Yard at night, survivors sweeping
 // their flashlights, the Warden hovering, the odd lightning strike.
+import { TOUCH } from "../game/device";
 import { memo, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { EffectComposer, Bloom, Vignette, Noise } from "@react-three/postprocessing";
@@ -126,7 +127,7 @@ function Rig({ focus }: { focus: "gate" | "lobby" }) {
 export const Backdrop = memo(function Backdrop({ focus = "gate" }: { focus?: "gate" | "lobby" }) {
   return (
     <div className="backdrop">
-      <Canvas shadows dpr={[1, 1.25]} camera={{ fov: 42, near: 0.1, far: 160 }} gl={{ antialias: true, powerPreference: "high-performance" }}
+      <Canvas shadows={!TOUCH} dpr={TOUCH ? 1 : [1, 1.25]} camera={{ fov: 42, near: 0.1, far: 160 }} gl={{ antialias: !TOUCH, powerPreference: "high-performance" }}
         onCreated={({ gl }) => {
           gl.toneMapping = THREE.ACESFilmicToneMapping;
           gl.toneMappingExposure = 1.1;
@@ -142,11 +143,11 @@ export const Backdrop = memo(function Backdrop({ focus = "gate" }: { focus?: "ga
           <Walker key={i} idx={i} />
         ))}
         <Warden />
-        <EffectComposer multisampling={0}>
+        {!TOUCH && <EffectComposer multisampling={0}>
           <Bloom intensity={1.1} luminanceThreshold={0.22} mipmapBlur />
           <Noise opacity={0.07} premultiply />
           <Vignette offset={0.2} darkness={0.85} />
-        </EffectComposer>
+        </EffectComposer>}
       </Canvas>
     </div>
   );
