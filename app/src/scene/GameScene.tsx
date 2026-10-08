@@ -815,7 +815,7 @@ function CameraRig({ session }: { session: Session }) {
     const cam = camera as THREE.PerspectiveCamera;
     const t = performance.now() / 1000;
     const sprinting = !!playing && session.sprinting;
-    controls.adsK += ((controls.ads && playing && controls.view === "chase" ? 1 : 0) - controls.adsK) * (1 - Math.pow(0.00005, dt));
+    controls.adsK += (((controls.ads || controls.keys.has("z")) && playing && controls.view === "chase" ? 1 : 0) - controls.adsK) * (1 - Math.pow(0.00005, dt));
     const zoom = 1 - controls.adsK * (session.view?.me.weapon === 4 ? 0.55 : 0.2);
     const fovWant = prefs.fov * zoom + (sprinting && controls.adsK < 0.2 ? 8 : 0);
     if (Math.abs(cam.fov - fovWant) > 0.05) {
@@ -1000,7 +1000,7 @@ function InputController({ session }: { session: Session }) {
 
     const wheel = (e: WheelEvent) => {
       e.preventDefault();
-      wheelInput(e.deltaY);
+      wheelInput(e.deltaY, e);
     };
     el.addEventListener("wheel", wheel, { passive: false });
     document.addEventListener("pointerlockchange", lockChange);
@@ -1083,7 +1083,8 @@ function InputController({ session }: { session: Session }) {
     if (controls.running && (m < 0.1 || controls.crouch || controls.fire)) controls.running = false;
     const sprint = (prefs.sprintHold ? controls.keys.has("shift") : controls.running) || controls.touchSprint;
     const buttons =
-      (controls.fire || controls.touchFire || now < controls.fireUntil ? 1 : 0) |
+      // F fires and Z aims down sights, for trackpads and keyboard-only play
+      (controls.fire || controls.touchFire || controls.keys.has("f") || now < controls.fireUntil ? 1 : 0) |
       (controls.reload || now < controls.reloadUntil ? 2 : 0) |
       (sprint ? 4 : 0) |
       // gadgets throw on release (night vision just switches on)

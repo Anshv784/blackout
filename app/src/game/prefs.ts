@@ -35,7 +35,7 @@ export interface Prefs {
 export const DEFAULT_PREFS: Prefs = {
   invertY: false,
   turnSpeed: 1,
-  arrows: "move",
+  arrows: "camera", // WASD walks; arrows aim (no mouse needed)
   autoTurn: true,
   fov: 46,
   camSmooth: 0.55,
@@ -90,6 +90,17 @@ export const prefs: Prefs = (() => {
     return { ...DEFAULT_PREFS };
   }
 })();
+
+// arrow keys aim by default now (WASD still walks): move older saves over once
+try {
+  if (!localStorage.getItem("bo-arrows-aim-v1")) {
+    prefs.arrows = "camera";
+    localStorage.setItem("bo-arrows-aim-v1", "1");
+    localStorage.setItem(KEY, JSON.stringify(prefs));
+  }
+} catch {
+  /* ignore */
+}
 
 // graphics became automatic: everyone moves to Auto once (they can still pick High or Low)
 try {

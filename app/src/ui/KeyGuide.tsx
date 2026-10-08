@@ -16,9 +16,9 @@ const MOVE: Row[] = [
   [["Space"], "jump"],
 ];
 const FIGHT: Row[] = [
-  [["Mouse"], "look"],
-  [["LMB"], "fire"],
-  [["RMB"], "aim / scope"],
+  [["Mouse"], "look", "or arrows"],
+  [["LMB"], "fire", "or F"],
+  [["RMB"], "aim / scope", "or Z"],
   [["R"], "reload"],
   [["Wheel"], "swap gun", "or X"],
   [["G"], "throw", "hold to aim"],

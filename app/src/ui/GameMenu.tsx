@@ -326,10 +326,12 @@ export function Settings({ onClose }: { onClose: () => void }) {
                   <span><b>W A S D</b> move</span>
                   <span><b>Shift</b> tap to run (loud) · or double-tap W</span>
                   <span><b>Mouse</b> aim</span>
-                  <span><b>Click</b> fire</span>
+                  <span><b>Click / F</b> fire</span>
                   <span><b>Space</b> jump</span>
                   <span><b>C</b> crouch &amp; sneak (silent)</span>
-                  <span><b>Right mouse</b> aim down sights</span>
+                  <span><b>Right mouse / Z</b> aim down sights</span>
+                  <span><b>Arrows</b> aim (no mouse)</span>
+                  <span><b>Trackpad</b> two-finger swipe aims</span>
                   <span><b>G</b> throw / use gadget</span>
                   <span><b>Wheel / X / 1 / 2</b> swap guns</span>
                   <span><b>R</b> reload</span>

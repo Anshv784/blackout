@@ -77,7 +77,19 @@ export function setSetting(k: "chaseDist" | "chaseHeight" | "topZoom" | "sens", 
 
 /** Mouse wheel zooms whichever camera you're using. */
 /** PUBG: the wheel swaps guns. Turn it off in settings to zoom the camera with it instead. */
-export function wheelInput(deltaY: number) {
+/** A trackpad's two-finger swipe looks like many small, smooth wheel events (often sideways);
+ *  a mouse wheel sends big notched steps straight up/down. Swipes aim, notches swap guns. */
+export function isTrackpad(e: WheelEvent) {
+  return e.deltaMode === 0 && (Math.abs(e.deltaX) > 0.5 || !Number.isInteger(e.deltaY) || Math.abs(e.deltaY) < 40);
+}
+
+export function wheelInput(deltaY: number, e?: WheelEvent) {
+  if (e && controls.view === "chase" && isTrackpad(e)) {
+    const k = controls.sens * 0.00012 * (1 - controls.adsK * 0.4);
+    controls.camYaw += e.deltaX * k;
+    controls.camPitch = Math.max(0.02, Math.min(1.15, controls.camPitch + e.deltaY * k * 0.7 * (prefs.invertY ? -1 : 1)));
+    return;
+  }
   if (prefs.wheelSwap && controls.view === "chase") {
     if (Math.abs(deltaY) > 4 && performance.now() > controls.swapUntil + 250) controls.swapUntil = performance.now() + 160;
     return;
