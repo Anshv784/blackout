@@ -712,6 +712,7 @@ function CameraRig({ session }: { session: Session }) {
   const diedAt = useRef(0);
   const diedYaw = useRef(0);
   const diedPos = useRef({ x: 0, y: 0 });
+  const startedNight = useRef("");
   const pos = useRef(new THREE.Vector3(16, 30, 30));
   useFrame((_, dt) => {
     const p = session.myPos();
@@ -719,6 +720,16 @@ function CameraRig({ session }: { session: Session }) {
     const playing = p && r && (r.status === ST_LIVE || r.status === ST_COUNTDOWN) && session.view?.me.alive;
     let wantLook: THREE.Vector3;
     let wantPos: THREE.Vector3;
+    // a new night: start behind your own back, looking the way you spawned facing
+    const night = r ? `${r.matchNo}:${r.status === ST_COUNTDOWN || r.status === ST_LIVE}` : "";
+    if (r && (r.status === ST_COUNTDOWN || r.status === ST_LIVE) && session.view && night !== startedNight.current) {
+      startedNight.current = night;
+      controls.view = "chase";
+      // face the crossroads: open ground, not the wall you spawned against
+      const me = session.view.me;
+      controls.camYaw = Math.atan2((MAP_W / 2) * 256 - me.y, (MAP_W / 2) * 256 - me.x);
+      controls.camPitch = 0.14;
+    }
     // killed: the camera leaves your shoulder and rises slowly over the body
     const killed = !!p && !!r && r.status === ST_LIVE && session.view?.me.alive === 0;
     if (killed && !diedAt.current) {
@@ -748,7 +759,7 @@ function CameraRig({ session }: { session: Session }) {
       const sniper = session.view?.me.weapon === 4;
       const fx = Math.cos(a);
       const fz = Math.sin(a);
-      const shoulder = 0.68 + 0.25 * ads;
+      const shoulder = 0.42 + 0.3 * ads; // the body sits just left of the crosshair: back and gun in view
       // the point the camera orbits: just above and right of your shoulder
       const tx = p!.x / 256 - fz * shoulder;
       const tz = p!.y / 256 + fx * shoulder;
@@ -1108,6 +1119,9 @@ function FlareLight({ session }: { session: Session }) {
 function DisplayPrefs() {
   const { gl, camera, scene } = useThree();
   const p = usePrefs();
+  useEffect(() => {
+    (window as any).__gl = gl; // draw-call and triangle counts for perf checks
+  }, [gl]);
   useEffect(() => {
     gl.toneMappingExposure = p.exposure;
     const shadows = p.quality === "high";

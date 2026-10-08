@@ -299,8 +299,8 @@ function Settings({ onClose }: { onClose: () => void }) {
               onClick={() => {
                 resetPrefs();
                 setSetting("sens", 36);
-                setSetting("chaseDist", 7.5);
-                setSetting("chaseHeight", 5.5);
+                setSetting("chaseDist", 5.0);
+                setSetting("chaseHeight", 4.0);
                 setSetting("topZoom", 14);
                 setLaser(false);
                 audio.setVolume(DEFAULT_PREFS.volume);

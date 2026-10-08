@@ -18,7 +18,7 @@ export const controls = {
   view: ((typeof localStorage !== "undefined" && localStorage.getItem("bo-view-v2")) || "chase") as "chase" | "top",
   chaseAim: 0, // unused (kept for compatibility)
   camYaw: 0, // third-person camera heading (radians); you face where it looks
-  camPitch: 0.32, // camera tilt down (radians): mouse up looks further
+  camPitch: 0.14, // camera tilt down (radians): mouse up looks further
   onTarget: false, // an enemy is on your line of fire
   // behind-view virtual cursor in normalized device coords (-1..1), moved by the mouse
   vcx: 0,
@@ -31,8 +31,8 @@ export const controls = {
   crouch: false, // C toggles (not Ctrl: Ctrl+W would close the tab)
   adsK: 0, // eased 0..1 // a settings/map overlay is open: game keys are ignored
   // player-tunable camera (persisted)
-  chaseDist: num("bo-chase-dist-v2", 7.5),
-  chaseHeight: num("bo-chase-height-v2", 5.5),
+  chaseDist: num("bo-chase-dist-v3", 5.0),
+  chaseHeight: num("bo-chase-height-v3", 4.0),
   topZoom: num("bo-top-zoom", 14),
   sens: num("bo-sens", 36),
   laser: (() => {
@@ -64,7 +64,7 @@ function num(key: string, d: number) {
 
 export function setSetting(k: "chaseDist" | "chaseHeight" | "topZoom" | "sens", v: number) {
   controls[k] = v;
-  const keys = { chaseDist: "bo-chase-dist-v2", chaseHeight: "bo-chase-height-v2", topZoom: "bo-top-zoom", sens: "bo-sens" };
+  const keys = { chaseDist: "bo-chase-dist-v3", chaseHeight: "bo-chase-height-v3", topZoom: "bo-top-zoom", sens: "bo-sens" };
   try {
     localStorage.setItem(keys[k], String(v));
   } catch {
