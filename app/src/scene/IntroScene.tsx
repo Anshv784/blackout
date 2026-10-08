@@ -1,13 +1,14 @@
 // The trailer: a ~34 s scripted cinematic in the real Yard. Everything is data:
 // actors (paths, facing, shots, falls), camera shots (hard cuts), blasts and the zone.
 // `globalThis.__introT = <seconds>` freezes it at a moment (used to review frames).
-import { useEffect, useMemo, useRef } from "react";
+import { Suspense, useEffect, useMemo, useRef } from "react";
+import { useGLTF } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { EffectComposer, Bloom, Vignette, Noise } from "@react-three/postprocessing";
 import * as THREE from "three";
 import { Arena } from "./Arena";
 import { Avatar, SEAT_COLORS } from "./Avatar";
-import { stillMotion, type Motion } from "./Soldier";
+import { stillMotion, SOLDIER_URL, type Motion } from "./Soldier";
 import { audio } from "../game/audio";
 import { INTRO_LENGTH } from "../game/colors";
 export { INTRO_LENGTH };
@@ -537,34 +538,58 @@ function Director({ t, onTime }: { t: React.MutableRefObject<number>; onTime: (s
   );
 }
 
-export function IntroScene({ onTime }: { onTime: (s: number) => void }) {
+const TOUCH = typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches;
+
+/** Mounts once the soldier model has loaded: compiles every shader up front (no stall on the
+ *  first cut), then says so. The story's clock only starts after this. */
+function Ready({ onReady }: { onReady: () => void }) {
+  useGLTF(SOLDIER_URL);
+  const { gl, scene, camera } = useThree();
+  useEffect(() => {
+    try {
+      gl.compile(scene, camera);
+    } catch {
+      /* compiling early is only an optimisation */
+    }
+    onReady();
+  }, []);
+  return null;
+}
+
+export function IntroScene({ onTime, onReady }: { onTime: (s: number) => void; onReady: () => void }) {
   const t = useRef(0);
   return (
     <Canvas
-      shadows
-      dpr={[1, 1.5]}
+      // phones: no shadows, no MSAA, 1x pixels, no bloom pass; the story still reads, at a steady frame rate
+      shadows={!TOUCH}
+      dpr={TOUCH ? 1 : [1, 1.5]}
       camera={{ fov: 42, position: [24, 42, 60], near: 0.1, far: 200 }}
-      gl={{ antialias: true }}
+      gl={{ antialias: !TOUCH, powerPreference: "high-performance" }}
       onCreated={({ gl }) => {
         gl.toneMapping = THREE.ACESFilmicToneMapping;
-        gl.toneMappingExposure = 1.2;
+        gl.toneMappingExposure = TOUCH ? 1.35 : 1.2;
       }}
     >
       <color attach="background" args={["#010102"]} />
       <fog attach="fog" args={["#010102", 24, 72]} />
-      <Director t={t} onTime={onTime} />
-      <Arena />
-      {ACTORS.map((a) => (
-        <ActorView key={a.name} a={a} t={t} />
-      ))}
-      <Blasts t={t} />
-      <ZoneWall t={t} />
-      <Warden t={t} />
-      <EffectComposer multisampling={0}>
-        <Bloom intensity={1.25} luminanceThreshold={0.2} mipmapBlur />
-        <Noise opacity={0.07} premultiply />
-        <Vignette offset={0.15} darkness={0.85} />
-      </EffectComposer>
+      <Suspense fallback={null}>
+        <Ready onReady={onReady} />
+        <Director t={t} onTime={onTime} />
+        <Arena />
+        {ACTORS.map((a) => (
+          <ActorView key={a.name} a={a} t={t} />
+        ))}
+        <Blasts t={t} />
+        <ZoneWall t={t} />
+        <Warden t={t} />
+      </Suspense>
+      {!TOUCH && (
+        <EffectComposer multisampling={0}>
+          <Bloom intensity={1.25} luminanceThreshold={0.2} mipmapBlur />
+          <Noise opacity={0.07} premultiply />
+          <Vignette offset={0.15} darkness={0.85} />
+        </EffectComposer>
+      )}
     </Canvas>
   );
 }

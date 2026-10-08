@@ -1,9 +1,11 @@
 import { lazy, Suspense, useEffect, useState } from "react";
+import { useProgress } from "@react-three/drei";
 import { audio } from "../game/audio";
 import { fullscreenOnTouch } from "./Fullscreen";
 import { INTRO_LENGTH } from "../game/colors";
 
-const IntroScene = lazy(() => import("../scene/IntroScene").then((m) => ({ default: m.IntroScene })));
+const loadScene = () => import("../scene/IntroScene");
+const IntroScene = lazy(() => loadScene().then((m) => ({ default: m.IntroScene })));
 
 // the story, told underneath the picture: narration (bottom), a few cards (centre), name tags
 type Line = { at: number; to: number; text: string; kind: "say" | "card" | "name"; sub?: string };
@@ -29,6 +31,12 @@ const TITLE_AT = INTRO_LENGTH;
 
 export function Intro({ onDone }: { onDone: () => void }) {
   const [started, setStarted] = useState(false);
+  const [ready, setReady] = useState(false);
+  const { progress } = useProgress();
+  // start downloading the 3D story (code + soldier model) while the ENTER screen is up
+  useEffect(() => {
+    void loadScene();
+  }, []);
   const [t, setT] = useState(0);
 
   const finish = () => {
@@ -84,8 +92,18 @@ export function Intro({ onDone }: { onDone: () => void }) {
   return (
     <div className="intro cinematic">
       <Suspense fallback={null}>
-        <IntroScene onTime={setT} />
+        <IntroScene onTime={setT} onReady={() => setReady(true)} />
       </Suspense>
+      {!ready && (
+        <div className="intro-loading">
+          <div className="intro-eye small" />
+          <b>03:12</b>
+          <small>the grid is failing… {Math.round(progress)}%</small>
+          <i>
+            <span style={{ width: `${Math.max(4, progress)}%` }} />
+          </i>
+        </div>
+      )}
       <div className="letterbox top" />
       <div className="letterbox bottom" />
       {live.map((l) =>
