@@ -2027,3 +2027,17 @@ button {
 .fs-btn{display:inline-grid;place-items:center;cursor:pointer}
 .fs-btn svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
 .game-tools .fs-btn{padding:6px 9px}
+.intro-rotate{display:none}
+@media (orientation:portrait) and (pointer:coarse){
+  .intro.cinematic .intro-rotate{display:flex;position:absolute;inset:0;z-index:20;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:rgba(3,4,8,.94);text-align:center}
+  .intro-rotate svg{width:64px;height:64px;fill:none;stroke:#ffd166;stroke-width:1.5;animation:rot 2.4s ease-in-out infinite}
+  .intro-rotate b{letter-spacing:.2em;font-size:16px;color:#fff}
+  .intro-rotate small{color:var(--dim);font-family:var(--mono);font-size:11px;letter-spacing:.14em}
+}
+/* phones sideways: smaller letterbox and words that fit */
+@media (max-height:500px){
+  .intro.cinematic .letterbox{height:7vh}
+  .story-say{bottom:calc(7vh + 10px);font-size:15px}
+  .story-name{top:calc(7vh + 12px)}
+  .intro-title h1{font-size:64px}
+}

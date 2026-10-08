@@ -116,6 +116,12 @@ export function Intro({ onDone }: { onDone: () => void }) {
           )}
         </div>
       )}
+      {/* the story is shot wide: on a phone held upright, ask for sideways */}
+      <div className="intro-rotate">
+        <svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2" /><path d="M20 9a8 8 0 0 1 0 6M4 9a8 8 0 0 0 0 6" /></svg>
+        <b>TURN YOUR PHONE</b>
+        <small>the story plays sideways</small>
+      </div>
       <div className="intro-progress">
         <i style={{ width: `${Math.min(100, (t / INTRO_LENGTH) * 100)}%` }} />
       </div>
