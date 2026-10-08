@@ -319,24 +319,26 @@ function Settings({ onClose }: { onClose: () => void }) {
                 {range("Mouse sensitivity", controls.sens, 8, 120, 1, (v) => setSetting("sens", v))}
                 {toggle("Invert vertical aim", p.invertY, (v) => setPref("invertY", v))}
                 {range("Turn speed (Q / E)", p.turnSpeed, 0.4, 2.5, 0.1, (v) => setPref("turnSpeed", v), (v) => `${v.toFixed(1)}×`)}
+                {toggle("Hold Shift to run", p.sprintHold, (v) => setPref("sprintHold", v), "off: tap Shift or double-tap W to run, it stops when you stop")}
+                {toggle("Mouse wheel swaps guns", p.wheelSwap, (v) => setPref("wheelSwap", v), "off: the wheel zooms the camera")}
                 {choice("Arrow keys", p.arrows, [["move", "Move"], ["camera", "Turn camera"]], (v) => setPref("arrows", v))}
                 <div className="set-keys">
                   <span><b>W A S D</b> move</span>
-                  <span><b>Shift</b> sprint (loud)</span>
+                  <span><b>Shift</b> tap to run (loud) · or double-tap W</span>
                   <span><b>Mouse</b> aim</span>
                   <span><b>Click</b> fire</span>
                   <span><b>Space</b> jump</span>
                   <span><b>C</b> crouch &amp; sneak (silent)</span>
                   <span><b>Right mouse</b> aim down sights</span>
                   <span><b>G</b> throw / use gadget</span>
-                  <span><b>X / 1 / 2</b> swap guns</span>
+                  <span><b>Wheel / X / 1 / 2</b> swap guns</span>
                   <span><b>R</b> reload</span>
                   <span><b>Q / E</b> turn</span>
                   <span><b>V</b> view</span>
                   <span><b>Tab</b> map</span>
                   <span><b>M</b> sound</span>
                   <span><b>Esc / P</b> settings</span>
-                  <span><b>Wheel</b> zoom</span>
+                  <span><b>Settings</b> wheel can zoom instead</span>
                 </div>
               </>
             )}

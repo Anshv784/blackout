@@ -11,7 +11,7 @@ const OPEN_FOR = 25000; // ms the card stays up when a night starts
 type Row = [keys: string[], what: string, note?: string];
 const MOVE: Row[] = [
   [["W", "A", "S", "D"], "move"],
-  [["Shift"], "sprint", "loud"],
+  [["Shift"], "run", "tap · or W W"],
   [["C"], "sneak", "silent"],
   [["Space"], "jump"],
 ];
@@ -20,7 +20,7 @@ const FIGHT: Row[] = [
   [["LMB"], "fire"],
   [["RMB"], "aim / scope"],
   [["R"], "reload"],
-  [["X"], "swap gun"],
+  [["Wheel"], "swap gun", "or X"],
   [["G"], "throw", "hold to aim"],
 ];
 const VIEW: Row[] = [

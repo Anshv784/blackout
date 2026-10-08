@@ -24,6 +24,8 @@ export interface Prefs {
   netStats: boolean;
   mapSize: number;
   // audio
+  sprintHold: boolean; // true: hold Shift to run; false: tap Shift (or double-tap W) to run
+  wheelSwap: boolean; // mouse wheel swaps guns (else it zooms the camera)
   volume: number; // master, 0..1.5 (above 1 boosts)
   sfxVol: number; // guns, steps, hits, 0..1.5
   musicVol: number; // the night's ambience and music, 0..1.5
@@ -48,6 +50,8 @@ export const DEFAULT_PREFS: Prefs = {
   names: true,
   netStats: true,
   mapSize: 140,
+  sprintHold: false,
+  wheelSwap: true,
   volume: 0.8,
   sfxVol: 0.85,
   musicVol: 0.8,

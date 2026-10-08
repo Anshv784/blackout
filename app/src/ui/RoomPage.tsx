@@ -537,12 +537,12 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
       <div className="keys-hint">
         <span>mouse aim</span>
         <span>WASD move</span>
-        <span>Shift sprint</span>
+        <span>Shift tap to run</span>
         <span>Space jump</span>
         <span>C sneak</span>
         <span>RMB scope</span>
         <span>G gadget</span>
-        <span>X swap</span>
+        <span>Wheel swap</span>
         <span>R reload</span>
         <span>Tab map</span>
       </div>

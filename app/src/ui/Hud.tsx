@@ -410,7 +410,7 @@ function ClickToPlay() {
   return (
     <div className="click-to-play">
       <b>CLICK TO PLAY</b>
-      <small>mouse turns · WASD moves · click fire · right-click aim · Shift sprint · Space jump · C sneak · Esc menu</small>
+      <small>mouse turns · WASD moves · click fire · right-click aim · Shift (tap) run · wheel swaps · Space jump · C sneak · Esc menu</small>
     </div>
   );
 }

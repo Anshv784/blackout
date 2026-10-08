@@ -9,7 +9,7 @@ import { Avatar, Gun, SEAT_COLORS, aimToRotY } from "./Avatar";
 import { stillMotion, type Motion } from "./Soldier";
 import type { Session } from "../game/session";
 import { ST_COUNTDOWN, ST_LIVE, ST_ENDED } from "../chain/layout";
-import { controls, wheelZoom, gadgetCancel } from "../game/controls";
+import { controls, wheelInput, gadgetCancel } from "../game/controls";
 import { prefs, usePrefs } from "../game/prefs";
 import { feel } from "../game/feel";
 import { useStore } from "../game/store";
@@ -993,7 +993,7 @@ function InputController({ session }: { session: Session }) {
 
     const wheel = (e: WheelEvent) => {
       e.preventDefault();
-      wheelZoom(e.deltaY);
+      wheelInput(e.deltaY);
     };
     el.addEventListener("wheel", wheel, { passive: false });
     document.addEventListener("pointerlockchange", lockChange);
@@ -1072,7 +1072,9 @@ function InputController({ session }: { session: Session }) {
       dy /= m;
     }
     const now = performance.now();
-    const sprint = controls.keys.has("shift") || controls.touchSprint;
+    // running stops by itself when you stop moving (or fire, or crouch)
+    if (controls.running && (m < 0.1 || controls.crouch || controls.fire)) controls.running = false;
+    const sprint = (prefs.sprintHold ? controls.keys.has("shift") : controls.running) || controls.touchSprint;
     const buttons =
       (controls.fire || controls.touchFire || now < controls.fireUntil ? 1 : 0) |
       (controls.reload || now < controls.reloadUntil ? 2 : 0) |
@@ -1081,7 +1083,7 @@ function InputController({ session }: { session: Session }) {
       (now < controls.gadgetUntil || (controls.gadgetHeld && session.view?.inv?.gadget === 6) ? 8 : 0) |
       (controls.crouch || controls.touchCrouch ? 32 : 0) |
       (controls.keys.has(" ") || controls.touchJump ? 64 : 0) |
-      (controls.keys.has("x") || controls.keys.has("1") || controls.keys.has("2") ? 16 : 0);
+      (controls.keys.has("x") || controls.keys.has("1") || controls.keys.has("2") || now < controls.swapUntil ? 16 : 0);
     session.setInput(dx * 127, dy * 127, aim, buttons);
     session.frame();
   });

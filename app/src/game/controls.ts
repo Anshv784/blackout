@@ -1,3 +1,4 @@
+import { prefs } from "./prefs";
 // Shared mutable input state (keyboard, mouse, touch joysticks). Read every frame.
 export const controls = {
   keys: new Set<string>(),
@@ -28,6 +29,8 @@ export const controls = {
   locked: false,
   menu: false,
   ads: false, // right mouse: aim down sights
+  running: false, // tap-to-run: on until you stop moving or tap again
+  swapUntil: 0, // a wheel notch swaps guns for a few ticks
   crouch: false, // C toggles (not Ctrl: Ctrl+W would close the tab)
   adsK: 0, // eased 0..1 // a settings/map overlay is open: game keys are ignored
   // player-tunable camera (persisted)
@@ -73,6 +76,15 @@ export function setSetting(k: "chaseDist" | "chaseHeight" | "topZoom" | "sens", 
 }
 
 /** Mouse wheel zooms whichever camera you're using. */
+/** PUBG: the wheel swaps guns. Turn it off in settings to zoom the camera with it instead. */
+export function wheelInput(deltaY: number) {
+  if (prefs.wheelSwap && controls.view === "chase") {
+    if (Math.abs(deltaY) > 4 && performance.now() > controls.swapUntil + 250) controls.swapUntil = performance.now() + 160;
+    return;
+  }
+  wheelZoom(deltaY);
+}
+
 export function wheelZoom(deltaY: number) {
   const f = Math.exp(deltaY * 0.001);
   if (controls.view === "chase") {
@@ -92,6 +104,7 @@ export function toggleView() {
 }
 
 let installed = false;
+let lastW = 0;
 export function installKeyboard() {
   if (installed) return;
   installed = true;
@@ -110,6 +123,15 @@ export function installKeyboard() {
     if (k === "g" && !e.repeat) gadgetDown();
     if (k === "c" && !e.repeat) controls.crouch = !controls.crouch;
     if ((k === "shift" || k === " ") && !e.repeat) controls.crouch = false; // sprint / jump stands you up
+    // running without holding Shift: tap Shift, or double-tap W
+    if (!e.repeat && !prefs.sprintHold) {
+      if (k === "shift") controls.running = !controls.running;
+      if (k === "w") {
+        const now = performance.now();
+        if (now - lastW < 300) controls.running = true;
+        lastW = now;
+      }
+    }
     if (k === " ") e.preventDefault(); // Space jumps (and must not scroll the page)
   });
   window.addEventListener("keyup", (e) => {
