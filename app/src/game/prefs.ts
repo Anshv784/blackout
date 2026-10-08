@@ -63,6 +63,17 @@ export const prefs: Prefs = (() => {
   }
 })();
 
+// phones: an older migration saved "high" for everyone; put phones on low once (settings can raise it)
+try {
+  if (typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches && !localStorage.getItem("bo-mobile-low-v1")) {
+    prefs.quality = "low";
+    localStorage.setItem("bo-mobile-low-v1", "1");
+    localStorage.setItem(KEY, JSON.stringify(prefs));
+  }
+} catch {
+  /* ignore */
+}
+
 // it used to be too quiet: lift older saved volumes once
 try {
   if (!localStorage.getItem("bo-vol-v2")) {

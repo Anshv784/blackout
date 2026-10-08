@@ -1121,6 +1121,7 @@ function DisplayPrefs() {
   const p = usePrefs();
   useEffect(() => {
     (window as any).__gl = gl; // draw-call and triangle counts for perf checks
+    (window as any).__scene = scene;
   }, [gl]);
   useEffect(() => {
     gl.toneMappingExposure = p.exposure;
@@ -1135,6 +1136,8 @@ function DisplayPrefs() {
   return null;
 }
 
+const TOUCH = typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches;
+
 export const GameScene = memo(function GameScene({ session }: { session: Session }) {
   const p = usePrefs();
   return (
@@ -1142,7 +1145,8 @@ export const GameScene = memo(function GameScene({ session }: { session: Session
       shadows
       dpr={p.quality === "high" ? [1, 1.5] : 1}
       camera={{ fov: 46, position: [16, 30, 30], near: 0.1, far: 120 }}
-      gl={{ antialias: true, powerPreference: "high-performance" }}
+      // phones: no MSAA (dense screens hide jaggies, and it's a big cost on mobile GPUs)
+      gl={{ antialias: !TOUCH, powerPreference: "high-performance" }}
       onCreated={({ gl }) => {
         gl.toneMapping = THREE.ACESFilmicToneMapping;
         gl.toneMappingExposure = 1.1;

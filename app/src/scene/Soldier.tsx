@@ -32,6 +32,8 @@ const tmpB = new THREE.Vector3();
 const tmpC = new THREE.Vector3();
 const tmpQ = new THREE.Quaternion();
 const tmpQ2 = new THREE.Quaternion();
+const ikQ = new THREE.Quaternion();
+const [ikS, ikE, ikH, ikT, ikB, ikD, ikEl, ikF] = Array.from({ length: 8 }, () => new THREE.Vector3());
 
 /** Rotate `bone` so the direction to `child` points at world `target`. */
 function aimBone(bone: THREE.Object3D, child: THREE.Object3D, target: THREE.Vector3) {
@@ -44,7 +46,7 @@ function aimBone(bone: THREE.Object3D, child: THREE.Object3D, target: THREE.Vect
   const delta = tmpQ.setFromUnitVectors(cur, want);
   const worldQ = bone.getWorldQuaternion(tmpQ2);
   const newWorld = delta.multiply(worldQ);
-  const parentQ = new THREE.Quaternion();
+  const parentQ = ikQ.identity();
   bone.parent?.getWorldQuaternion(parentQ);
   bone.quaternion.copy(parentQ.invert().multiply(newWorld));
   bone.updateWorldMatrix(false, true);
@@ -53,20 +55,21 @@ function aimBone(bone: THREE.Object3D, child: THREE.Object3D, target: THREE.Vect
 /** Two-bone IK: shoulder→elbow→hand reaches `target`, elbow bent toward `pole`. */
 function reach(upper: THREE.Object3D, lower: THREE.Object3D, hand: THREE.Object3D, target: THREE.Vector3, pole: THREE.Vector3) {
   upper.updateWorldMatrix(true, true);
-  const s = new THREE.Vector3().setFromMatrixPosition(upper.matrixWorld);
-  const e = new THREE.Vector3().setFromMatrixPosition(lower.matrixWorld);
-  const h = new THREE.Vector3().setFromMatrixPosition(hand.matrixWorld);
+  // scratch vectors, reused: this runs for every soldier every frame (no garbage, no GC stutter)
+  const s = ikS.setFromMatrixPosition(upper.matrixWorld);
+  const e = ikE.setFromMatrixPosition(lower.matrixWorld);
+  const h = ikH.setFromMatrixPosition(hand.matrixWorld);
   const a = s.distanceTo(e);
   const b = e.distanceTo(h);
-  const toT = target.clone().sub(s);
+  const toT = ikT.copy(target).sub(s);
   const d = Math.min(toT.length(), a + b - 1e-3);
   const dir = toT.normalize();
   // distance along dir to the elbow's projection, and the elbow's offset from that line
   const x = (a * a - b * b + d * d) / (2 * d);
   const y = Math.sqrt(Math.max(0, a * a - x * x));
-  const bend = pole.clone().sub(s);
-  bend.sub(dir.clone().multiplyScalar(bend.dot(dir))).normalize();
-  const elbow = s.clone().add(dir.clone().multiplyScalar(x)).add(bend.multiplyScalar(y));
+  const bend = ikB.copy(pole).sub(s);
+  bend.sub(ikD.copy(dir).multiplyScalar(bend.dot(dir))).normalize();
+  const elbow = ikEl.copy(s).add(ikD.copy(dir).multiplyScalar(x)).add(bend.multiplyScalar(y));
   aimBone(upper, lower, elbow);
   aimBone(lower, hand, target);
 }
@@ -240,7 +243,7 @@ export function Soldier({ color: _color, weapon = 0, ghost = false, motion }: { 
     }
     g.localToWorld(pole.set(-0.2, 0.7, 0.75));
     reach(bones.rArm, bones.rFore, bones.rHand, throwing ? target : grip, pole);
-    const front = gunRef.current ? gunRef.current.localToWorld(new THREE.Vector3(m.reloading ? 0.22 : 0.42, m.reloading ? -0.14 : -0.03, 0)) : grip;
+    const front = gunRef.current ? gunRef.current.localToWorld(ikF.set(m.reloading ? 0.22 : 0.42, m.reloading ? -0.14 : -0.03, 0)) : grip;
     if (m.reloading) front.y += Math.sin(now / 90) * 0.02;
     g.localToWorld(pole.set(0.25, 0.55, -0.55));
     reach(bones.lArm, bones.lFore, bones.lHand, front, pole);

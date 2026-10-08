@@ -500,7 +500,19 @@ function segHitsBox(a: THREE.Vector3, b: THREE.Vector3, min: [number, number, nu
 export function Arena({ lit = false }: { lit?: boolean }) {
   const boxes = useMemo(wallBoxes, []);
   const floor = useMemo(floorTexture, []);
-  const geo = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
+  // a unit box drawn in two calls instead of six: the four walls, then the roof (no floor face,
+  // nobody sees under a wall). Six face groups cost ~400 extra draw calls across the Yard.
+  const geo = useMemo(() => {
+    const g = new THREE.BoxGeometry(1, 1, 1);
+    const idx = g.index!.array;
+    const face = (f: number) => Array.from(idx.slice(f * 6, f * 6 + 6)); // faces: +x -x +y -y +z -z
+    const walls = [...face(0), ...face(1), ...face(4), ...face(5)];
+    g.setIndex([...walls, ...face(2)]);
+    g.clearGroups();
+    g.addGroup(0, walls.length, 0);
+    g.addGroup(walls.length, 6, 1);
+    return g;
+  }, []);
   const materials = useMemo(() => {
     const cont = CONTAINER_COLORS.map(containerTex);
     const conc = [0, 1, 2, 3].map(concreteTex);
@@ -539,8 +551,7 @@ export function Arena({ lit = false }: { lit?: boolean }) {
       const top = see
         ? new THREE.MeshBasicMaterial({ visible: false })
         : new THREE.MeshStandardMaterial({ map: b.kind === "crates" ? map : null, color: b.kind === "container" ? "#3a3f4a" : b.kind === "building" ? "#2b2e35" : "#4a4f5a", roughness: 0.9 });
-      // box faces: +x -x +y -y +z -z
-      return [side, side, top, top, side, side];
+      return [side, top]; // walls, roof (see the geometry above)
     });
   }, [boxes, lit]);
   const edges = useMemo(() => {
