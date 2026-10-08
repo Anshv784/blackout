@@ -217,7 +217,7 @@ class Audio {
       .finally(() => this.loading.delete(name));
   }
   private preload() {
-    for (const n of ["shot_9mm", "shot_308", "shot_20g", "mag_out", "mag_in", "rack", "shell_load", "bolt_load", "dry_fire", ...HITS]) this.load(n);
+    for (const n of ["wolf", "shot_9mm", "shot_308", "shot_20g", "mag_out", "mag_in", "rack", "shell_load", "bolt_load", "dry_fire", ...HITS]) this.load(n);
   }
   has(name: string) {
     return this.bufs2.has(name);
@@ -824,6 +824,8 @@ class Audio {
   howl(pan = 0, vol = 0.5, delay = 0) {
     const c = this.ensure();
     if (!c || this.muted) return;
+    // real wolves (NPS, Denali), far off across the Yard: muffled, from one side, into the reverb
+    if (this.play("wolf", { vol: vol * 0.55, pan, delay, rate: 0.94 + Math.random() * 0.1, wet: 0.7, lp: 2600 })) return;
     const t = c.currentTime + delay;
     const dur = 2.6 + Math.random() * 1.2;
     const base = 380 + Math.random() * 90;

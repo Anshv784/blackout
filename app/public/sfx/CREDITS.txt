@@ -11,3 +11,7 @@ Trimmed, normalised and re-encoded to mono/stereo MP3 for the web.
 
 hit_bass1-3, hit_mid1-3, hit_high1-2
   "Horror Hit Soundpack 1" by psychhead_ - https://opengameart.org/content/horror-hit-soundpack-1
+
+wolf
+  "Sounds of wolves howling", Denali National Park & Preserve - U.S. National Park Service (public domain)
+  https://www.nps.gov/subjects/sound/sounds-wolf.htm

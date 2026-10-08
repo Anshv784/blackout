@@ -495,6 +495,8 @@ function Director({ t, onTime }: { t: React.MutableRefObject<number>; onTime: (s
       audio.thunder(0.2);
     });
     cue("wake", 6.2, () => audio.hurt());
+    cue("wolves", 4.2, () => audio.howl(-0.6, 0.7));
+    cue("wolves2", 40.6, () => audio.howl(0.7, 0.55));
     cue("click", 9.8, () => audio.reload());
     cue("heart", 13.2, () => audio.setHeartbeat(0.9));
     cue("heartoff", 21.6, () => audio.setHeartbeat(0.3));
