@@ -149,11 +149,18 @@ export class BlackoutClient {
     throw new Error("base tx expired 3 times");
   }
 
+  private bhFetch: Promise<void> | null = null;
+  /** A recent blockhash without ever making an input wait: refreshed in the background. */
   private async freshBlockhash(conn: Connection) {
-    if (!this.blockhash || Date.now() - this.blockhash.at > 15_000) {
-      this.blockhash = { hash: (await conn.getLatestBlockhash()).blockhash, at: Date.now() };
-    }
-    return this.blockhash.hash;
+    const refresh = () =>
+      (this.bhFetch ??= conn
+        .getLatestBlockhash()
+        .then((r) => void (this.blockhash = { hash: r.blockhash, at: Date.now() }))
+        .catch(() => {})
+        .finally(() => (this.bhFetch = null)));
+    if (!this.blockhash) await refresh(); // first send only
+    else if (Date.now() - this.blockhash.at > 12_000) void refresh(); // keep using the current one meanwhile
+    return this.blockhash!.hash;
   }
 
   async sendEr(ixs: TransactionInstruction[], opts: { confirm?: boolean; commitment?: Commitment } = {}): Promise<string> {

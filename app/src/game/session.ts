@@ -147,6 +147,9 @@ export class Session {
 
   private async poll() {
     if (this.closed) return;
+    // during a night the websocket brings the room every tick; skip the extra HTTP read
+    const st = this.room?.status;
+    if ((st === ST_LIVE || st === ST_COUNTDOWN) && performance.now() - this.lastRoomAt < 1500) return;
     const r = await client.fetchRoom(this.roomId).catch(() => null);
     if (r) this.onRoom(r);
   }
@@ -164,12 +167,13 @@ export class Session {
     if (!r || this.closed || this.roomPolling) return;
     const live = r.status === ST_LIVE || r.status === ST_COUNTDOWN || r.status === ST_STARTING;
     const now = performance.now();
-    if (!live || now - this.lastRoomAt < 600) return;
+    if (!live || now - this.lastRoomAt < 1200) return;
     this.roomPolling = true;
     try {
       const fresh = await client.fetchRoom(this.roomId).catch(() => null);
       if (fresh) this.onRoom(fresh);
-      if (now - this.lastRoomResub > 5000) {
+      // only resubscribe when the socket looks dead, not just slow (resubscribing costs a round trip)
+      if (now - this.lastRoomAt > 4000 && now - this.lastRoomResub > 6000) {
         this.lastRoomResub = now;
         this.unsubs.forEach((u) => u());
         this.unsubs = [await client.onRoom(this.roomId, (x) => this.onRoom(x))];
@@ -185,12 +189,12 @@ export class Session {
     if (!r || this.mySeat === null || this.closed || this.polling) return;
     if (r.status !== ST_LIVE && r.status !== ST_COUNTDOWN) return;
     const now = performance.now();
-    if (now - this.viewAt < 400) return;
+    if (now - this.viewAt < 900) return;
     this.polling = true;
     try {
       const v = await client.fetchView(this.roomId, this.mySeat).catch(() => null);
       if (v) this.onView(v);
-      if (now - this.lastResub > 5000) {
+      if (now - this.viewAt > 4000 && now - this.lastResub > 6000) {
         this.lastResub = now;
         const seat = this.mySeat;
         this.viewSubSeat = -2; // force a fresh subscription
@@ -342,8 +346,30 @@ export class Session {
     this.revealLoaded = false;
   }
 
+  /** local time a server tick happened, from the steadiest (earliest) arrivals seen */
+  private clockOff: number | null = null;
+  private lateness: number[] = [];
+  /** how far behind "now" other players are drawn: the network's jitter, plus a margin */
+  interpDelay = 110;
+  private tickTime(tick: number) {
+    return tick * 50 + (this.clockOff ?? 0);
+  }
+  private trackClock(tick: number, now: number) {
+    const off = now - tick * 50;
+    if (this.clockOff === null || off < this.clockOff || off - this.clockOff > 3000) this.clockOff = off;
+    else this.clockOff += (off - this.clockOff) * 0.01; // follow slow drift
+    this.lateness.push(off - this.clockOff);
+    if (this.lateness.length > 60) this.lateness.shift();
+    // cover ~90% of late arrivals: steady wifi ≈ 100 ms, a bumpy hotspot ≈ 250-400 ms
+    const sorted = [...this.lateness].sort((a, b) => a - b);
+    const p90 = sorted[Math.floor(sorted.length * 0.9)] ?? 0;
+    const want = Math.max(90, Math.min(400, p90 + 70));
+    this.interpDelay += (want - this.interpDelay) * 0.05;
+  }
+
   private onView(v: View) {
     const now = performance.now();
+    if (v.status === ST_LIVE || v.status === ST_COUNTDOWN) this.trackClock(v.tick, now);
     // ignore reordered updates, but a big jump back means a new match on a reused seat
     if (this.view && v.tick < this.view.tick && this.view.tick - v.tick < 100) return;
     const prev = this.view;
@@ -370,7 +396,7 @@ export class Session {
         this.predMoved = v.me.moved;
         this.predValid = true;
       } else {
-        const lagTicks = Math.min(6, Math.max(1, Math.round(this.rtt / 2 / 50)));
+        const lagTicks = Math.min(12, Math.max(1, Math.round(this.rtt / 2 / 50)));
         // stamina follows the chain (it only gates sprint, so a little lag is harmless)
         // fatigue / winded follow the chain; crouch, jump and sprint bits stay local
         this.predMoved = (v.me.moved & 0xff04) | (this.predMoved & 0xfb);
@@ -381,7 +407,7 @@ export class Session {
         const ey = ty - this.pred.y;
         const e2 = ex * ex + ey * ey;
         // trust your own prediction; only nudge when we've clearly drifted, snap if way off
-        if (e2 > (2 * UNIT) ** 2) {
+        if (e2 > (3 * UNIT) ** 2) {
           this.pred = { x: v.me.x, y: v.me.y };
           this.predPrev = { ...this.pred };
         } else if (e2 > (0.45 * UNIT) ** 2) {
@@ -520,7 +546,9 @@ export class Session {
     if (!tr.visible && now - tr.lastSeen > 300) tr.samples = [];
     tr.visible = true;
     tr.lastSeen = now;
-    tr.samples.push({ t: now, tick, x: p.x, y: p.y, aim: p.aim, hp: p.hp, weapon: p.weapon, flags: p.flags });
+    // stamp by the server's tick, not by arrival: on mobile data updates arrive in bursts,
+    // and arrival times would bunch them up and make players lurch
+    tr.samples.push({ t: this.tickTime(tick), tick, x: p.x, y: p.y, aim: p.aim, hp: p.hp, weapon: p.weapon, flags: p.flags });
     if (tr.samples.length > 12) tr.samples.shift();
   }
 
@@ -756,7 +784,7 @@ export class Session {
   sampleTrack(tr: Track, now: number): Sample | null {
     const s = tr.samples;
     if (!s.length) return null;
-    const renderT = now - 110;
+    const renderT = now - this.interpDelay;
     if (s.length === 1 || renderT <= s[0].t) return s[0];
     for (let i = s.length - 1; i > 0; i--) {
       const a = s[i - 1];
