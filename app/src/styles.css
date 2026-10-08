@@ -2093,3 +2093,5 @@ button {
   .kicker{font-size:9px}
   .board-stats{gap:8px}
 }
+.intro-loading i span.indeterminate{width:35%;animation:indet 1.1s ease-in-out infinite}
+@keyframes indet{0%{transform:translateX(-100%)}100%{transform:translateX(290%)}}

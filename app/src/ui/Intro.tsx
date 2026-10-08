@@ -1,5 +1,4 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { useProgress } from "@react-three/drei";
 import { audio } from "../game/audio";
 import { fullscreenOnTouch } from "./Fullscreen";
 import { INTRO_LENGTH } from "../game/colors";
@@ -32,7 +31,6 @@ const TITLE_AT = INTRO_LENGTH;
 export function Intro({ onDone }: { onDone: () => void }) {
   const [started, setStarted] = useState(false);
   const [ready, setReady] = useState(false);
-  const { progress } = useProgress();
   // start downloading the 3D story (code + soldier model) while the ENTER screen is up
   useEffect(() => {
     void loadScene();
@@ -98,9 +96,9 @@ export function Intro({ onDone }: { onDone: () => void }) {
         <div className="intro-loading">
           <div className="intro-eye small" />
           <b>03:12</b>
-          <small>the grid is failing… {Math.round(progress)}%</small>
+          <small>the grid is failing…</small>
           <i>
-            <span style={{ width: `${Math.max(4, progress)}%` }} />
+            <span className="indeterminate" />
           </i>
         </div>
       )}
