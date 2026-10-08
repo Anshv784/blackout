@@ -54,6 +54,11 @@ function MyPlayer({ session }: { session: Session }) {
   const lastPos = useRef({ x: 0, y: 0 });
   const myWeapon = useStore((s) => s.view?.me.weapon ?? 0);
   const myAlive = useStore((s) => (s.view?.me.alive ?? 1) !== 0);
+  const lastWeaponSound = useRef(myWeapon);
+  useEffect(() => {
+    if (myWeapon !== lastWeaponSound.current && session.room?.status === ST_LIVE) audio.swap();
+    lastWeaponSound.current = myWeapon;
+  }, [myWeapon]);
   const motion = useRef<Motion>(stillMotion());
   const lastAir = useRef(0);
   const diedAim = useRef(0);
@@ -777,11 +782,13 @@ function CameraRig({ session }: { session: Session }) {
         const sy = ty - dir.y * t;
         const sz = tz - dir.z * t;
         if (sy < 2.0 && isWall(Math.floor(sx), Math.floor(sz))) {
-          d = Math.max(0.9, t - 0.3);
+          d = Math.max(0.3, t - 0.25); // close enough to stay out of the wall, even with your back to it
           break;
         }
       }
-      wantPos = new THREE.Vector3(tx - dir.x * d, Math.max(0.45, ty - dir.y * d), tz - dir.z * d);
+      // squeezed against a wall: rise a little so you still look over your shoulder, not into your back
+      const squeeze = Math.max(0, 1 - d / Math.max(1, controls.chaseDist * 0.62));
+      wantPos = new THREE.Vector3(tx - dir.x * d, Math.max(0.45, ty - dir.y * d) + squeeze * 0.55, tz - dir.z * d);
       wantLook = new THREE.Vector3(tx + dir.x * 12, ty + dir.y * 12, tz + dir.z * 12);
       // rigid: the camera is on your shoulder, it doesn't float behind
       pos.current.copy(wantPos);
