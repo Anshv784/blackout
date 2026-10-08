@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { controls, gadgetDown, gadgetUp } from "../game/controls";
 import { audio } from "../game/audio";
 import { GadgetIcon } from "./Icons";
+import { fullscreenOnTouch } from "./Fullscreen";
 import type { Session } from "../game/session";
 
 /** True on phones and tablets (or once anything is touched). */
@@ -114,6 +115,7 @@ function useDrag(el: React.RefObject<HTMLElement | null>, h: { down?: () => void
       e.stopPropagation();
       if (id !== null) return;
       audio.unlock();
+      fullscreenOnTouch();
       const t = e.changedTouches[0];
       id = t.identifier;
       lx = t.clientX;
@@ -207,6 +209,7 @@ function Stick({ onMove }: { onMove: (x: number, y: number) => void }) {
       e.preventDefault();
       if (id !== null) return;
       audio.unlock();
+      fullscreenOnTouch();
       const t = e.changedTouches[0];
       id = t.identifier;
       const r = el.getBoundingClientRect();

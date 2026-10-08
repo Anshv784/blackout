@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { audio } from "../game/audio";
+import { fullscreenOnTouch } from "./Fullscreen";
 import { INTRO_LENGTH } from "../game/colors";
 
 const IntroScene = lazy(() => import("../scene/IntroScene").then((m) => ({ default: m.IntroScene })));
@@ -53,6 +54,7 @@ export function Intro({ onDone }: { onDone: () => void }) {
         onClick={() => {
           audio.unlock();
           audio.startAmbience(1);
+          fullscreenOnTouch();
           setStarted(true);
         }}
       >

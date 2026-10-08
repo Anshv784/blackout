@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { FullscreenButton } from "./Fullscreen";
 import { useStore } from "../game/store";
 import { saveName } from "../game/identity";
 import { disconnectWallet, requireWallet, saveWalletName } from "../game/wallet";
@@ -131,6 +132,7 @@ export function TopBar({ active }: { active?: "play" | "board" | "how" }) {
         <Callsign />
         <Wallet />
         <SoundToggle />
+        <FullscreenButton className="chip-btn" />
       </div>
     </header>
   );

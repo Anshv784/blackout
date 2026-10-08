@@ -7,6 +7,7 @@ import { ST_LOBBY, ST_STARTING, ST_COUNTDOWN, ST_LIVE, ST_ENDED, ST_REVEALED, ST
 import { Hud } from "./Hud";
 import { Reveal } from "./Reveal";
 import { TouchControls, useTouch } from "./TouchControls";
+import { fullscreenOnTouch } from "./Fullscreen";
 import { controls } from "../game/controls";
 import { ChainPanel } from "./ChainPanel";
 import { Crosshair } from "./Crosshair";
@@ -459,7 +460,10 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
               {busy === "join" ? (staked ? "BUYING TICKET…" : "SITTING DOWN…") : staked ? `STAKE ${(Number(room.stake) / 1e9).toFixed(2)} SOL & SIT` : "TAKE A SEAT"}
             </button>
           ) : canStart ? (
-            <button className="btn primary huge" disabled={!!busy || (staked ? humans < 2 : size < 2)} onClick={() => run("start", () => session.startMatch(staked ? 0 : size))}>
+            <button className="btn primary huge" disabled={!!busy || (staked ? humans < 2 : size < 2)} onClick={() => {
+              fullscreenOnTouch();
+              run("start", () => session.startMatch(staked ? 0 : size));
+            }}>
               {busy === "start" ? "WAKING THE WARDEN…" : staked && humans < 2 ? `WAITING FOR ${2 - humans} MORE STAKER` : "START THE NIGHT"}
             </button>
           ) : (
