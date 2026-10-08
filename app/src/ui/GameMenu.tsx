@@ -1,4 +1,5 @@
 // In-match chrome: the countdown clock, the full map (Tab) and the settings menu (Esc / P).
+import { SoundToggle } from "./SoundToggle";
 import { FullscreenButton } from "./Fullscreen";
 import { useEffect, useRef, useState } from "react";
 import type { Session } from "../game/session";
@@ -522,9 +523,7 @@ export function GameMenu({ session, room }: { session: Session; room: Room }) {
         <button onClick={() => setOpen("settings")}>
           ⚙ SETTINGS <i>ESC</i>
         </button>
-        <button onClick={() => audio.toggleMute()} title="Sound (M)">
-          {muted ? "🔇" : "🔊"}
-        </button>
+        <SoundToggle />
         <FullscreenButton />
         <button className="danger" onClick={() => setOpen("exit")}>
           EXIT
