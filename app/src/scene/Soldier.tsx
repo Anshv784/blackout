@@ -25,6 +25,9 @@ export interface Motion {
 }
 export const stillMotion = (): Motion => ({ speed: 0, firing: false, reloading: false, downed: false, throwAt: 0 });
 
+/** seconds after death the body becomes a crate, and how long the change takes */
+const BOX_AT = 1.6;
+const BOX_DUR = 0.45;
 const HEIGHT = 1.38; // world units (a tile is 1)
 const GUN_POS = new THREE.Vector3(0.1, 1.0, 0.13); // the stock, at the right shoulder (+x forward, +z right)
 
@@ -75,7 +78,7 @@ function reach(upper: THREE.Object3D, lower: THREE.Object3D, hand: THREE.Object3
   aimBone(lower, hand, target);
 }
 
-export function Soldier({ color: _color, weapon = 0, ghost = false, motion }: { color: string; weapon?: number; ghost?: boolean; motion?: React.MutableRefObject<Motion> }) {
+export function Soldier({ color, weapon = 0, ghost = false, motion }: { color: string; weapon?: number; ghost?: boolean; motion?: React.MutableRefObject<Motion> }) {
   const gltf = useGLTF(SOLDIER_URL) as any;
   const root = useRef<THREE.Group>(null);
   const gunRef = useRef<THREE.Group>(null);
@@ -144,6 +147,8 @@ export function Soldier({ color: _color, weapon = 0, ghost = false, motion }: { 
     return () => clearTimeout(t);
   }, [weapon]);
   const pool = useRef<THREE.Mesh>(null);
+  const box = useRef<THREE.Group>(null);
+  const landedY = useRef<number | null>(null);
   const lastFire = useRef(false);
   const target = useMemo(() => new THREE.Vector3(), []);
   const pole = useMemo(() => new THREE.Vector3(), []);
@@ -171,7 +176,30 @@ export function Soldier({ color: _color, weapon = 0, ghost = false, motion }: { 
     // landed: the body is frozen exactly as it fell. Nothing touches the skeleton any more.
     if (deadT > 1.3 && landed.current) {
       if (pool.current) pool.current.scale.setScalar(0.15 + 0.85 * Math.sqrt(Math.min(1, (deadT - 0.6) / 4)));
+      // then the body becomes a death box: it sinks into the ground as a crate pops up in its place
+      const bt = (deadT - BOX_AT) / BOX_DUR;
+      if (landedY.current === null) landedY.current = model.position.y;
+      const sink = Math.min(1, Math.max(0, bt));
+      model.position.y = landedY.current - (sink * 0.9) / scale;
+      model.visible = sink < 1;
+      if (gunRef.current) gunRef.current.visible = bt < 0.3;
+      if (pool.current && sink >= 1) pool.current.visible = false;
+      if (box.current) {
+        box.current.visible = bt > 0 && !ghost;
+        if (bt > 0) {
+          // pops up with a little overshoot, then sits still
+          const k = Math.min(1, bt / 0.8);
+          const s = k < 1 ? 1 + 2.2 * Math.pow(k - 1, 3) + 1.2 * Math.pow(k - 1, 2) : 1;
+          box.current.scale.setScalar(Math.max(0.01, s) * 1.25);
+          if (pool.current) box.current.position.set(pool.current.position.x, 0, pool.current.position.z);
+        }
+      }
       return;
+    }
+    if (box.current) box.current.visible = false;
+    if (deadT < 0) {
+      landedY.current = null;
+      model.visible = true;
     }
     mixer.update(deadT > 0.9 ? 0 : dt);
     if (deadT < 0) landed.current = false;
@@ -285,6 +313,30 @@ export function Soldier({ color: _color, weapon = 0, ghost = false, motion }: { 
       {/* the mesh faces +z; our players face +x */}
       <group rotation-y={-Math.PI / 2} scale={scale}>
         <primitive object={model} />
+      </group>
+      {/* the death box a body turns into: dark steel crate, the player's colour band glowing round it */}
+      <group ref={box} visible={false} scale={1}>
+        {/* the band glows (no light: switching one on would recompile every shader mid-fight) */}
+        <mesh position={[0, 0.26, 0]} castShadow>
+          <boxGeometry args={[0.62, 0.5, 0.48]} />
+          <meshStandardMaterial color="#6a707c" emissive="#1c2028" roughness={0.6} metalness={0.25} />
+        </mesh>
+        <mesh position={[0, 0.535, 0]}>
+          <boxGeometry args={[0.66, 0.06, 0.52]} />
+          <meshStandardMaterial color="#8a909c" emissive="#20242c" roughness={0.5} metalness={0.3} />
+        </mesh>
+        <mesh position={[0, 0.3, 0]}>
+          <boxGeometry args={[0.64, 0.07, 0.5]} />
+          <meshBasicMaterial color={color} toneMapped={false} />
+        </mesh>
+        {[-0.28, 0.28].map((x) =>
+          [-0.21, 0.21].map((z) => (
+            <mesh key={`${x}${z}`} position={[x, 0.26, z]}>
+              <boxGeometry args={[0.08, 0.52, 0.08]} />
+              <meshStandardMaterial color="#9aa0aa" emissive="#22262e" roughness={0.45} metalness={0.35} />
+            </mesh>
+          )),
+        )}
       </group>
       {/* blood spreading under a body */}
       <mesh ref={pool} rotation-x={-Math.PI / 2} visible={false}>
