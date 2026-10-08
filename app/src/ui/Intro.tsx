@@ -4,21 +4,27 @@ import { INTRO_LENGTH } from "../game/colors";
 
 const IntroScene = lazy(() => import("../scene/IntroScene").then((m) => ({ default: m.IntroScene })));
 
-// the trailer's lines: short, slammed in, gone
-const SLAMS: { at: number; to: number; text: string; sub?: string; left?: boolean }[] = [
-  { at: 0.5, to: 3.2, text: "03:12", sub: "THE GRID FAILED" },
-  { at: 3.9, to: 6.8, left: true, text: "EIGHT WOKE UP", sub: "IN THE YARD" },
-  { at: 7.05, to: 7.95, left: true, text: "NYX", sub: "SNIPER" },
-  { at: 8.05, to: 8.95, left: true, text: "UMBRA", sub: "BREACHER" },
-  { at: 9.05, to: 9.95, left: true, text: "GLOOM", sub: "DEMOLITIONS" },
-  { at: 10.05, to: 10.95, left: true, text: "VESPER", sub: "NIGHT VISION" },
-  { at: 11.3, to: 13.3, text: "NO LIGHT.", sub: "NO RULES." },
-  { at: 14.0, to: 16.3, text: "YOUR GUN", sub: "GIVES YOU AWAY" },
-  { at: 21.3, to: 24.2, text: "THE WARDEN SEES ALL", sub: "AND TELLS NO ONE" },
-  { at: 24.7, to: 27.9, text: "THE YARD SHRINKS", sub: "RUN" },
-  { at: 28.3, to: 30.5, left: true, text: "ONE WALKS OUT" },
+// the story, told underneath the picture: narration (bottom), a few cards (centre), name tags
+type Line = { at: number; to: number; text: string; kind: "say" | "card" | "name"; sub?: string };
+const LINES: Line[] = [
+  { at: 0.6, to: 2.9, kind: "card", text: "03:12", sub: "THE GRID FAILS" },
+  { at: 3.4, to: 5.8, kind: "say", text: "Every light in the district goes out at once." },
+  { at: 6.6, to: 9.4, kind: "say", text: "Eight strangers wake up inside the Yard." },
+  { at: 7.2, to: 12.6, kind: "name", text: "DUSK", sub: "woke up first" },
+  { at: 9.8, to: 12.8, kind: "say", text: "No map. No allies. One way out." },
+  { at: 13.6, to: 17.0, kind: "say", text: "A torch shows you the way…" },
+  { at: 14.4, to: 19.5, kind: "name", text: "NYX", sub: "sniper · hunting" },
+  { at: 17.3, to: 21.6, kind: "say", text: "…and shows everyone else exactly where you are." },
+  { at: 22.4, to: 25.0, kind: "say", text: "WRAITH heard something in the dark." },
+  { at: 22.6, to: 25.0, kind: "name", text: "WRAITH", sub: "kept his light on" },
+  { at: 26.9, to: 29.0, kind: "card", text: "EVERY SHOT", sub: "IS A FLARE" },
+  { at: 29.8, to: 32.0, kind: "say", text: "Above the Yard, the Warden sees every move…" },
+  { at: 32.0, to: 33.9, kind: "card", text: "IT TELLS NO ONE" },
+  { at: 34.4, to: 37.0, kind: "say", text: "Then the Yard starts to close." },
+  { at: 40.4, to: 44.8, kind: "say", text: "Stay dark. Stay low. Let the light come to you." },
+  { at: 47.4, to: 49.8, kind: "card", text: "ONE WALKS OUT" },
 ];
-const TITLE_AT = 31.3;
+const TITLE_AT = INTRO_LENGTH;
 
 export function Intro({ onDone }: { onDone: () => void }) {
   const [started, setStarted] = useState(false);
@@ -34,8 +40,7 @@ export function Intro({ onDone }: { onDone: () => void }) {
     onDone();
   };
 
-  const slam = t >= TITLE_AT ? null : SLAMS.find((x) => t >= x.at && t < x.to) ?? null;
-  const slamIdx = slam ? SLAMS.indexOf(slam) : -1;
+  const live = t >= TITLE_AT ? [] : LINES.filter((x) => t >= x.at && t < x.to);
 
   useEffect(() => {
     if (started && t >= INTRO_LENGTH + 3) finish();
@@ -77,16 +82,27 @@ export function Intro({ onDone }: { onDone: () => void }) {
       </Suspense>
       <div className="letterbox top" />
       <div className="letterbox bottom" />
-      {slam && (
-        <div className={`slam ${slam.left ? "left" : ""}`} key={slamIdx}>
-          <b>{slam.text}</b>
-          {slam.sub && <span>{slam.sub}</span>}
-        </div>
+      {live.map((l) =>
+        l.kind === "card" ? (
+          <div className="slam" key={l.at}>
+            <b>{l.text}</b>
+            {l.sub && <span>{l.sub}</span>}
+          </div>
+        ) : l.kind === "name" ? (
+          <div className="story-name" key={l.at}>
+            <b>{l.text}</b>
+            {l.sub && <span>{l.sub}</span>}
+          </div>
+        ) : (
+          <p className="story-say" key={l.at}>
+            {l.text}
+          </p>
+        ),
       )}
       {t >= TITLE_AT && (
         <div className="intro-title">
           <h1>BLACKOUT</h1>
-          <p>nobody sees you. not even the chain.</p>
+          <p>stay dark. nobody sees you, not even the chain.</p>
           {t > TITLE_AT + 1.2 && (
             <button className="btn primary big" onClick={finish}>
               ENTER THE YARD

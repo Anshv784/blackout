@@ -2013,3 +2013,14 @@ button {
 .kg-group{display:grid;grid-template-columns:max-content auto;column-gap:7px;row-gap:5px;align-items:center}
 .kg-group>b{grid-column:1 / -1}
 .kg-row{display:contents}
+
+/* ---------- the story's words ---------- */
+.intro.cinematic .slam{bottom:auto;top:38%;transform:translateY(-50%)}
+.intro.cinematic .slam b{font-size:clamp(40px,7vw,96px)}
+.story-say{position:absolute;left:50%;bottom:calc(12vh + 18px);transform:translateX(-50%);z-index:3;margin:0;max-width:min(860px,88vw);text-align:center;font-size:clamp(16px,2.1vw,24px);line-height:1.35;color:#eef0f5;letter-spacing:.01em;text-shadow:0 2px 14px rgba(0,0,0,.95),0 0 2px #000;animation:sayin .6s ease-out both}
+@keyframes sayin{from{opacity:0;filter:blur(6px);transform:translate(-50%,6px)}to{opacity:1;filter:none;transform:translate(-50%,0)}}
+.story-name{position:absolute;left:6vw;top:calc(12vh + 22px);z-index:3;display:flex;flex-direction:column;gap:4px;padding-left:12px;border-left:2px solid var(--gold);animation:namein .5s cubic-bezier(.2,1.2,.4,1) both}
+.story-name b{font-family:var(--font);font-weight:800;font-size:clamp(26px,3.4vw,44px);letter-spacing:.14em;color:#fff;line-height:1;text-shadow:0 4px 20px rgba(0,0,0,.9)}
+.story-name span{font-family:var(--mono);font-size:clamp(10px,1.1vw,13px);letter-spacing:.24em;color:var(--gold);text-transform:uppercase}
+@keyframes namein{from{opacity:0;transform:translateX(-14px)}to{opacity:1;transform:none}}
+.intro.cinematic .slam{top:27%}

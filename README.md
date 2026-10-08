@@ -129,7 +129,15 @@ No ghosting: when you die your View is emptied. Bots follow the same vision rule
 ## The game
 
 <p align="center">
-  <img src="docs/assets/storm.jpg" alt="A night in the Yard: rain, lightning, the zone moving" width="100%">
+  <img src="docs/assets/storm.jpg" alt="A night in the Yard: your torch, the HUD and the controls card" width="100%">
+</p>
+
+### The story
+
+First-time visitors get a 50-second trailer, played live in the real Yard with the game's own soldiers, lights and sound. At 03:12 the grid fails and eight strangers wake in the Yard. DUSK learns the one rule by hiding behind a container while NYX's torch sweeps past: a light shows you the way, and shows everyone else where you are. He watches WRAITH spray at a sound and get picked off from the dark. The Warden watches it all and tells no one. The zone closes in, DUSK throws a frag, and he wins the last duel by staying dark and letting the light come to him. Replay it any time from **Story** in the top bar.
+
+<p align="center">
+  <img src="docs/assets/story.jpg" alt="The trailer: NYX's torch sweeps past DUSK hiding behind a container" width="100%">
 </p>
 
 | | |
@@ -157,6 +165,9 @@ No ghosting: when you die your View is emptied. Bots follow the same vision rule
   <img src="docs/assets/settings.jpg" alt="Settings" width="49%">
   <img src="docs/assets/verdict.jpg" alt="Verdict and replay" width="49%">
 </p>
+<p align="center">
+  <img src="docs/assets/phone.jpg" alt="On a phone: move stick, look by dragging, labelled buttons" width="80%">
+</p>
 
 | Screen | What's there |
 |---|---|
@@ -178,7 +189,7 @@ No ghosting: when you die your View is emptied. Bots follow the same vision rule
 - `scripts/mirror.ts`: 2,000 random movement steps, sprint, sneak, jump and stamina included, give identical results in the Rust program and the TypeScript prediction.
 - `cargo test`: 40 full 8-bot nights end with valid placements; 30 more check bots actually fight; frags, duos revives, supply drops and the blackout each have a test.
 - After every night, the VERIFY tab re-derives every spawn, loot roll and zone circle from the revealed VRF seed and checks them against the unsealed World.
-- `scripts/ui/`: Playwright runs of the full flows: guest play, private rooms with codes and kicks, closing a room, ending a night, duos, the phone layout and touch controls, and a console-error audit.
+- `scripts/ui/`: Playwright runs of the full flows (and `readme_shots.ts`, which retakes every image in this README): guest play, private rooms with codes and kicks, closing a room, ending a night, duos, the phone layout and touch controls, and a console-error audit.
 
 ## Repository
 

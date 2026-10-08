@@ -141,7 +141,9 @@ export function Soldier({ color: _color, weapon = 0, ghost = false, motion }: { 
     // locomotion blend
     const want = m.downed ? { idle: 0, walk: m.speed > 0 ? 1 : 0, run: 0 } : { idle: m.speed === 0 ? 1 : 0, walk: m.speed === 1 ? 1 : 0, run: m.speed === 2 ? 1 : 0 };
     const k = 1 - Math.pow(0.0005, dt);
+    const dying = m.deadAt !== undefined;
     (["idle", "walk", "run"] as const).forEach((n) => {
+      if (dying) return; // the pose under a body stays exactly as it was when it fell
       w.current[n] += (want[n] - w.current[n]) * k;
       actions[n].setEffectiveWeight(w.current[n]);
     });
@@ -155,7 +157,9 @@ export function Soldier({ color: _color, weapon = 0, ghost = false, motion }: { 
       const buckle = Math.min(1, deadT / 0.25);
       const fall = THREE.MathUtils.clamp((deadT - 0.2) / 0.55, 0, 1);
       const ease = fall * fall * (3 - 2 * fall);
-      const bounce = fall >= 1 ? Math.exp(-(deadT - 0.75) * 9) * Math.sin((deadT - 0.75) * 30) * 0.06 : 0;
+      // one small settle as it lands, then perfectly still
+      const bt = deadT - 0.75;
+      const bounce = fall >= 1 && bt < 0.35 ? Math.sin((bt / 0.35) * Math.PI) * 0.035 : 0;
       model.rotation.x = -1.42 * ease - bounce; // negative: over backwards
       model.rotation.z = 0.2 * ease;
       model.position.y = (-0.32 * buckle * (1 - ease) + 0.12 * ease) / scale;
@@ -251,7 +255,7 @@ export function Soldier({ color: _color, weapon = 0, ghost = false, motion }: { 
       {/* blood spreading under a body */}
       <mesh ref={pool} rotation-x={-Math.PI / 2} visible={false}>
         <circleGeometry args={[0.55, 24]} />
-        <meshStandardMaterial color="#3a0408" roughness={0.15} metalness={0.2} transparent opacity={0.85} depthWrite={false} />
+        <meshStandardMaterial color="#3a0408" roughness={0.15} metalness={0.2} transparent opacity={0.85} depthWrite={false} polygonOffset polygonOffsetFactor={-4} />
       </mesh>
       <group ref={gunRef} position={GUN_POS.toArray()}>
         <group position={[-0.17, 0, -0.12]} scale={0.85}>

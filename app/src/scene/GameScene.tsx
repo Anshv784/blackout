@@ -55,6 +55,7 @@ function MyPlayer({ session }: { session: Session }) {
   const motion = useRef<Motion>(stillMotion());
   const lastAir = useRef(0);
   const diedAim = useRef(0);
+  const deadPos = useRef<{ x: number; y: number } | null>(null);
   const lastGadget = useRef(0);
   const lastCount = useRef(0);
   const gait = useRef(0);
@@ -85,7 +86,14 @@ function MyPlayer({ session }: { session: Session }) {
     lastPos.current = { x: pos.x, y: pos.y };
     gait.current += ((step > 0.5 ? 1 : 0) - gait.current) * 0.15;
     void t;
-    g.position.set(pos.x / 256, 0, pos.y / 256);
+    // a body doesn't move: pin it where you fell (prediction keeps reconciling after death)
+    if (v.me.alive === 0 && session.room?.status === ST_LIVE) {
+      if (!deadPos.current) deadPos.current = { x: pos.x, y: pos.y };
+      g.position.set(deadPos.current.x / 256, 0, deadPos.current.y / 256);
+    } else {
+      deadPos.current = null;
+      g.position.set(pos.x / 256, 0, pos.y / 256);
+    }
     // what the soldier's body does this frame
     const mo = motion.current;
     mo.speed = gait.current < 0.5 ? 0 : session.sprinting ? 2 : 1;
@@ -130,7 +138,8 @@ function MyPlayer({ session }: { session: Session }) {
       // the torch fell with you: it lies by the gun and lights the body along the ground, flickering
       const fa = angleToRad(diedAim.current);
       spot.current.position.set(Math.cos(fa) * 0.5, 0.12, Math.sin(fa) * 0.5);
-      target.position.set(pos.x / 256 - Math.cos(fa) * 2.5, 0, pos.y / 256 - Math.sin(fa) * 2.5);
+      const dp = deadPos.current ?? pos;
+      target.position.set(dp.x / 256 - Math.cos(fa) * 2.5, 0, dp.y / 256 - Math.sin(fa) * 2.5);
       const t = (now0 - (mo.deadAt ?? now0)) / 1000;
       spot.current.intensity = t < 0.6 ? 0 : 22 * (0.85 + 0.15 * Math.sin(now0 / 70) * Math.sin(now0 / 173)) * (Math.random() < 0.015 ? 0.2 : 1);
       spot.current.angle = CONE_RAD * 1.3;
@@ -701,6 +710,7 @@ function CameraRig({ session }: { session: Session }) {
   const look = useRef(new THREE.Vector3(16, 0, 16));
   const diedAt = useRef(0);
   const diedYaw = useRef(0);
+  const diedPos = useRef({ x: 0, y: 0 });
   const pos = useRef(new THREE.Vector3(16, 30, 30));
   useFrame((_, dt) => {
     const p = session.myPos();
@@ -713,14 +723,15 @@ function CameraRig({ session }: { session: Session }) {
     if (killed && !diedAt.current) {
       diedAt.current = performance.now();
       diedYaw.current = angleToRad(session.input.aim); // the way the body faced: it falls back from there
+      diedPos.current = { x: p!.x, y: p!.y };
     }
     if (!killed) diedAt.current = 0;
     if (killed) {
       const t = (performance.now() - diedAt.current) / 1000;
       const rise = 1 - Math.exp(-t / 1.6);
       const yaw = diedYaw.current + t * 0.18;
-      const bx = p!.x / 256 - Math.cos(diedYaw.current) * 0.7; // the chest, after falling back
-      const bz = p!.y / 256 - Math.sin(diedYaw.current) * 0.7;
+      const bx = diedPos.current.x / 256 - Math.cos(diedYaw.current) * 0.7; // the chest, after falling back
+      const bz = diedPos.current.y / 256 - Math.sin(diedYaw.current) * 0.7;
       const dist = 2.4 + 3.2 * rise;
       wantPos = new THREE.Vector3(bx - Math.cos(yaw) * dist, 1.5 + 5 * rise, bz - Math.sin(yaw) * dist);
       wantLook = new THREE.Vector3(bx, 0.2, bz);

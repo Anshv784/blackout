@@ -13,104 +13,112 @@ import { INTRO_LENGTH } from "../game/colors";
 export { INTRO_LENGTH };
 
 // ------------------------------------------------------------------ script
+//
+// THE LAST LIGHT. 03:12, the grid fails and eight strangers wake in the Yard. DUSK learns the
+// one rule (a light shows you the way and shows everyone where you are) by hiding from NYX's
+// torch, watches WRAITH forget it, outruns the zone, and wins the last duel by staying dark.
 
 type V3 = [number, number, number];
+type Win = [number, number];
 type Key = { t: number; x: number; z: number; face: number }; // face: degrees, 0 = +x (east), 90 = +z (south)
 interface Actor {
   name: string;
   seat: number; // colour
   weapon: number;
-  show: [number, number][];
+  show: Win[];
   keys: Key[];
   fire?: { t: number; at: string | V3; miss?: number }[];
-  down?: number; // falls at
+  dead?: number; // shot at: falls back, gun drops
   throwAt?: number;
-  light?: [number, number]; // flashlight on window
+  lights?: Win[]; // flashlight on
+  crouch?: Win[];
+  sweep?: { from: number; to: number; amp: number; period: number }[]; // a searching torch
   nvg?: boolean;
 }
 
 export const ACTORS: Actor[] = [
-  // DUSK wakes at the yard's edge, later runs from the zone and wins the final duel
   {
-    name: "DUSK", seat: 7, weapon: 3, show: [[3.4, 7], [24.4, 34]], light: [4.6, 34],
+    name: "DUSK", seat: 7, weapon: 3, show: [[6, 22], [34, 53]],
+    lights: [[9.8, 13], [47.0, 53]],
+    crouch: [[6, 9.2], [13, 22], [40, 45.2]],
     keys: [
-      { t: 3.4, x: 12.5, z: 20.6, face: 10 }, { t: 6.9, x: 12.5, z: 20.6, face: -15 }, { t: 24.3, x: 12.5, z: 20.6, face: 0 },
-      { t: 24.4, x: 9.5, z: 23.4, face: 0 }, { t: 27.8, x: 19.4, z: 23.4, face: 0 },
-      { t: 28.0, x: 25.4, z: 26.6, face: 184 }, { t: 30.6, x: 25.4, z: 26.6, face: 184 }, { t: 34, x: 25.4, z: 26.6, face: 160 },
+      // wakes in the container yard
+      { t: 6, x: 6.5, z: 10.6, face: -20 }, { t: 12.9, x: 6.5, z: 10.6, face: -10 },
+      // hides south of the containers while NYX passes on the other side
+      { t: 13, x: 11.4, z: 13.45, face: -60 }, { t: 22, x: 11.4, z: 13.45, face: -80 },
+      // the zone: sprints east, throws at GLOOM
+      { t: 34, x: 5.5, z: 26.5, face: 0 }, { t: 37.1, x: 17.4, z: 26.5, face: 0 }, { t: 39.9, x: 17.4, z: 26.5, face: 12 },
+      // the duel: crouched in the dark behind the crates
+      { t: 40, x: 29.6, z: 30.5, face: -20 }, { t: 45.1, x: 29.6, z: 30.5, face: -30 }, { t: 45.4, x: 29.6, z: 30.5, face: -47 }, { t: 53, x: 29.6, z: 30.5, face: -47 },
     ],
-    fire: [{ t: 29.6, at: "NYX" }, { t: 30.0, at: "NYX" }, { t: 30.35, at: "NYX" }],
+    throwAt: 37.25,
+    fire: [{ t: 45.6, at: "NYX" }, { t: 45.85, at: "NYX" }],
   },
   {
-    name: "NYX", seat: 1, weapon: 4, show: [[7, 8], [11, 16.4], [28, 31.6]], light: [7, 31.6],
+    name: "NYX", seat: 1, weapon: 4, show: [[13, 22], [22, 29], [40, 53]],
+    lights: [[13, 22], [40, 46]],
     keys: [
-      { t: 7, x: 21.3, z: 26.4, face: 50 }, { t: 8, x: 21.3, z: 26.4, face: 45 }, { t: 10.9, x: 21.3, z: 26.4, face: 180 },
-      { t: 11, x: 21.2, z: 23.4, face: 180 }, { t: 16.4, x: 21.2, z: 23.4, face: 180 },
-      { t: 28.0, x: 19.4, z: 26.2, face: 5 }, { t: 31.6, x: 19.4, z: 26.2, face: 5 },
+      // the hunter: walks the far side of the containers, torch searching
+      { t: 13, x: 21.0, z: 10.5, face: 180 }, { t: 20.5, x: 14.0, z: 10.5, face: 180 }, { t: 21.9, x: 13.6, z: 10.5, face: 180 },
+      // dark on the road, waiting
+      { t: 22, x: 21.5, z: 17.0, face: 145 }, { t: 29, x: 21.5, z: 17.0, face: 145 },
+      // the plaza: comes looking, passes the crates
+      { t: 40, x: 37.5, z: 28.5, face: 180 }, { t: 45.1, x: 31.6, z: 28.4, face: 185 }, { t: 53, x: 31.6, z: 28.4, face: 185 },
     ],
-    fire: [{ t: 11.7, at: "WRAITH", miss: 0.7 }, { t: 12.5, at: "WRAITH", miss: 0.5 }, { t: 13.2, at: "WRAITH", miss: 0.6 }, { t: 29.9, at: "DUSK", miss: 0.4 }],
-    down: 30.45,
+    sweep: [{ from: 13, to: 21.9, amp: 32, period: 2.6 }, { from: 40.3, to: 45.2, amp: 38, period: 2.2 }],
+    fire: [{ t: 26.4, at: "WRAITH", miss: 0.1 }],
+    dead: 45.9,
   },
   {
-    name: "WRAITH", seat: 2, weapon: 1, show: [[11, 16.6]], light: [11, 16.6],
-    keys: [
-      { t: 11, x: 5.5, z: 23.0, face: 0 }, { t: 13.4, x: 13.5, z: 23.2, face: 0 }, { t: 13.7, x: 13.6, z: 23.2, face: 0 }, { t: 16.6, x: 13.6, z: 23.2, face: 0 },
-    ],
-    fire: [{ t: 14.0, at: "NYX", miss: 0.3 }, { t: 14.35, at: "NYX", miss: 0.4 }, { t: 14.7, at: "NYX", miss: 0.2 }, { t: 15.05, at: "NYX", miss: 0.5 }],
+    name: "WRAITH", seat: 2, weapon: 1, show: [[22, 29]], lights: [[22, 26.6]],
+    keys: [{ t: 22, x: 10.5, z: 20.5, face: 0 }, { t: 25.0, x: 16.5, z: 20.5, face: 25 }, { t: 29, x: 16.5, z: 20.5, face: 35 }],
+    fire: [{ t: 25.2, at: [21, 0, 23.5], miss: 1.2 }, { t: 25.45, at: [21, 0, 23.5], miss: 1.2 }, { t: 25.7, at: [21, 0, 23.5], miss: 1.2 }, { t: 25.95, at: [21, 0, 23.5], miss: 1.2 }],
+    dead: 26.45,
   },
   {
-    name: "UMBRA", seat: 3, weapon: 2, show: [[8, 9], [16.4, 20.6]], light: [8, 20.6],
-    keys: [
-      { t: 8, x: 36.5, z: 15.2, face: 60 }, { t: 9, x: 36.5, z: 15.2, face: 55 }, { t: 16.3, x: 36.5, z: 15.2, face: 180 },
-      { t: 16.4, x: 36.4, z: 23.8, face: 180 }, { t: 20.6, x: 36.4, z: 23.8, face: 180 },
-    ],
-    fire: [{ t: 16.9, at: "GLOOM", miss: 0.8 }, { t: 17.6, at: "GLOOM", miss: 0.7 }],
-    down: 18.35,
-  },
-  {
-    name: "GLOOM", seat: 5, weapon: 3, show: [[9, 10], [16.4, 20.6]], light: [9, 20.6],
-    keys: [
-      { t: 9, x: 30.6, z: 28.6, face: 135 }, { t: 10, x: 30.6, z: 28.6, face: 130 }, { t: 16.3, x: 30.6, z: 28.6, face: 5 },
-      { t: 16.4, x: 30.0, z: 23.1, face: 5 }, { t: 20.6, x: 30.0, z: 23.1, face: 5 },
-    ],
-    throwAt: 17.45,
-  },
-  {
-    name: "VESPER", seat: 4, weapon: 1, show: [[10, 11], [24.4, 28]], light: [10, 28], nvg: true,
-    keys: [
-      { t: 10, x: 10.6, z: 35.8, face: -40 }, { t: 11, x: 10.6, z: 35.8, face: -35 }, { t: 24.3, x: 10.6, z: 35.8, face: -90 },
-      { t: 24.4, x: 22.6, z: 33.5, face: -90 }, { t: 28, x: 23.0, z: 27.6, face: -90 },
-    ],
+    name: "GLOOM", seat: 5, weapon: 2, show: [[34, 40]], lights: [[34, 38.2]],
+    keys: [{ t: 34, x: 23.5, z: 28.2, face: 200 }, { t: 37, x: 21.6, z: 27.6, face: 185 }, { t: 40, x: 21.6, z: 27.6, face: 185 }],
+    dead: 38.15,
   },
 ];
 
 type Cam = { from: number; to: number; p0: V3; p1: V3; l0: V3; l1: V3; follow?: string; fill?: number };
 export const CAMS: Cam[] = [
-  { from: 0, to: 3.4, p0: [24, 42, 60], p1: [24, 30, 47], l0: [24, 0, 24], l1: [24, 0, 22] },
-  // DUSK wakes: low behind his right shoulder, light clicks on
-  { from: 3.4, to: 7, p0: [14.6, 1.35, 22.2], p1: [14.2, 1.4, 21.9], l0: [12.5, 1.25, 20.6], l1: [12.5, 1.3, 20.6], fill: 3 },
-  // the squad, one second each, faces lit
-  { from: 7, to: 8, p0: [22.5, 1.5, 28.1], p1: [22.3, 1.45, 27.8], l0: [21.3, 1.15, 26.4], l1: [21.3, 1.2, 26.4], fill: 5 },
-  { from: 8, to: 9, p0: [37.3, 1.5, 16.9], p1: [37.1, 1.45, 16.6], l0: [36.5, 1.15, 15.2], l1: [36.5, 1.2, 15.2], fill: 5 },
-  { from: 9, to: 10, p0: [29.5, 1.5, 30.1], p1: [29.7, 1.45, 29.8], l0: [30.6, 1.15, 28.6], l1: [30.6, 1.2, 28.6], fill: 5 },
-  { from: 10, to: 11, p0: [12.0, 1.5, 34.4], p1: [11.8, 1.45, 34.7], l0: [10.6, 1.15, 35.8], l1: [10.6, 1.2, 35.8], fill: 5 },
-  // the firefight: track WRAITH's sprint side-on, then over NYX's shoulder as he fires back
-  { from: 11, to: 13.6, p0: [-0.2, 1.25, 25.2], p1: [0, 1.25, 25.1], l0: [1.4, 1.05, 23.1], l1: [1.4, 1.05, 23.1], follow: "WRAITH", fill: 9 },
-  { from: 13.6, to: 16.4, p0: [22.5, 1.6, 24.2], p1: [22.3, 1.58, 24.1], l0: [13.6, 1.1, 23.2], l1: [13.6, 1.05, 23.2], fill: 2 },
-  // the frag: behind GLOOM, then wide as it lands
-  { from: 16.4, to: 17.9, p0: [28.4, 1.55, 22.3], p1: [28.7, 1.6, 22.4], l0: [36.4, 1.0, 23.8], l1: [36.4, 1.0, 23.8] },
-  { from: 17.9, to: 20.6, p0: [33.2, 3.2, 28.4], p1: [33.6, 3.6, 29.2], l0: [35.8, 0.6, 23.7], l1: [35.8, 0.5, 23.7] },
-  // the Warden
-  { from: 20.6, to: 24.4, p0: [30, 4.5, 32], p1: [27.6, 9, 28.8], l0: [24, 9, 24], l1: [24, 10, 24] },
-  // the zone closes: high and wide, everyone running inward
-  { from: 24.4, to: 28, p0: [8, 16, 40], p1: [12, 13, 37], l0: [18, 1, 26], l1: [20, 1, 25] },
-  // the final duel under the plaza lamp: two-shot, then close on the winner
-  { from: 28, to: 30.6, p0: [27.1, 1.7, 27.5], p1: [26.9, 1.68, 27.4], l0: [19.4, 1.0, 26.0], l1: [19.4, 0.9, 26.0], fill: 2 },
-  { from: 30.6, to: 34, p0: [24.2, 1.5, 28.6], p1: [24.6, 2.4, 29.8], l0: [25.4, 1.3, 26.6], l1: [25.4, 1.25, 26.6], fill: 4 },
+  // 03:12, the district from above; the lights die
+  { from: 0, to: 6, p0: [24, 40, 62], p1: [24, 26, 44], l0: [24, 0, 24], l1: [16, 0, 18] },
+  // DUSK wakes on the wet ground: low, slow push in from the side
+  { from: 6, to: 13, p0: [9.4, 0.7, 12.4], p1: [8.2, 0.95, 11.8], l0: [6.5, 0.7, 10.6], l1: [6.5, 1.15, 10.6], fill: 2.2 },
+  // the hunter: NYX coming down the lane between the containers, torch searching
+  { from: 13, to: 16.2, p0: [14.2, 1.35, 10.2], p1: [14.6, 1.35, 10.25], l0: [20.5, 1.3, 10.5], l1: [19.0, 1.3, 10.5], fill: 0.4 },
+  // the other side of the container: DUSK low in the dark, the beam spilling over the top
+  { from: 16.2, to: 19, p0: [9.6, 1.25, 15.4], p1: [9.9, 1.2, 15.2], l0: [13.8, 0.9, 12.6], l1: [13.8, 0.9, 12.5], fill: 0.7 },
+  // high and close: the light passes a body-length from him
+  { from: 19, to: 22, p0: [11.0, 7.5, 17.5], p1: [12.0, 8.2, 17.0], l0: [13.8, 0, 12.0], l1: [13.6, 0, 11.8], fill: 1.5 },
+  // WRAITH walks in with his light on, sprays at a sound
+  { from: 22, to: 25.4, p0: [-2.2, 1.6, 2.2], p1: [-2.0, 1.6, 2.0], l0: [3, 1.0, -1.2], l1: [3, 1.0, -1.4], follow: "WRAITH", fill: 1.2 },
+  // reverse: behind NYX in the dark, WRAITH lit by his own torch and muzzle flashes
+  { from: 25.4, to: 26.9, p0: [22.6, 1.6, 15.4], p1: [22.5, 1.55, 15.5], l0: [16.5, 1.0, 20.5], l1: [16.5, 1.0, 20.5] },
+  // he goes down where he stood; his torch rolls away and lights him
+  { from: 26.9, to: 29, p0: [1.6, 1.5, 2.4], p1: [1.9, 2.1, 2.7], l0: [-0.6, 0.2, -0.3], l1: [-0.6, 0.15, -0.3], follow: "WRAITH" },
+  // the Warden over the water tower
+  { from: 29, to: 34, p0: [31, 4, 33], p1: [28, 8.5, 30], l0: [24, 8.5, 24], l1: [24, 10, 24] },
+  // the zone: running alongside DUSK
+  { from: 34, to: 37.1, p0: [3.0, 1.25, -2.0], p1: [2.8, 1.3, -1.8], l0: [0, 1.0, 0], l1: [0, 1.0, 0], follow: "DUSK", fill: 1.4 },
+  // the frag: behind him as it lands on GLOOM
+  { from: 37.1, to: 40, p0: [15.6, 1.75, 25.3], p1: [15.2, 2.2, 24.9], l0: [21.6, 0.8, 27.6], l1: [21.6, 0.6, 27.6] },
+  // the duel: low behind DUSK in the dark, NYX's light coming
+  { from: 40, to: 45.2, p0: [27.6, 0.85, 32.0], p1: [27.8, 0.9, 31.9], l0: [34.0, 1.0, 28.4], l1: [32.4, 1.0, 28.4] },
+  // he rises and fires
+  { from: 45.2, to: 47, p0: [33.0, 1.3, 31.6], p1: [33.2, 1.35, 31.8], l0: [30.4, 1.0, 29.4], l1: [30.4, 1.0, 29.4], fill: 1.0 },
+  // close on the one who walks out, pulling away
+  { from: 47, to: 53, p0: [30.9, 1.45, 29.6], p1: [33.0, 3.0, 31.8], l0: [29.6, 1.25, 30.5], l1: [29.6, 1.0, 30.5], fill: 1.6 },
 ];
 
-const BLASTS: { t: number; x: number; z: number }[] = [{ t: 18.3, x: 36.2, z: 23.7 }];
-const NADE = { from: 17.45, to: 18.3, a: [30.6, 1.5, 23.2] as V3, b: [36.2, 0.2, 23.7] as V3 };
-const ZONE = { from: 24.2, to: 28.4, r0: 30, r1: 12, x: 24, z: 24 };
+const BLASTS: { t: number; x: number; z: number }[] = [{ t: 38.15, x: 21.5, z: 27.5 }];
+const NADE = { from: 37.35, to: 38.15, a: [17.8, 1.5, 26.5] as V3, b: [21.5, 0.2, 27.5] as V3 };
+const ZONE = { from: 33.8, to: 40, r0: 30, r1: 14, x: 24, z: 24 };
+const WARDEN = { from: 29.4, to: 34 };
+const TITLE_AT = INTRO_LENGTH;
 
 // ------------------------------------------------------------------ helpers
 
@@ -136,6 +144,13 @@ function poseAt(a: Actor, t: number) {
   return { x: l.x, z: l.z, face: l.face, v: 0 };
 }
 const actor = (n: string) => ACTORS.find((a) => a.name === n)!;
+const inWin = (w: Win[] | undefined, t: number) => !!w && w.some(([a, b]) => t >= a && t < b);
+/** a searching torch swings the whole body left and right while walking */
+function faceAt(a: Actor, t: number, base: number) {
+  const s = a.sweep?.find((w) => t >= w.from && t < w.to);
+  if (!s) return base;
+  return base + Math.sin(((t - s.from) / s.period) * Math.PI * 2) * s.amp;
+}
 const deg = (d: number) => (d * Math.PI) / 180;
 
 // ------------------------------------------------------------------ actors
@@ -146,8 +161,24 @@ function ActorView({ a, t }: { a: Actor; t: React.MutableRefObject<number> }) {
   const spot = useRef<THREE.SpotLight>(null);
   const tgt = useMemo(() => new THREE.Object3D(), []);
   const tracer = useRef<THREE.Mesh>(null);
+  const beam = useRef<THREE.Mesh>(null);
   const flash = useRef<THREE.PointLight>(null);
   const fired = useRef(new Set<number>());
+  const beamMat = useMemo(
+    () =>
+      new THREE.ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide,
+        uniforms: { uA: { value: 0 } },
+        // cone along y: the tip (the torch) at +y, fading out toward the wide end
+        // soft: faces seen edge-on (the cone's outline) fade out, so it reads as a haze, not a wedge
+        vertexShader: `varying float vY; varying float vFace; void main(){ vY = position.y; vec4 mv = modelViewMatrix*vec4(position,1.0); vFace = abs(dot(normalize(normalMatrix*normal), normalize(-mv.xyz))); gl_Position = projectionMatrix*mv; }`,
+        fragmentShader: `uniform float uA; varying float vY; varying float vFace; void main(){ float k = clamp(0.5 + vY/6.0, 0.0, 1.0); gl_FragColor = vec4(1.0,0.93,0.78, uA * k * k * vFace * vFace * 0.07); }`,
+      }),
+    [],
+  );
   const { scene } = useThree();
   useEffect(() => {
     scene.add(tgt);
@@ -159,28 +190,53 @@ function ActorView({ a, t }: { a: Actor; t: React.MutableRefObject<number> }) {
   useFrame(() => {
     const now = t.current;
     const p = poseAt(a, now);
-    const on = a.show.some(([s0, s1]) => now >= s0 && now < s1);
-    const fa = deg(p.face);
+    const on = inWin(a.show, now);
+    const dead = a.dead !== undefined && now >= a.dead;
+    const fa = deg(dead ? p.face : faceAt(a, now, p.face));
     if (g.current) {
       g.current.visible = on;
       g.current.position.set(p.x, 0, p.z);
       g.current.rotation.y = -fa;
     }
     const m = motion.current;
-    m.speed = p.v > 4.6 ? 2 : p.v > 0.6 ? 1 : 0;
-    m.downed = a.down !== undefined && now >= a.down;
+    m.speed = dead ? 0 : p.v > 3.2 ? 2 : p.v > 0.4 ? 1 : 0;
+    m.crouch = inWin(a.crouch, now);
+    // the fall is driven from the script clock so frozen frames show the right moment
+    m.deadAt = dead ? performance.now() - (now - a.dead!) * 1000 : undefined;
     m.throwAt = a.throwAt !== undefined && now >= a.throwAt && now < a.throwAt + 0.45 ? performance.now() - (now - a.throwAt) * 1000 : 0;
     const shot = a.fire?.findIndex((f) => now >= f.t && now < f.t + 0.09) ?? -1;
     m.firing = shot >= 0;
     // flashlight
-    const lit = a.light && now >= a.light[0] && now < a.light[1] && !m.downed;
-    const flick = a.light && now < a.light[0] + 0.25 ? (Math.random() > 0.45 ? 1 : 0.1) : 1;
-    if (spot.current) {
-      spot.current.position.set(p.x + Math.cos(fa) * 0.2, 1.7, p.z + Math.sin(fa) * 0.2);
+    const lit = inWin(a.lights, now) && !dead;
+    const lw = a.lights?.find(([s0]) => now >= s0 && now < s0 + 0.3);
+    const flick = lw ? (Math.random() > 0.45 ? 1 : 0.1) : 1; // a torch clicking on stutters
+    // killed with the torch on: it drops beside the body and lights it along the ground
+    const dropped = dead && inWin(a.lights, a.dead! - 0.01) && now > a.dead! + 0.5;
+    if (spot.current && dropped) {
+      spot.current.position.set(p.x + Math.cos(fa) * 0.55, 0.12, p.z + Math.sin(fa) * 0.55);
+      tgt.position.set(p.x - Math.cos(fa) * 2.5, 0, p.z - Math.sin(fa) * 2.5);
+      spot.current.intensity = 26 * (0.85 + 0.15 * Math.sin(now * 13) * Math.sin(now * 5.7));
+      spot.current.color.set("#fff1d0");
+    } else if (spot.current) {
+      spot.current.position.set(p.x + Math.cos(fa) * 0.2, m.crouch ? 1.1 : 1.6, p.z + Math.sin(fa) * 0.2);
       spot.current.intensity = lit ? 48 * flick : 0;
       spot.current.color.set(a.nvg ? "#9dffb8" : "#fff1d0");
     }
-    tgt.position.set(p.x + Math.cos(fa) * 6, 0.3, p.z + Math.sin(fa) * 6);
+    // the torch you can see: a faint cone of light in the rain
+    if (beam.current) {
+      const show = !!lit && on && !dropped;
+      beam.current.visible = show;
+      if (show) {
+        // the torch rides under the barrel: forward of the right shoulder, gun height
+        const y = m.crouch ? 0.72 : 0.98;
+        const rx = -Math.sin(fa) * 0.13;
+        const rz = Math.cos(fa) * 0.13;
+        beam.current.position.set(p.x + rx + Math.cos(fa) * 3.75, y - 0.2, p.z + rz + Math.sin(fa) * 3.75);
+        beam.current.rotation.set(0, -fa, Math.PI / 2 + 0.06);
+        (beam.current.material as THREE.ShaderMaterial).uniforms.uA.value = 0.55 * flick;
+      }
+    }
+    if (!dropped) tgt.position.set(p.x + Math.cos(fa) * 6, 0.3, p.z + Math.sin(fa) * 6);
     // gunfire: tracer to the target (or near it), muzzle flash, sound once
     if (tracer.current && flash.current) {
       tracer.current.visible = shot >= 0 && on;
@@ -194,13 +250,13 @@ function ActorView({ a, t }: { a: Actor; t: React.MutableRefObject<number> }) {
         const mx = p.x + Math.cos(fa) * 0.75;
         const mz = p.z + Math.sin(fa) * 0.75;
         const len = Math.hypot(tx - mx, tz - mz);
-        tracer.current.position.set((mx + tx) / 2, 1.0, (mz + tz) / 2);
+        tracer.current.position.set((mx + tx) / 2, m.crouch ? 0.75 : 1.0, (mz + tz) / 2);
         tracer.current.rotation.set(0, -Math.atan2(tz - mz, tx - mx), 0);
         tracer.current.scale.set(len, 1, 1);
         flash.current.position.set(mx, 1.05, mz);
         if (!fired.current.has(shot)) {
           fired.current.add(shot);
-          audio.shoot(a.weapon);
+          audio.shotAt(a.weapon, a.name === "DUSK" ? 1 : 6, 0);
         }
       }
     }
@@ -208,9 +264,12 @@ function ActorView({ a, t }: { a: Actor; t: React.MutableRefObject<number> }) {
   return (
     <>
       <group ref={g} visible={false}>
-        <Avatar color={SEAT_COLORS[a.seat]} weapon={a.weapon} motion={motion} />
+        <Avatar color={SEAT_COLORS[a.seat]} weapon={a.weapon} motion={motion} ring={false} />
       </group>
-      <spotLight ref={spot} angle={0.55} penumbra={0.35} distance={13} decay={1.05} intensity={0} castShadow={a.name === "DUSK"} />
+      <mesh ref={beam} visible={false} material={beamMat}>
+        <coneGeometry args={[2.0, 6.0, 32, 1, true]} />
+      </mesh>
+      <spotLight ref={spot} angle={0.55} penumbra={0.35} distance={13} decay={1.05} intensity={0} castShadow={a.name === "DUSK" || a.name === "NYX"} />
       <pointLight ref={flash} color="#ffb347" distance={9} decay={1.3} intensity={0} />
       <mesh ref={tracer} visible={false}>
         <boxGeometry args={[1, 0.035, 0.035]} />
@@ -333,8 +392,8 @@ function Warden({ t }: { t: React.MutableRefObject<number> }) {
   );
   useFrame(() => {
     const now = t.current;
-    const appear = Math.min(1, Math.max(0, (now - 20.8) / 1.0));
-    const gone = now > 24.2 ? Math.max(0, 1 - (now - 24.2) / 0.5) : 1;
+    const appear = Math.min(1, Math.max(0, (now - WARDEN.from) / 1.2));
+    const gone = now > WARDEN.to - 0.3 ? Math.max(0, 1 - (now - WARDEN.to + 0.3) / 0.5) : 1;
     const s = appear * gone;
     if (g.current) {
       g.current.visible = s > 0.01;
@@ -378,6 +437,7 @@ function Director({ t, onTime }: { t: React.MutableRefObject<number>; onTime: (s
   const fill = useRef<THREE.PointLight>(null);
   const start = useRef<number | null>(null);
   const cues = useRef(new Set<string>());
+  const lastStep = useRef(-1);
   const cue = (key: string, at: number, f: () => void) => {
     if (t.current >= at && !cues.current.has(key)) {
       cues.current.add(key);
@@ -398,8 +458,8 @@ function Director({ t, onTime }: { t: React.MutableRefObject<number>; onTime: (s
     let look = L(s.l0, s.l1);
     if (s.follow) {
       const p = poseAt(actor(s.follow), now);
-      pos = [p.x + pos[0], pos[1], pos[2]];
-      look = [p.x + look[0], look[1], look[2]];
+      pos = [p.x + pos[0], pos[1], p.z + pos[2]];
+      look = [p.x + look[0], look[1], p.z + look[2]];
     }
     const B = BLASTS[0];
     const shake = now > B.t && now < B.t + 0.55 ? (1 - (now - B.t) / 0.55) * 0.14 : 0;
@@ -410,25 +470,49 @@ function Director({ t, onTime }: { t: React.MutableRefObject<number>; onTime: (s
       fill.current.intensity = s.fill ?? 0;
     }
     // the city's lights die early; lightning when the Warden wakes; light floods in for the title
-    (globalThis as any).__boLightsOut = now > 2.4 && now < 28;
-    const strikes = [0.6, 0.85, 20.9];
+    // the city's lights die at 03:12 and only come back for the title
+    (globalThis as any).__boLightsOut = now > 3.1 && now < TITLE_AT;
+    const strikes = [2.9, 3.05, 29.6];
     let li = 0;
     for (const st of strikes) if (now >= st && now < st + 0.16) li = 5 * (1 - (now - st) / 0.16);
     if (lightning.current) lightning.current.intensity = li;
-    const on = now > 31 ? Math.min(1, (now - 31) / 0.5) : 0;
+    const on = now > TITLE_AT ? Math.min(1, (now - TITLE_AT) / 0.6) : 0;
     if (amb.current) amb.current.intensity = 0.04 + on * 0.55;
-    cue("boom0", 0.3, () => audio.boom());
-    cue("dark", 2.4, () => audio.powerDown(true));
-    cue("click", 4.6, () => audio.reload());
-    cue("heart", 11, () => audio.setHeartbeat(0.8));
-    cue("warden", 20.9, () => {
+    // NYX's boots on the far side of the container, passing left to right of DUSK's ear
+    for (const [w0, w1, cx] of [[13.4, 20.6, 15], [40.4, 45.1, 31]]) {
+      if (now <= w0 || now >= w1) continue;
+      const n = Math.floor((now - w0) / 0.6) + w0 * 100;
+      if (n !== lastStep.current) {
+        lastStep.current = n;
+        const x = poseAt(actor("NYX"), now).x;
+        audio.step(Math.max(-1, Math.min(1, (x - cx) / 6)), 0.55, false);
+      }
+    }
+    cue("hum", 0.2, () => audio.powerDown(false));
+    cue("dark", 3.1, () => {
+      audio.powerDown(true);
+      audio.thunder(0.2);
+    });
+    cue("wake", 6.2, () => audio.hurt());
+    cue("click", 9.8, () => audio.reload());
+    cue("heart", 13.2, () => audio.setHeartbeat(0.9));
+    cue("heartoff", 21.6, () => audio.setHeartbeat(0.3));
+    cue("fall1", 26.9, () => audio.bodyFall(0.3, 0.8));
+    cue("warden", 29.6, () => {
       audio.setHeartbeat(0);
       audio.boom();
       audio.whisper(-0.6);
     });
-    cue("zone", 24.4, () => audio.setZoneDanger(1));
-    cue("zoneoff", 28, () => audio.setZoneDanger(0));
-    cue("lights", 31, () => {
+    cue("zone", 33.9, () => audio.setZoneDanger(1));
+    cue("toss", 37.25, () => audio.toss(1));
+    cue("clink", 37.95, () => audio.clink(0.8, 0.3));
+    cue("fall2", 38.6, () => audio.bodyFall(0.3, 0.7));
+    cue("zoneoff", 40, () => audio.setZoneDanger(0));
+    cue("heart2", 40.4, () => audio.setHeartbeat(1));
+    cue("heart2off", 45.6, () => audio.setHeartbeat(0));
+    cue("fall3", 46.35, () => audio.bodyFall(-0.2, 1));
+    cue("click2", 47.0, () => audio.reload());
+    cue("lights", TITLE_AT, () => {
       audio.lightsOn();
       audio.boom();
     });
