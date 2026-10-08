@@ -48,9 +48,9 @@ export const DEFAULT_PREFS: Prefs = {
   names: true,
   netStats: true,
   mapSize: 140,
-  volume: 1,
-  sfxVol: 1,
-  musicVol: 0.9,
+  volume: 0.8,
+  sfxVol: 0.85,
+  musicVol: 0.8,
 };
 
 const KEY = "bo-prefs-v1";
@@ -74,11 +74,13 @@ try {
   /* ignore */
 }
 
-// it used to be too quiet: lift older saved volumes once
+// the mix was rebalanced (recorded sound, no boost): start everyone at the new comfortable level once
 try {
-  if (!localStorage.getItem("bo-vol-v2")) {
-    prefs.volume = Math.max(prefs.volume, DEFAULT_PREFS.volume);
-    localStorage.setItem("bo-vol-v2", "1");
+  if (!localStorage.getItem("bo-vol-v3")) {
+    prefs.volume = DEFAULT_PREFS.volume;
+    prefs.sfxVol = DEFAULT_PREFS.sfxVol;
+    prefs.musicVol = DEFAULT_PREFS.musicVol;
+    localStorage.setItem("bo-vol-v3", "1");
     localStorage.setItem(KEY, JSON.stringify(prefs));
   }
 } catch {

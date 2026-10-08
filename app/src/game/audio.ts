@@ -13,11 +13,11 @@ const pick = (kind: "bass" | "mid" | "high") => {
 
 // each gun: [recording, pitch, loudness]. .308 for both rifles (the M416 a touch higher and lighter)
 const GUN_SAMPLE: [string, number, number][] = [
-  ["shot_9mm", 1.0, 0.8], // P92
-  ["shot_9mm", 1.12, 0.7], // UMP
-  ["shot_20g", 1.0, 1.0], // S12K
-  ["shot_308", 1.14, 0.8], // M416
-  ["shot_308", 0.94, 1.0], // KAR98K
+  ["shot_9mm", 1.0, 0.42], // P92
+  ["shot_9mm", 1.12, 0.36], // UMP
+  ["shot_20g", 1.0, 0.5], // S12K
+  ["shot_308", 1.14, 0.42], // M416
+  ["shot_308", 0.94, 0.52], // KAR98K
 ];
 
 class Audio {
@@ -73,15 +73,16 @@ class Audio {
       this.ctx = c;
       this.master = c.createGain();
       this.master.gain.value = this.muted ? 0 : prefs.volume;
-      // make-up gain into a limiter: loud, but a frag next to you never clips
+      // no boost: the recordings are already full-scale. A soft safety limiter only catches
+      // stacked peaks (a frag on top of gunfire); it shouldn't be working most of the time.
       const makeup = c.createGain();
-      makeup.gain.value = 1.8;
+      makeup.gain.value = 0.8;
       const comp = c.createDynamicsCompressor();
-      comp.threshold.value = -9;
-      comp.knee.value = 6;
-      comp.ratio.value = 12;
-      comp.attack.value = 0.003;
-      comp.release.value = 0.18;
+      comp.threshold.value = -4;
+      comp.knee.value = 8;
+      comp.ratio.value = 6;
+      comp.attack.value = 0.005;
+      comp.release.value = 0.25;
       this.master.connect(makeup).connect(comp).connect(c.destination);
       this.sfx = c.createGain();
       this.sfx.gain.value = prefs.sfxVol;
@@ -581,7 +582,7 @@ class Audio {
     if (this.has(smp)) {
       const far = Math.min(1, dist / 28);
       const jitter = 1 + (Math.random() - 0.5) * 0.06;
-      this.play(smp, { vol: gunLoud * (1 - far * 0.7), pan, rate: rate * jitter * (1 - far * 0.08), wet: 0.12 + far * 0.6, lp: 16000 * Math.pow(1 - far, 2) + 700 });
+      this.play(smp, { vol: gunLoud * (1 - far * 0.7), pan, rate: rate * jitter * (1 - far * 0.08), wet: 0.12 + far * 0.6, lp: 9000 * Math.pow(1 - far, 2) + 700 }); // even close, no ear-splitting top end
       if (dist === 0 && weapon === 4) this.play("rack", { vol: 0.5, rate: 0.8, delay: 0.55, wet: 0.05 }); // work the bolt
       if (dist === 0 && weapon === 2) this.play("rack", { vol: 0.55, rate: 0.62, delay: 0.32, wet: 0.05 }); // rack the pump
       return;
@@ -692,15 +693,15 @@ class Audio {
   reload(weapon = 0) {
     if (this.has("mag_out")) {
       if (weapon === 2) {
-        for (let i = 0; i < 3; i++) this.play("shell_load", { vol: 0.8, delay: 0.1 + i * 0.42, wet: 0.08, rate: 0.97 + Math.random() * 0.06 });
+        for (let i = 0; i < 3; i++) this.play("shell_load", { vol: 0.5, delay: 0.1 + i * 0.42, wet: 0.08, rate: 0.97 + Math.random() * 0.06 });
         this.play("rack", { vol: 0.7, rate: 0.62, delay: 1.45, wet: 0.08 });
       } else if (weapon === 4) {
-        this.play("bolt_load", { vol: 0.85, delay: 0.05, wet: 0.08 });
+        this.play("bolt_load", { vol: 0.5, delay: 0.05, wet: 0.08 });
         this.play("rack", { vol: 0.6, rate: 0.8, delay: 1.2, wet: 0.08 });
       } else {
-        this.play("mag_out", { vol: 0.8, wet: 0.08 });
-        this.play("mag_in", { vol: 0.85, delay: 0.6, wet: 0.08 });
-        this.play("rack", { vol: 0.75, delay: 1.05, wet: 0.08, rate: weapon === 0 ? 1.05 : 0.95 });
+        this.play("mag_out", { vol: 0.5, wet: 0.08 });
+        this.play("mag_in", { vol: 0.55, delay: 0.6, wet: 0.08 });
+        this.play("rack", { vol: 0.5, delay: 1.05, wet: 0.08, rate: weapon === 0 ? 1.05 : 0.95 });
       }
       return;
     }
@@ -773,7 +774,8 @@ class Audio {
 
   /** a recorded horror hit (deep, mid or high); false if it hasn't loaded yet */
   horror(kind: "bass" | "mid" | "high", vol = 0.8, o: { pan?: number; wet?: number; lp?: number; delay?: number } = {}) {
-    return this.play(pick(kind), { vol, wet: o.wet ?? 0.35, pan: o.pan, lp: o.lp, delay: o.delay });
+    const scale = kind === "high" ? 0.35 : kind === "mid" ? 0.5 : 0.6; // the high ones are piercing
+    return this.play(pick(kind), { vol: vol * scale, wet: o.wet ?? 0.35, pan: o.pan, lp: Math.min(o.lp ?? 5000, kind === "high" ? 3500 : 5000), delay: o.delay });
   }
 
   /** someone just stepped into your light: a stab of strings + sub */
