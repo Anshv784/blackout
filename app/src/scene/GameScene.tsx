@@ -134,6 +134,7 @@ function MyPlayer({ session }: { session: Session }) {
     const flare = v.me.flare > 0;
     const r0 = session.room;
     const dark = !!r0 && r0.status === ST_LIVE && lightsOut(r0.matchLen, Math.max(0, r0.tick - 60));
+    mo.torch = alive && !dark; // the lens on your gun glows while your light is on
     (globalThis as any).__boLightsOut = dark; // street lamps and the searchlight die too
     const now0 = performance.now();
     if (spot.current && killed) {

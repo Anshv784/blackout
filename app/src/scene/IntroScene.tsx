@@ -8,6 +8,7 @@ import { EffectComposer, Bloom, Vignette, Noise } from "@react-three/postprocess
 import * as THREE from "three";
 import { Arena } from "./Arena";
 import { Avatar, SEAT_COLORS } from "./Avatar";
+import { TORCH_X } from "./Gun";
 import { stillMotion, SOLDIER_URL, type Motion } from "./Soldier";
 import { audio } from "../game/audio";
 import { INTRO_LENGTH } from "../game/colors";
@@ -162,24 +163,8 @@ function ActorView({ a, t }: { a: Actor; t: React.MutableRefObject<number> }) {
   const spot = useRef<THREE.SpotLight>(null);
   const tgt = useMemo(() => new THREE.Object3D(), []);
   const tracer = useRef<THREE.Mesh>(null);
-  const beam = useRef<THREE.Mesh>(null);
   const flash = useRef<THREE.PointLight>(null);
   const fired = useRef(new Set<number>());
-  const beamMat = useMemo(
-    () =>
-      new THREE.ShaderMaterial({
-        transparent: true,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        side: THREE.DoubleSide,
-        uniforms: { uA: { value: 0 } },
-        // cone along y: the tip (the torch) at +y, fading out toward the wide end
-        // soft: faces seen edge-on (the cone's outline) fade out, so it reads as a haze, not a wedge
-        vertexShader: `varying float vY; varying float vFace; void main(){ vY = position.y; vec4 mv = modelViewMatrix*vec4(position,1.0); vFace = abs(dot(normalize(normalMatrix*normal), normalize(-mv.xyz))); gl_Position = projectionMatrix*mv; }`,
-        fragmentShader: `uniform float uA; varying float vY; varying float vFace; void main(){ float k = clamp(0.5 + vY/6.0, 0.0, 1.0); gl_FragColor = vec4(1.0,0.93,0.78, uA * k * k * vFace * vFace * 0.07); }`,
-      }),
-    [],
-  );
   const { scene } = useThree();
   useEffect(() => {
     scene.add(tgt);
@@ -210,33 +195,27 @@ function ActorView({ a, t }: { a: Actor; t: React.MutableRefObject<number> }) {
     m.firing = shot >= 0;
     // flashlight
     const lit = inWin(a.lights, now) && !dead;
+    m.torch = lit;
     const lw = a.lights?.find(([s0]) => now >= s0 && now < s0 + 0.3);
     const flick = lw ? (Math.random() > 0.45 ? 1 : 0.1) : 1; // a torch clicking on stutters
     // killed with the torch on: it drops beside the body and lights it along the ground
     const dropped = dead && inWin(a.lights, a.dead! - 0.01) && now > a.dead! + 0.5;
+    // a torch lying on the ground casts no shadow: at that grazing angle it shimmers across the body
+    if (spot.current) {
+      const cast = (a.name === "DUSK" || a.name === "NYX") && !dropped && !TOUCH;
+      if (spot.current.castShadow !== cast) spot.current.castShadow = cast;
+    }
     if (spot.current && dropped) {
       spot.current.position.set(p.x + Math.cos(fa) * 0.55, 0.12, p.z + Math.sin(fa) * 0.55);
       tgt.position.set(p.x - Math.cos(fa) * 2.5, 0, p.z - Math.sin(fa) * 2.5);
       spot.current.intensity = 26; // steady: a flickering light on a body reads as the body shaking
       spot.current.color.set("#fff1d0");
     } else if (spot.current) {
-      spot.current.position.set(p.x + Math.cos(fa) * 0.2, m.crouch ? 1.1 : 1.6, p.z + Math.sin(fa) * 0.2);
+      // from the torch under the barrel (the same spot the lens glows on the gun)
+      const lens = -0.07 + 0.85 * ((TORCH_X[a.weapon] ?? 0.6) + 0.08);
+      spot.current.position.set(p.x + Math.cos(fa) * lens, m.crouch ? 0.68 : 0.94, p.z + Math.sin(fa) * lens);
       spot.current.intensity = lit ? 48 * flick : 0;
       spot.current.color.set(a.nvg ? "#9dffb8" : "#fff1d0");
-    }
-    // the torch you can see: a faint cone of light in the rain
-    if (beam.current) {
-      const show = !!lit && on && !dropped;
-      beam.current.visible = show;
-      if (show) {
-        // the torch rides under the barrel: forward of the right shoulder, gun height
-        const y = m.crouch ? 0.72 : 0.98;
-        const rx = -Math.sin(fa) * 0.13;
-        const rz = Math.cos(fa) * 0.13;
-        beam.current.position.set(p.x + rx + Math.cos(fa) * 3.75, y - 0.2, p.z + rz + Math.sin(fa) * 3.75);
-        beam.current.rotation.set(0, -fa, Math.PI / 2 + 0.06);
-        (beam.current.material as THREE.ShaderMaterial).uniforms.uA.value = 0.55 * flick;
-      }
     }
     if (!dropped) tgt.position.set(p.x + Math.cos(fa) * 6, 0.3, p.z + Math.sin(fa) * 6);
     // gunfire: tracer to the target (or near it), muzzle flash, sound once
@@ -268,9 +247,6 @@ function ActorView({ a, t }: { a: Actor; t: React.MutableRefObject<number> }) {
       <group ref={g} visible={false}>
         <Avatar color={SEAT_COLORS[a.seat]} weapon={a.weapon} motion={motion} ring={false} />
       </group>
-      <mesh ref={beam} visible={false} material={beamMat}>
-        <coneGeometry args={[2.0, 6.0, 32, 1, true]} />
-      </mesh>
       <spotLight ref={spot} angle={0.55} penumbra={0.35} distance={13} decay={1.05} intensity={0} castShadow={a.name === "DUSK" || a.name === "NYX"} shadow-bias={-0.0006} shadow-normalBias={0.04} />
       <pointLight ref={flash} color="#ffb347" distance={9} decay={1.3} intensity={0} />
       <mesh ref={tracer} visible={false}>

@@ -1,7 +1,7 @@
 // A real soldier (rigged, animated) instead of a capsule. One shared GLB, cloned per player.
 // Idle / walk / run come from the file; holding the gun, recoil, reload, the throw swing and
 // crawling when downed are driven on the skeleton every frame (two-bone IK for the arms).
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
@@ -20,6 +20,7 @@ export interface Motion {
   throwAt: number; // performance.now() of the last throw
   crouch?: boolean;
   jumpAt?: number; // performance.now() a jump started
+  torch?: boolean; // the under-barrel torch is on
   deadAt?: number; // performance.now() they were killed: knees go, then they fall back and the gun drops
 }
 export const stillMotion = (): Motion => ({ speed: 0, firing: false, reloading: false, downed: false, throwAt: 0 });
@@ -131,6 +132,8 @@ export function Soldier({ color: _color, weapon = 0, ghost = false, motion }: { 
   const w = useRef({ idle: 1, walk: 0, run: 0 });
   const kick = useRef(0);
   const crouchK = useRef(0);
+  const landed = useRef(false); // the fallen pose has been drawn at least once
+  const [torchOn, setTorchOn] = useState(false);
   const pool = useRef<THREE.Mesh>(null);
   const lastFire = useRef(false);
   const target = useMemo(() => new THREE.Vector3(), []);
@@ -139,6 +142,8 @@ export function Soldier({ color: _color, weapon = 0, ghost = false, motion }: { 
   useFrame((_, dt) => {
     dt = Math.min(dt, 0.05);
     const m = motion?.current ?? stillMotion();
+    const wantTorch = !!m.torch && m.deadAt === undefined;
+    if (wantTorch !== torchOn) setTorchOn(wantTorch);
     const g = root.current;
     if (!g) return;
     // locomotion blend
@@ -154,8 +159,15 @@ export function Soldier({ color: _color, weapon = 0, ghost = false, motion }: { 
     actions.run.timeScale = 1.15;
     // the dead stop breathing once they're down
     const deadT = m.deadAt ? (performance.now() - m.deadAt) / 1000 : -1;
+    // landed: the body is frozen exactly as it fell. Nothing touches the skeleton any more.
+    if (deadT > 1.3 && landed.current) {
+      if (pool.current) pool.current.scale.setScalar(0.15 + 0.85 * Math.sqrt(Math.min(1, (deadT - 0.6) / 4)));
+      return;
+    }
     mixer.update(deadT > 0.9 ? 0 : dt);
+    if (deadT < 0) landed.current = false;
     if (deadT >= 0) {
+      if (deadT > 1.1) landed.current = true;
       // 0-0.25 s the knees buckle, 0.2-0.75 s the body goes over backwards with a small bounce
       const buckle = Math.min(1, deadT / 0.25);
       const fall = THREE.MathUtils.clamp((deadT - 0.2) / 0.55, 0, 1);
@@ -262,7 +274,7 @@ export function Soldier({ color: _color, weapon = 0, ghost = false, motion }: { 
       </mesh>
       <group ref={gunRef} position={GUN_POS.toArray()}>
         <group position={[-0.17, 0, -0.12]} scale={0.85}>
-          <Gun weapon={weapon} ghost={ghost} />
+          <Gun weapon={weapon} ghost={ghost} torch={torchOn} />
         </group>
       </group>
     </group>
