@@ -2054,3 +2054,42 @@ button {
 .vol-row em{font-style:normal;text-align:right;font-family:var(--mono);font-size:11px;color:#ffd166}
 .game-tools .sound-wrap .sound-toggle{background:rgba(10,12,20,.85);border:1px solid var(--line);color:var(--fg);font-size:11px;padding:7px 10px;border-radius:8px;cursor:pointer}
 .game.touch .vol-pop{left:0;right:auto;width:230px}
+.intro-loading{position:absolute;inset:0;z-index:15;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:#000;color:var(--dim)}
+.intro-loading b{font-family:var(--font);font-size:42px;letter-spacing:.12em;color:#fff}
+.intro-loading small{font-family:var(--mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase}
+.intro-loading i{display:block;width:180px;height:3px;background:#1a1d26;border-radius:2px;overflow:hidden}
+.intro-loading i span{display:block;height:100%;background:var(--gold);transition:width .3s}
+.intro-eye.small{width:70px;height:70px}
+
+/* ---------- phones held sideways: short screens get a compact, two-column layout ---------- */
+@media (max-height:500px) and (orientation:landscape){
+  .topbar{padding:6px 12px;gap:8px}
+  .topbar .logo-mark span{font-size:13px}
+  .topbar nav a{padding:5px 7px;font-size:0}
+  .topbar nav a::after{content:attr(data-short);font-size:12px}
+  .topbar .logo-mark span{display:none}
+  .topbar .cw-word{display:none}
+  .topbar .chip-btn,.topbar .sound-toggle,.topbar .fs-btn{padding:5px 9px;font-size:11px}
+  .topbar .guest-tag{display:none}
+  /* home: hero on the left, the room actions and open rooms on the right */
+  .gate{position:fixed;overflow:hidden}
+  .gate-main{grid-template-columns:minmax(0,1.15fr) minmax(220px,1fr);gap:18px;padding:54px 16px 10px;align-items:start;height:100%;overflow-y:auto}
+  .gate-title{font-size:clamp(40px,13vh,64px);margin:6px 0 4px}
+  .gate-tag{font-size:13px;line-height:1.4;margin:0 0 10px}
+  .gate-hero .kicker{font-size:9px;padding:4px 10px}
+  .gate-cta{gap:8px}
+  .gate-cta .btn.huge{padding:10px 14px;font-size:17px;width:100%}
+  .gate-cta .btn.huge small,.gate-cta .btn.huge span{font-size:10px}
+  .gate-alt .btn{padding:7px 10px;font-size:11px}
+  .gate-facts{display:none}
+  .gate-side{gap:8px}
+  .side-card{padding:10px 12px;font-size:12px}
+  .btn.huge{width:100%}
+  /* leaderboard and how it works: titles that fit the height */
+  .board-main,.how2{padding-top:58px}
+  .board-head h1,.how-hero h1{font-size:clamp(28px,11vh,44px);margin:8px 0}
+  .how2 h2{font-size:26px}
+  .how-hero .lead{font-size:14px}
+  .kicker{font-size:9px}
+  .board-stats{gap:8px}
+}
