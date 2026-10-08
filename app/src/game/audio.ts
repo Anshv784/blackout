@@ -5,7 +5,11 @@
 import { prefs, setPref } from "./prefs";
 
 /** recorded horror hits (stingers, screams, slams), in public/sfx as hit_*.mp3 */
-const HITS: string[] = [];
+const HITS = ["hit_bass1", "hit_bass2", "hit_bass3", "hit_mid1", "hit_mid2", "hit_mid3", "hit_high1", "hit_high2"];
+const pick = (kind: "bass" | "mid" | "high") => {
+  const n = kind === "high" ? 2 : 3;
+  return `hit_${kind}${1 + Math.floor(Math.random() * n)}`;
+};
 
 // each gun: [recording, pitch, loudness]. .308 for both rifles (the M416 a touch higher and lighter)
 const GUN_SAMPLE: [string, number, number][] = [
@@ -59,6 +63,7 @@ class Audio {
   private heart: { timer: number | null; bpm: number; level: number } = { timer: null, bpm: 0, level: 0 };
   private nextHowl = 0;
   private nextCreak = 0;
+  private nextSting = 0;
 
   private ensure() {
     if (this.ctx) return this.ctx;
@@ -437,6 +442,7 @@ class Audio {
   /** The lights die (and come back). */
   powerDown(on: boolean) {
     if (on) {
+      this.horror("bass", 0.95, { wet: 0.6 });
       this.tone(220, 1.2, "sawtooth", 0.18, 0, 40, 0, 0.7);
       this.burst(0.4, 140, 0.6, 0.6, 0, "lowpass", 0.8);
     } else this.tone(80, 0.6, "sine", 0.2, 0, 240, 0, 0.5);
@@ -721,6 +727,7 @@ class Audio {
 
   /** you took someone out: a low, final hit and a rising sting */
   kill() {
+    this.horror("mid", 0.4, { wet: 0.5, lp: 5000 });
     this.thump({ f0: 90, f1: 30, dur: 0.6, vol: 0.5, wet: 0.5 });
     this.tone(196, 0.9, "triangle", 0.07, 0, 392, 0.05, 0.8);
     this.tone(293, 0.9, "triangle", 0.05, 0, 587, 0.12, 0.8);
@@ -728,6 +735,10 @@ class Audio {
 
   /** you're out: everything drops away */
   death() {
+    if (this.horror("bass", 1, { wet: 0.6 })) {
+      this.horror("high", 0.45, { wet: 0.8, delay: 0.25 });
+      return;
+    }
     this.thump({ f0: 70, f1: 25, dur: 2.2, vol: 0.6, wet: 0.7 });
     this.hit({ kind: "brown", dur: 2.4, type: "lowpass", f: 400, f2: 80, vol: 0.5, wet: 0.9, attack: 0.05 });
     this.tone(220, 2.6, "sine", 0.06, 0, 110, 0.2, 0.9);
@@ -755,12 +766,19 @@ class Audio {
   }
 
   boom() {
+    if (this.horror("bass", 0.9, { wet: 0.5 })) return;
     this.thump({ f0: 70, f1: 24, dur: 1.6, vol: 0.8, wet: 0.7 });
     this.hit({ kind: "brown", dur: 2.2, type: "lowpass", f: 500, f2: 90, vol: 0.6, wet: 0.95, attack: 0.02 });
   }
 
+  /** a recorded horror hit (deep, mid or high); false if it hasn't loaded yet */
+  horror(kind: "bass" | "mid" | "high", vol = 0.8, o: { pan?: number; wet?: number; lp?: number; delay?: number } = {}) {
+    return this.play(pick(kind), { vol, wet: o.wet ?? 0.35, pan: o.pan, lp: o.lp, delay: o.delay });
+  }
+
   /** someone just stepped into your light: a stab of strings + sub */
   stinger() {
+    if (this.horror("mid", 0.7)) return;
     this.tone(466, 0.7, "sawtooth", 0.05, -0.3, 440, 0, 0.8);
     this.tone(494, 0.7, "sawtooth", 0.05, 0.3, 470, 0, 0.8);
     this.thump({ f0: 60, f1: 40, dur: 0.5, vol: 0.35, wet: 0.5 });
@@ -856,6 +874,11 @@ class Audio {
     if (now > this.nextCreak) {
       this.creak(Math.random() * 1.6 - 0.8);
       this.nextCreak = now + 7000 + Math.random() * 12000;
+    }
+    // now and then something happens far off in the dark: a muffled horror sting from one side
+    if (now > this.nextSting) {
+      if (this.nextSting) this.horror(Math.random() < 0.5 ? "mid" : "high", 0.3 + Math.random() * 0.2, { pan: Math.random() * 1.6 - 0.8, wet: 0.9, lp: 1400 + Math.random() * 1400 });
+      this.nextSting = now + 35000 + Math.random() * 40000;
     }
   }
 

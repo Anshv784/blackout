@@ -491,14 +491,17 @@ function Director({ t, onTime }: { t: React.MutableRefObject<number>; onTime: (s
     }
     cue("hum", 0.2, () => audio.powerDown(false));
     cue("dark", 3.1, () => {
-      audio.powerDown(true);
+      audio.powerDown(true); // with a deep horror hit
       audio.thunder(0.2);
     });
     cue("wake", 6.2, () => audio.hurt());
     cue("click", 9.8, () => audio.reload());
     cue("heart", 13.2, () => audio.setHeartbeat(0.9));
     cue("heartoff", 21.6, () => audio.setHeartbeat(0.3));
-    cue("fall1", 26.9, () => audio.bodyFall(0.3, 0.8));
+    cue("fall1", 26.9, () => {
+      audio.bodyFall(0.3, 0.8);
+      audio.horror("mid", 0.8);
+    });
     cue("warden", 29.6, () => {
       audio.setHeartbeat(0);
       audio.boom();
@@ -513,6 +516,8 @@ function Director({ t, onTime }: { t: React.MutableRefObject<number>; onTime: (s
     cue("heart2off", 45.6, () => audio.setHeartbeat(0));
     cue("fall3", 46.35, () => audio.bodyFall(-0.2, 1));
     cue("click2", 47.0, () => audio.reload());
+    cue("walksout", 47.4, () => audio.horror("high", 0.75));
+    cue("hunt", 13.6, () => audio.horror("bass", 0.5, { wet: 0.7 }));
     cue("lights", TITLE_AT, () => {
       audio.lightsOn();
       audio.boom();
