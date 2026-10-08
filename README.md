@@ -152,6 +152,7 @@ First-time visitors get a 50-second trailer, played live in the real Yard with t
 | **The zone** | Three shrinking circles with rising damage, timed to the 5:00 night. The next circle is sealed until it's announced. |
 | **Bots** | Empty seats become on-chain bots with the same vision and hearing as you. The host picks easy, medium or hard. |
 | **Storm** | Rain, and lightning that lights up the walls (never the players). Thunder rolls in a second later. |
+| **Sound** | Real recorded gunshots, reloads and racks, horror ambience under every night, and horror hits when someone steps into your light, when you die and when the lamps die. All CC0, credited in `app/public/sfx/CREDITS.txt`. Master, effects and music volume each go to 150%. |
 | **Feel** | Tracers, sparks and blood, hit markers, kill streak banners, recoil and hit shake, a sprint camera, walls that fade when they block your view. |
 | **Death** | The body buckles and falls back, the gun clatters away and the dropped torch lights it on the ground while the camera rises. Players you watch die stay where they fell. |
 | **Controls** | A key card opens at the start of every night (H brings it back), and prompts appear only when a key matters: reload on an empty mag, how to throw a new gadget, swap to a new gun. |
@@ -173,7 +174,7 @@ First-time visitors get a 50-second trailer, played live in the real Yard with t
 |---|---|
 | Gate | Create a room, a private room with a code, join by code, the staked table, open rooms to join |
 | Lobby | 3D pedestals per seat, host controls (seats, bot skill, solo or duos, make host, kick), invite link or room code |
-| Match | Countdown clock with the zone schedule, minimap and full map (Tab), phone controls (move stick, drag to look, labelled fire/scope/jump/crouch/reload/swap/gadget buttons), settings (Esc): sensitivity, invert, arrow-key camera, FOV, smoothing, crosshair style/colour/size, laser sight, graphics, storm, volume |
+| Match | Countdown clock with the zone schedule, minimap and full map (Tab), a fullscreen button (phones go fullscreen and sideways on their own), phone controls (move stick, drag to look, labelled fire/scope/jump/crouch/reload/swap/gadget buttons), settings (Esc): sensitivity, invert, arrow-key camera, FOV, smoothing, crosshair style/colour/size, laser sight, graphics, storm, master / effects / music volume |
 | Verdict | Results, replay, clip export, and a VERIFY tab that re-derives the night from its VRF seed in your browser |
 | Leaderboard | Staked nights only: wins and SOL won, written by the `settle` Magic Action |
 | How it works | The live *Try to cheat* console, every building block, the timeline and the permission matrix |
