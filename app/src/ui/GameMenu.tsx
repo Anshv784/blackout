@@ -382,7 +382,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
             )}
             {tab === "display" && (
               <>
-                {choice("Graphics", p.quality, [["high", "High"], ["low", "Low (faster)"]], (v) => setPref("quality", v))}
+                {choice("Graphics", p.quality, [["auto", `Auto · ${p.autoTier === "high" ? "High" : "Low"}`], ["high", "High"], ["low", "Low (faster)"]], (v) => setPref("quality", v))}
                 {toggle("Storm", p.weather, (v) => setPref("weather", v), "rain, lightning and thunder over the Yard")}
                 {range("Brightness", p.exposure, 0.7, 1.8, 0.05, (v) => setPref("exposure", v), (v) => `${Math.round((v / 1.1) * 100)}%`)}
                 {toggle("Player names", p.names, (v) => setPref("names", v))}

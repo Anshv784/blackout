@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { FullscreenButton } from "./Fullscreen";
+import { Settings } from "./GameMenu";
+import { controls } from "../game/controls";
 import { useStore } from "../game/store";
 import { saveName } from "../game/identity";
 import { disconnectWallet, requireWallet, saveWalletName } from "../game/wallet";
@@ -132,8 +134,32 @@ export function TopBar({ active }: { active?: "play" | "board" | "how" }) {
         <Callsign />
         <Wallet />
         <SoundToggle />
+        <SettingsButton />
         <FullscreenButton className="chip-btn" />
       </div>
     </header>
+  );
+}
+
+/** The same settings as in the night (controls, camera, crosshair, graphics, audio), from any page. */
+function SettingsButton() {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    controls.menu = open;
+    if (!open) return;
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    window.addEventListener("keydown", esc);
+    return () => window.removeEventListener("keydown", esc);
+  }, [open]);
+  return (
+    <>
+      <button className="chip-btn set-btn" title="Settings" aria-label="Settings" onClick={() => setOpen(true)}>
+        <svg viewBox="0 0 24 24" aria-hidden>
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+        </svg>
+      </button>
+      {open && <Settings onClose={() => setOpen(false)} />}
+    </>
   );
 }

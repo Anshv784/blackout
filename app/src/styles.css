@@ -2177,3 +2177,5 @@ button {
   .set-row em{font-size:10px}
   .set-tabs button{padding:6px 10px;font-size:13px}
 }
+.set-btn{display:inline-grid;place-items:center;padding:6px 9px}
+.set-btn svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
