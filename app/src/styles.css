@@ -1227,7 +1227,7 @@ button {
 .crosshair.hot b{background:#ff2e4d}
 .crosshair.firing .t{transform:translateY(-3px)}.crosshair.firing .b{transform:translateY(3px)}
 .crosshair.firing .l{transform:translateX(-3px)}.crosshair.firing .r{transform:translateX(3px)}
-@media (pointer:coarse){.crosshair{display:none}}
+/* phones aim with the camera too: the crosshair stays, dead centre */
 
 .lost-hint{position:absolute;left:50%;top:70%;transform:translateX(-50%);color:#8f97ab;font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;text-shadow:0 2px 10px #000;animation:fadein .3s}
 
@@ -2118,4 +2118,62 @@ button {
   .wgate-card .btn.huge{padding:11px;font-size:16px}
   .wgate-card .btn.wide{padding:9px}
   .guest-warn{font-size:11px}
+}
+
+/* ---------- phones sideways, in the night ---------- */
+/* any menu (map, settings, exit) takes over the screen: thumbs controls step aside */
+.game:has(.menu-overlay) .touch-ui{display:none}
+@media (max-height:520px) and (orientation:landscape){
+  /* map: as tall as the screen, words beside it */
+  .menu-overlay{padding:6px}
+  .map-card{display:grid;grid-template-columns:auto minmax(150px,1fr);grid-template-rows:auto 1fr;column-gap:16px;padding:10px 14px;max-height:calc(100dvh - 12px)}
+  .map-card .menu-head{grid-column:1 / -1;margin-bottom:6px}
+  .map-card .map-big{grid-row:2;width:auto!important;height:calc(100dvh - 76px)!important;aspect-ratio:1;max-width:none}
+  .map-card .map-legend{grid-row:2;grid-column:2;flex-direction:column;align-items:flex-start;gap:8px;font-size:12px}
+  .set-card{max-height:calc(100dvh - 12px);overflow-y:auto;padding:12px 14px}
+  .menu-head h3{font-size:15px}
+}
+@media (max-height:520px) and (orientation:landscape) and (pointer:coarse){
+  /* HUD: small minimap top-right, tools under the counters, ammo tucked in at the bottom */
+  .game.touch .minimap{width:72px!important;height:72px!important;top:8px;right:10px}
+  .game.touch .hud-top-left .chip-stat,.game.touch .chip-stat{padding:4px 8px}
+  .game.touch .game-tools{top:calc(max(8px, env(safe-area-inset-top)) + 40px)}
+  .game.touch .hud-loadout{left:auto;right:96px;bottom:8px;transform:scale(.48);transform-origin:bottom right}
+  .game.touch .hud-health{width:min(240px,30vw);bottom:6px}
+  .game.touch .compass{transform:translateX(-50%) scale(.72)}
+  .game.touch .hud-clock{top:34px;transform:translateX(-50%) scale(.72)}
+  /* the right-thumb arc starts below the minimap */
+  .tb-cluster .swap{bottom:170px;right:22px}
+  .tb-cluster .reload{bottom:116px;right:22px}
+  .tb-cluster .ads{bottom:150px;right:82px}
+  .tb-cluster .gadget{bottom:150px;right:142px}
+  .tb-cluster .crouch{bottom:92px;right:118px}
+  .tb-cluster .jump{bottom:34px;right:118px}
+  .tb{width:44px;height:44px}
+  .tb.fire{width:70px;height:70px}
+  .tb-cluster .fire{right:22px;bottom:22px}
+  .tb::after{font-size:7px}
+  /* lobby: seats on top, one compact row of controls at the bottom */
+  .dock{grid-template-columns:1.1fr auto 1.3fr!important;gap:8px!important;bottom:8px!important;top:auto!important;max-height:none!important;overflow:visible!important}
+  .dock-cell{padding:8px 10px!important;gap:4px!important}
+  .dock-cell.main{grid-column:auto!important;order:0!important;min-width:0!important}
+  .dock-cell.main .btn.huge{padding:12px 16px!important;font-size:15px!important;white-space:nowrap}
+  .dock-cell.invite code{font-size:10px}
+  .dock-cell .row .btn{height:28px!important;padding:0 9px!important;font-size:11px}
+  .night-set{font-size:11px}
+  .ns-grid{gap:4px!important}
+}
+@media (max-height:520px) and (orientation:landscape){
+  /* verdict: results stay visible on the right, the replay bar compact on the left */
+  .reveal-side{display:flex!important;width:230px;top:64px;bottom:8px;right:8px;gap:8px;font-size:12px}
+  .reveal-side .panel{padding:10px}
+  .replay-bar{right:248px!important;left:8px;bottom:8px;padding:6px 8px;gap:6px;flex-wrap:nowrap}
+  .replay-bar .btn{padding:6px 9px;font-size:11px;height:auto}
+  .reveal-top{padding:6px 10px}
+  .reveal-title{font-size:20px}
+  .reveal-actions .btn{padding:8px 12px;font-size:12px}
+  /* settings rows: tighter */
+  .set-row{padding:6px 0;font-size:13px}
+  .set-row em{font-size:10px}
+  .set-tabs button{padding:6px 10px;font-size:13px}
 }
