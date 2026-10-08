@@ -223,7 +223,7 @@ function MapOverlay({ session, room, onClose }: { session: Session; room: Room; 
 
 type Tab = "controls" | "camera" | "crosshair" | "display" | "audio";
 
-function Settings({ onClose }: { onClose: () => void }) {
+export function Settings({ onClose }: { onClose: () => void }) {
   const p = usePrefs();
   const [tab, setTab] = useState<Tab>("controls");
   const [, bump] = useState(0);

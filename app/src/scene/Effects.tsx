@@ -12,7 +12,7 @@ import { controls } from "../game/controls";
 import { audio } from "../game/audio";
 import { feel } from "../game/feel";
 import { MAP_W } from "../game/gen";
-import { prefs, usePrefs } from "../game/prefs";
+import { prefs, usePrefs, gfx } from "../game/prefs";
 
 // ------------------------------------------------------------------ sparks
 
@@ -32,7 +32,7 @@ const tmpColor = new THREE.Color();
 /** Fire `n` particles from (x, y, z) in world units. `dir` (radians) biases them, `spread` widens the fan. */
 export function sparks(x: number, y: number, z: number, color: string, n: number, opts: { speed?: number; dir?: number; spread?: number; up?: number; life?: number; grav?: number } = {}) {
   const { speed = 3, dir, spread = Math.PI, up = 1.2, life = 0.45, grav = 9 } = opts;
-  if (prefs.quality === "low") n = Math.ceil(n / 2);
+  if (gfx() === "low") n = Math.ceil(n / 2);
   tmpColor.set(color);
   for (let k = 0; k < n; k++) {
     const i = sp.next;
@@ -715,7 +715,7 @@ function SmokeAndBooms({ session }: { session: Session }) {
 
 export function Effects({ session }: { session: Session }) {
   const p = usePrefs();
-  const rich = p.quality === "high";
+  const rich = gfx(p) === "high";
   useEffect(() => {
     const t = setInterval(() => {
       const live = session.room?.status === ST_LIVE || session.room?.status === ST_COUNTDOWN;

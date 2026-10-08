@@ -10,7 +10,7 @@ import { stillMotion, type Motion } from "./Soldier";
 import type { Session } from "../game/session";
 import { ST_COUNTDOWN, ST_LIVE, ST_ENDED } from "../chain/layout";
 import { controls, wheelInput, gadgetCancel } from "../game/controls";
-import { prefs, usePrefs } from "../game/prefs";
+import { prefs, usePrefs, gfx, setPref } from "../game/prefs";
 import { feel } from "../game/feel";
 import { useStore } from "../game/store";
 import { Effects, sparks } from "./Effects";
@@ -1137,14 +1137,14 @@ function DisplayPrefs() {
   }, [gl]);
   useEffect(() => {
     gl.toneMappingExposure = p.exposure;
-    const shadows = p.quality === "high";
+    const shadows = gfx(p) === "high";
     if (gl.shadowMap.enabled !== shadows) {
       gl.shadowMap.enabled = shadows;
       scene.traverse((o: any) => {
         if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m: any) => (m.needsUpdate = true));
       });
     }
-  }, [p.exposure, p.quality]);
+  }, [p.exposure, p.quality, p.autoTier]);
   return null;
 }
 
@@ -1154,7 +1154,7 @@ export const GameScene = memo(function GameScene({ session }: { session: Session
   return (
     <Canvas
       shadows
-      dpr={TOUCH ? dpr : p.quality === "high" ? [1, 1.5] : 1}
+      dpr={TOUCH ? dpr : gfx(p) === "high" ? [1, 1.5] : 1}
       camera={{ fov: 46, position: [16, 30, 30], near: 0.1, far: 120 }}
       // phones: no MSAA (dense screens hide jaggies, and it's a big cost on mobile GPUs)
       gl={{ antialias: !TOUCH, powerPreference: "high-performance" }}
@@ -1182,8 +1182,24 @@ export const GameScene = memo(function GameScene({ session }: { session: Session
       <LaserSight session={session} />
       <DisplayPrefs />
       {/* phones: if the frame rate sags, render at 75% resolution (and back up when it recovers) */}
-      {TOUCH && <PerformanceMonitor onDecline={() => setDpr(0.75)} onIncline={() => setDpr(1)} flipflops={3} onFallback={() => setDpr(0.75)} />}
-      {p.quality === "high" && <Post session={session} />}
+      {/* Auto graphics: watch the real frame rate. Struggling → Low (phones also drop to 75% pixels);
+          plenty of headroom → back to High (not on phones). What it settles on is remembered. */}
+      <PerformanceMonitor
+        flipflops={4}
+        onDecline={() => {
+          if (TOUCH) setDpr(0.75);
+          if (prefs.quality === "auto" && prefs.autoTier !== "low") setPref("autoTier", "low");
+        }}
+        onIncline={() => {
+          if (TOUCH) setDpr(1);
+          else if (prefs.quality === "auto" && prefs.autoTier !== "high") setPref("autoTier", "high");
+        }}
+        onFallback={() => {
+          if (TOUCH) setDpr(0.75);
+          if (prefs.quality === "auto") setPref("autoTier", "low");
+        }}
+      />
+      {gfx(p) === "high" && <Post session={session} />}
     </Canvas>
   );
 });

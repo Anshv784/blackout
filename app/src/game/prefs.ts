@@ -18,7 +18,8 @@ export interface Prefs {
   xColor: string;
   xSize: number;
   // display
-  quality: "high" | "low";
+  quality: "auto" | "high" | "low"; // auto: picked from the device, then from the frame rate
+  autoTier: "high" | "low"; // what auto settled on (remembered)
   exposure: number;
   names: boolean;
   netStats: boolean;
@@ -44,8 +45,8 @@ export const DEFAULT_PREFS: Prefs = {
   xStyle: "cross",
   xColor: "#ffd166",
   xSize: 1,
-  // phones start on low (no rain particles, no dust, 1x pixels); it can be raised in settings
-  quality: typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches ? "low" : "high",
+  quality: "auto",
+  autoTier: detectTier(),
   exposure: 1.1,
   names: true,
   netStats: true,
@@ -59,6 +60,29 @@ export const DEFAULT_PREFS: Prefs = {
 
 const KEY = "bo-prefs-v1";
 
+/** A first guess at what this device can run: phones, few cores, little memory, or a software /
+ *  low-end GPU get Low. The game then corrects it from the real frame rate. */
+export function detectTier(): "high" | "low" {
+  try {
+    if (matchMedia("(pointer: coarse)").matches) return "low";
+    const cores = navigator.hardwareConcurrency || 4;
+    const mem = (navigator as any).deviceMemory as number | undefined;
+    if (cores <= 4 || (mem !== undefined && mem <= 4)) return "low";
+    const gl = document.createElement("canvas").getContext("webgl");
+    const ext = gl?.getExtension("WEBGL_debug_renderer_info");
+    const gpu = ext ? String(gl!.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : "";
+    if (/swiftshader|llvmpipe|software|microsoft basic|intel.*(hd|uhd) graphics [2-6]/i.test(gpu)) return "low";
+    return "high";
+  } catch {
+    return "high";
+  }
+}
+
+/** The graphics level in effect right now. */
+export function gfx(p: { quality: Prefs["quality"]; autoTier: Prefs["autoTier"] } = prefs): "high" | "low" {
+  return p.quality === "auto" ? p.autoTier : p.quality;
+}
+
 export const prefs: Prefs = (() => {
   try {
     return { ...DEFAULT_PREFS, ...JSON.parse(localStorage.getItem(KEY) || "{}") };
@@ -67,11 +91,12 @@ export const prefs: Prefs = (() => {
   }
 })();
 
-// phones: an older migration saved "high" for everyone; put phones on low once (settings can raise it)
+// graphics became automatic: everyone moves to Auto once (they can still pick High or Low)
 try {
-  if (typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches && !localStorage.getItem("bo-mobile-low-v1")) {
-    prefs.quality = "low";
-    localStorage.setItem("bo-mobile-low-v1", "1");
+  if (!localStorage.getItem("bo-gfx-auto-v1")) {
+    prefs.quality = "auto";
+    prefs.autoTier = detectTier();
+    localStorage.setItem("bo-gfx-auto-v1", "1");
     localStorage.setItem(KEY, JSON.stringify(prefs));
   }
 } catch {
