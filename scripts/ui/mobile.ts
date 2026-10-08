@@ -20,6 +20,7 @@ import { chromium } from "playwright";
   await p.screenshot({ path: "demo/m-countdown.png" });
   await p.locator(".compass").waitFor({ timeout: 90000 });
   await p.waitForTimeout(3000);
+  await p.locator(".night-card").waitFor({ state: "detached", timeout: 90000 });
   await p.screenshot({ path: "demo/m-live.png" });
   // touches are synthesised on the element so several fingers can be down at once
   const touch = (sel: string, type: string, x: number, y: number, id: number) =>

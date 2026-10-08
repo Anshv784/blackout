@@ -357,7 +357,8 @@ function floorTexture() {
 function Lamps() {
   // every lamp head glows, but only the 6 nearest the camera cast real light: a fixed number
   // of lights (no shader recompiles) and far fewer per-pixel light loops
-  const N = 6;
+  // every light costs on every pixel: phones light only the 3 nearest lamps
+  const N = typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches ? 3 : 6;
   const lights = useRef<(THREE.PointLight | null)[]>([]);
   const heads = useRef<(THREE.MeshBasicMaterial | null)[]>([]);
   const { camera } = useThree();

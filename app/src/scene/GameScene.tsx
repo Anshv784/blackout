@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Html } from "@react-three/drei";
+import { Html, PerformanceMonitor } from "@react-three/drei";
 import { EffectComposer, Bloom, Vignette, Noise, ChromaticAberration } from "@react-three/postprocessing";
 import { BlendFunction } from "postprocessing";
 import * as THREE from "three";
@@ -25,6 +25,8 @@ const LOOT_LABEL = ["", "MEDKIT", "ARMOR", "UMP", "S12K", "FLARE", "M416", "KAR9
 const COOLDOWN_MS = [350, 100, 800, 150, 1500];
 // crosshair kick per shot (vertical, horizontal jitter) — PUBG-style: you pull it back down
 const RECOIL = [[0.02, 0.004], [0.009, 0.006], [0.045, 0.01], [0.013, 0.005], [0.07, 0.002]];
+
+const TOUCH = typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches;
 
 function beamMaterial() {
   return new THREE.ShaderMaterial({
@@ -693,7 +695,7 @@ function Fx({ session }: { session: Session }) {
           <meshBasicMaterial transparent opacity={0} toneMapped={false} side={THREE.DoubleSide} />
         </mesh>
       ))}
-      {Array.from({ length: 3 }, (_, i) => (
+      {Array.from({ length: TOUCH ? 1 : 3 }, (_, i) => (
         <pointLight key={i} ref={(el) => (flashes.current[i] = el)} color="#ffb347" intensity={0} distance={4} decay={1.5} />
       ))}
     </>
@@ -1136,14 +1138,13 @@ function DisplayPrefs() {
   return null;
 }
 
-const TOUCH = typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches;
-
 export const GameScene = memo(function GameScene({ session }: { session: Session }) {
   const p = usePrefs();
+  const [dpr, setDpr] = useState(1);
   return (
     <Canvas
       shadows
-      dpr={p.quality === "high" ? [1, 1.5] : 1}
+      dpr={TOUCH ? dpr : p.quality === "high" ? [1, 1.5] : 1}
       camera={{ fov: 46, position: [16, 30, 30], near: 0.1, far: 120 }}
       // phones: no MSAA (dense screens hide jaggies, and it's a big cost on mobile GPUs)
       gl={{ antialias: !TOUCH, powerPreference: "high-performance" }}
@@ -1170,6 +1171,8 @@ export const GameScene = memo(function GameScene({ session }: { session: Session
       <FpsMeter />
       <LaserSight session={session} />
       <DisplayPrefs />
+      {/* phones: if the frame rate sags, render at 75% resolution (and back up when it recovers) */}
+      {TOUCH && <PerformanceMonitor onDecline={() => setDpr(0.75)} onIncline={() => setDpr(1)} flipflops={3} onFallback={() => setDpr(0.75)} />}
       {p.quality === "high" && <Post session={session} />}
     </Canvas>
   );
