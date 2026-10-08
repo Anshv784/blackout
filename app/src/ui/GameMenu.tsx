@@ -304,6 +304,8 @@ function Settings({ onClose }: { onClose: () => void }) {
                 setSetting("topZoom", 14);
                 setLaser(false);
                 audio.setVolume(DEFAULT_PREFS.volume);
+                audio.setSfxVolume(DEFAULT_PREFS.sfxVol);
+                audio.setMusicVolume(DEFAULT_PREFS.musicVol);
                 refresh();
               }}
             >
@@ -388,7 +390,9 @@ function Settings({ onClose }: { onClose: () => void }) {
             {tab === "audio" && (
               <>
                 {toggle("Sound", !muted, (on) => audio.setMuted(!on), "M toggles it in game")}
-                {range("Volume", p.volume, 0, 1, 0.05, (v) => audio.setVolume(v), (v) => `${Math.round(v * 100)}%`)}
+                {range("Master volume", p.volume, 0, 1.5, 0.05, (v) => audio.setVolume(v), (v) => `${Math.round(v * 100)}%`)}
+                {range("Guns & effects", p.sfxVol, 0, 1.5, 0.05, (v) => audio.setSfxVolume(v), (v) => `${Math.round(v * 100)}%`)}
+                {range("Music & ambience", p.musicVol, 0, 1.5, 0.05, (v) => audio.setMusicVolume(v), (v) => `${Math.round(v * 100)}%`)}
               </>
             )}
           </div>
