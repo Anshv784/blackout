@@ -228,7 +228,7 @@ export function Hud({ session }: { session: Session }) {
           {view.inv.sec >= 0 && <em>{view.inv.secMag}</em>}
           <kbd>X</kbd>
         </div>
-        <div className={`lo-slot main ${me.mag === 0 && me.reload === 0 ? "empty-mag" : ""}`} title={WEAPON_NAME[me.weapon]}>
+        <div key={me.weapon} className={`lo-slot main swapped ${me.mag === 0 && me.reload === 0 ? "empty-mag" : ""}`} title={WEAPON_NAME[me.weapon]}>
           <GunIcon weapon={me.weapon} />
           <div className="lo-ammo">
             {me.reload > 0 ? (

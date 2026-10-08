@@ -713,6 +713,16 @@ class Audio {
     this.tick(2900, 0.1, 0.95);
   }
 
+  /** slinging one gun and bringing up the other: strap rattle, then the new one seated */
+  swap() {
+    if (this.play("mag_out", { vol: 0.28, rate: 1.4, wet: 0.05 })) {
+      this.play("rack", { vol: 0.32, rate: 1.15, delay: 0.26, wet: 0.05 });
+      return;
+    }
+    this.tick(1800, 0.06);
+    this.tick(2600, 0.07, 0.25);
+  }
+
   /** you got hit: a dull body thud and a sharp intake */
   hurt() {
     this.thump({ f0: 160, f1: 50, dur: 0.18, vol: 0.55, wet: 0.1 });

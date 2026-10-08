@@ -134,6 +134,15 @@ export function Soldier({ color: _color, weapon = 0, ghost = false, motion }: { 
   const crouchK = useRef(0);
   const landed = useRef(false); // the fallen pose has been drawn at least once
   const [torchOn, setTorchOn] = useState(false);
+  // swapping guns: the old one drops away, the new one comes up (shown gun lags the real one)
+  const [shown, setShown] = useState(weapon);
+  const swapAt = useRef(-1);
+  useEffect(() => {
+    if (weapon === shown) return;
+    swapAt.current = performance.now();
+    const t = setTimeout(() => setShown(weapon), 220);
+    return () => clearTimeout(t);
+  }, [weapon]);
   const pool = useRef<THREE.Mesh>(null);
   const lastFire = useRef(false);
   const target = useMemo(() => new THREE.Vector3(), []);
@@ -234,6 +243,16 @@ export function Soldier({ color: _color, weapon = 0, ghost = false, motion }: { 
     if (gunRef.current) {
       gunRef.current.position.set(GUN_POS.x - kick.current * 0.07, GUN_POS.y + kick.current * 0.02 + (m.downed ? 0 : lift), GUN_POS.z);
       gunRef.current.rotation.set(0, 0, kick.current * 0.12);
+      // the swap: 0.45 s, gun dips muzzle-down and out to the side, then back up into the shoulder
+      const sp = swapAt.current < 0 ? 1 : (performance.now() - swapAt.current) / 450;
+      if (sp < 1) {
+        const s = Math.sin(sp * Math.PI);
+        gunRef.current.position.y -= 0.38 * s;
+        gunRef.current.position.x -= 0.12 * s;
+        gunRef.current.position.z += 0.1 * s;
+        gunRef.current.rotation.z -= 1.1 * s;
+        gunRef.current.rotation.x += 0.5 * s;
+      }
       gunRef.current.visible = !m.downed;
     }
     if (m.downed) return;
@@ -274,7 +293,7 @@ export function Soldier({ color: _color, weapon = 0, ghost = false, motion }: { 
       </mesh>
       <group ref={gunRef} position={GUN_POS.toArray()}>
         <group position={[-0.17, 0, -0.12]} scale={0.85}>
-          <Gun weapon={weapon} ghost={ghost} torch={torchOn} />
+          <Gun weapon={shown} ghost={ghost} torch={torchOn} />
         </group>
       </group>
     </group>
