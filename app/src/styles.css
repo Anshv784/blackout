@@ -1451,6 +1451,7 @@ button {
 .wm-profile b{letter-spacing:.08em}
 .wm-profile span{font-size:11px;color:var(--dim)}
 .wgate{position:fixed;inset:0;z-index:90;display:grid;place-items:center;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);animation:fadein .3s}
+.wgate-head,.wgate-body{display:flex;flex-direction:column;gap:12px}
 .wgate-card{width:min(460px,calc(100vw - 32px));background:rgba(8,10,16,.96);border:1px solid var(--line);border-radius:22px;padding:28px;text-align:center;display:flex;flex-direction:column;gap:12px;align-items:stretch;box-shadow:0 30px 80px rgba(0,0,0,.6)}
 .wgate-eye{width:64px;height:64px;margin:0 auto 4px;border-radius:50%;background:radial-gradient(circle,#ffe9b0 0 10%,#3a2a10 22%,#000 62%);box-shadow:0 0 40px rgba(166,77,255,.35),inset 0 0 0 1px rgba(166,77,255,.5);animation:pulse 3s infinite}
 .wgate-card h2{margin:0;font-size:24px}
@@ -2095,3 +2096,26 @@ button {
 }
 .intro-loading i span.indeterminate{width:35%;animation:indet 1.1s ease-in-out infinite}
 @keyframes indet{0%{transform:translateX(-100%)}100%{transform:translateX(290%)}}
+.lo-slot.main.swapped{animation:swapin .35s cubic-bezier(.2,1.2,.4,1) both}
+@keyframes swapin{from{opacity:0;transform:translateY(14px) scale(.96)}to{opacity:1;transform:none}}
+
+/* ---------- the wallet / guest card: always scrollable, two columns when sideways ---------- */
+.wgate{overflow-y:auto;padding:12px 0;align-items:start}
+.wgate-card{margin:auto}
+@media (max-height:520px) and (orientation:landscape){
+  .wgate{padding:8px 0}
+  .wgate-card{width:min(760px,calc(100vw - 24px));padding:16px 18px;gap:8px;display:grid;grid-template-columns:1fr 1.1fr;column-gap:20px;align-items:start;text-align:left;border-radius:16px}
+  /* words on the left, the choices on the right */
+  .wgate-card > .wgate-eye{display:none}
+  .wgate-card > .wgate-head{grid-column:1}
+  .wgate-card > .wgate-body{grid-column:2}
+  .wgate-card > :not(.wgate-head):not(.wgate-body):not(.wgate-eye){grid-column:1 / -1}
+  .wgate-eye{width:40px;height:40px;margin:0}
+  .wgate-card h2{font-size:19px}
+  .wgate-card p{font-size:12px;line-height:1.45}
+  .wgate-list{gap:6px;margin:0}
+  .wgate-wallet{padding:9px 12px;font-size:13px}
+  .wgate-card .btn.huge{padding:11px;font-size:16px}
+  .wgate-card .btn.wide{padding:9px}
+  .guest-warn{font-size:11px}
+}

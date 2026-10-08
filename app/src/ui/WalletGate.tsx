@@ -56,8 +56,11 @@ export function WalletGate() {
         <div className="wgate-eye" />
         {!wallet && guestStep && !gate.walletOnly ? (
           <>
-            <div className="vc-kicker">PLAYING AS A GUEST</div>
-            <h2>Pick a callsign</h2>
+            <div className="wgate-head">
+              <div className="vc-kicker">PLAYING AS A GUEST</div>
+              <h2>Pick a callsign</h2>
+            </div>
+            <div className="wgate-body">
             <input
               className="wgate-input"
               autoFocus
@@ -75,9 +78,11 @@ export function WalletGate() {
             <a className="side-link" onClick={() => setGuestStep(false)}>
               ← connect a wallet instead
             </a>
+            </div>
           </>
         ) : !wallet ? (
           <>
+            <div className="wgate-head">
             <div className="vc-kicker">{gate.walletOnly ? "STAKED NIGHT" : "WHO GOES THERE?"}</div>
             <h2>{gate.walletOnly ? "Staked nights need a wallet" : "Enter the Yard"}</h2>
             <p>
@@ -85,6 +90,8 @@ export function WalletGate() {
                 ? "Every staker puts in the same amount and the winner takes the whole pot, paid straight to their wallet on Solana. Connect one to sit at the table."
                 : "Connect a wallet to keep your callsign, play staked nights and get ranked on the leaderboard (staked wins only). Or jump straight in as a guest. Either way, playing is free and gasless, with no popups mid-match."}
             </p>
+            </div>
+            <div className="wgate-body">
             <div className="wgate-list">
               {WALLETS.map((w) => {
                 const installed = !!w.get();
@@ -134,6 +141,7 @@ export function WalletGate() {
             <small>Guests play the same game — but nothing is saved and you're not ranked. Devnet only; we never ask you to sign a payment to play.</small>
               </>
             )}
+            </div>
           </>
         ) : needsName ? (
           <>
