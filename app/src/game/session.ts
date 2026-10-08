@@ -507,7 +507,7 @@ export class Session {
       this.addFx({ kind: "loot", x: v.me.x, y: v.me.y, sub: what });
       banner(["", WEAPON_NAME[v.me.weapon] ?? "WEAPON", "+ HEALTH", "+ ARMOR", "FLARE: YOU SEE EVERYONE"][what], "event", what === 1 ? FIRE_MODE[v.me.weapon] : undefined);
     }
-    if (prev && prev.me.reload === 0 && v.me.reload > 0) audio.reload();
+    if (prev && prev.me.reload === 0 && v.me.reload > 0) audio.reload(v.me.weapon);
     useStore.getState().set({ view: v });
   }
 

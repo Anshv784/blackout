@@ -1,0 +1,10 @@
+All recordings here are CC0 / public domain (no attribution required). Credited anyway, with thanks:
+
+shot_9mm, shot_308, shot_20g, mag_out, mag_in, rack, shell_load, bolt_load, dry_fire
+  Snake's SECOND Authentic Gun Sounds Pack, by f8studios (Snake) - https://f8studios.itch.io/snakes-second-authentic-gun-sounds-pack
+
+amb_passage   "Abandoned Passages (Horror Ambience Loop)" by congusbongus - https://opengameart.org/content/abandoned-passages-horror-ambience-loop
+amb_hell      "The Depths of Hell" from Ambience Pack 1 -- Sci Fi Horror, by Joth - https://opengameart.org/content/ambience-pack-1-sci-fi-horror
+amb_cryptid   "Cage of the Cryptid" from Ambience Pack 1 -- Sci Fi Horror, by Joth - same page
+
+Trimmed, normalised and re-encoded to mono/stereo MP3 for the web.

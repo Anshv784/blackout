@@ -33,6 +33,9 @@ export function Intro({ onDone }: { onDone: () => void }) {
 
   const finish = () => {
     audio.setHeartbeat(0);
+    // the story's score gives way to the Yard's own dread
+    audio.stopAmbience();
+    setTimeout(() => audio.startAmbience(1), 400);
     try {
       localStorage.setItem("bo-intro-seen", "1");
     } catch {
@@ -53,7 +56,8 @@ export function Intro({ onDone }: { onDone: () => void }) {
         className="intro"
         onClick={() => {
           audio.unlock();
-          audio.startAmbience(1);
+          audio.stopAmbience(); // the page's first tap may already have started the night's bed
+          audio.startAmbience(1, true);
           fullscreenOnTouch();
           setStarted(true);
         }}

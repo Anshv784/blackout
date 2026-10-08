@@ -4,10 +4,24 @@
 
 import { prefs, setPref } from "./prefs";
 
+/** recorded horror hits (stingers, screams, slams), in public/sfx as hit_*.mp3 */
+const HITS: string[] = [];
+
+// each gun: [recording, pitch, loudness]. .308 for both rifles (the M416 a touch higher and lighter)
+const GUN_SAMPLE: [string, number, number][] = [
+  ["shot_9mm", 1.0, 0.8], // P92
+  ["shot_9mm", 1.12, 0.7], // UMP
+  ["shot_20g", 1.0, 1.0], // S12K
+  ["shot_308", 1.14, 0.8], // M416
+  ["shot_308", 0.94, 1.0], // KAR98K
+];
+
 class Audio {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   private dry: GainNode | null = null;
+  private sfx: GainNode | null = null;
+  private music: GainNode | null = null;
   private wet: GainNode | null = null;
   private verb: ConvolverNode | null = null;
   muted = (() => {
@@ -22,10 +36,20 @@ class Audio {
     this.listeners.add(f);
     return () => this.listeners.delete(f);
   }
-  /** Master volume from the settings menu (0..1). */
+  /** Master volume from the settings menu (0..1.5). */
   setVolume(v: number) {
     setPref("volume", v);
     if (this.master && !this.muted) this.master.gain.setTargetAtTime(v, this.ctx!.currentTime, 0.05);
+  }
+  /** Guns, steps, hits. */
+  setSfxVolume(v: number) {
+    setPref("sfxVol", v);
+    if (this.sfx) this.sfx.gain.setTargetAtTime(v, this.ctx!.currentTime, 0.05);
+  }
+  /** The night's ambience and music. */
+  setMusicVolume(v: number) {
+    setPref("musicVol", v);
+    if (this.music) this.music.gain.setTargetAtTime(v, this.ctx!.currentTime, 0.05);
   }
   toggleMute() {
     this.setMuted(!this.muted);
@@ -44,18 +68,31 @@ class Audio {
       this.ctx = c;
       this.master = c.createGain();
       this.master.gain.value = this.muted ? 0 : prefs.volume;
+      // make-up gain into a limiter: loud, but a frag next to you never clips
+      const makeup = c.createGain();
+      makeup.gain.value = 1.8;
       const comp = c.createDynamicsCompressor();
-      comp.threshold.value = -16;
-      comp.ratio.value = 4;
-      this.master.connect(comp).connect(c.destination);
+      comp.threshold.value = -9;
+      comp.knee.value = 6;
+      comp.ratio.value = 12;
+      comp.attack.value = 0.003;
+      comp.release.value = 0.18;
+      this.master.connect(makeup).connect(comp).connect(c.destination);
+      this.sfx = c.createGain();
+      this.sfx.gain.value = prefs.sfxVol;
+      this.sfx.connect(this.master);
+      this.music = c.createGain();
+      this.music.gain.value = prefs.musicVol;
+      this.music.connect(this.master);
       this.dry = c.createGain();
       this.dry.gain.value = 0.85;
       this.wet = c.createGain();
       this.wet.gain.value = 0.55;
       this.verb = c.createConvolver();
       this.verb.buffer = this.impulse(3.8, 2.6);
-      this.dry.connect(this.master);
-      this.wet.connect(this.verb).connect(this.master);
+      this.dry.connect(this.sfx);
+      this.wet.connect(this.verb).connect(this.sfx);
+      this.preload();
     } catch {
       this.ctx = null;
     }
@@ -156,21 +193,101 @@ class Audio {
     n.stop(t + dur + 0.02);
   }
 
+  // ------------------------------------------------------------ recorded sounds
+  // CC0: real gunshots and handling from Snake's Second Authentic Gun Sounds; horror beds and
+  // hits from OpenGameArt (see public/sfx/CREDITS.txt). Synthesis fills in until they load.
+
+  private bufs2 = new Map<string, AudioBuffer>();
+  private loading = new Set<string>();
+  private load(name: string) {
+    const c = this.ctx;
+    if (!c || this.bufs2.has(name) || this.loading.has(name)) return;
+    this.loading.add(name);
+    fetch(`/sfx/${name}.mp3`)
+      .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(r.status)))
+      .then((a) => c.decodeAudioData(a))
+      .then((b) => this.bufs2.set(name, b))
+      .catch(() => {})
+      .finally(() => this.loading.delete(name));
+  }
+  private preload() {
+    for (const n of ["shot_9mm", "shot_308", "shot_20g", "mag_out", "mag_in", "rack", "shell_load", "bolt_load", "dry_fire", ...HITS]) this.load(n);
+  }
+  has(name: string) {
+    return this.bufs2.has(name);
+  }
+
+  /** Play a recorded sound through the effects bus. `lp` darkens it (distance), `rate` repitches. */
+  play(name: string, o: { vol?: number; pan?: number; rate?: number; wet?: number; delay?: number; lp?: number } = {}) {
+    const c = this.ensure();
+    const b = this.bufs2.get(name);
+    if (!c || this.muted || !b) return false;
+    const t = c.currentTime + (o.delay ?? 0);
+    const src = c.createBufferSource();
+    src.buffer = b;
+    src.playbackRate.value = o.rate ?? 1;
+    const g = this.out(o.pan ?? 0, o.vol ?? 1, o.wet ?? 0.25);
+    if (o.lp && o.lp < 18000) {
+      const f = c.createBiquadFilter();
+      f.type = "lowpass";
+      f.frequency.value = o.lp;
+      src.connect(f).connect(g);
+    } else src.connect(g);
+    src.start(t);
+    return true;
+  }
+
+  private loops = new Map<string, { gain: GainNode; src: AudioBufferSourceNode }>();
+  /** A looping bed on the music bus, faded in. Waits for the file if it isn't loaded yet. */
+  startLoop(name: string, vol: number, fade = 3) {
+    const c = this.ensure();
+    if (!c || this.loops.has(name)) return;
+    this.load(name);
+    const go = () => {
+      const b = this.bufs2.get(name);
+      if (!b) return void setTimeout(go, 300);
+      if (this.loops.has(name) || !this.music) return;
+      const src = c.createBufferSource();
+      src.buffer = b;
+      src.loop = true;
+      const g = c.createGain();
+      g.gain.value = 0;
+      g.gain.linearRampToValueAtTime(vol, c.currentTime + fade);
+      src.connect(g).connect(this.music);
+      src.start();
+      this.loops.set(name, { gain: g, src });
+    };
+    go();
+  }
+  stopLoop(name: string, fade = 2) {
+    const l = this.loops.get(name);
+    const c = this.ctx;
+    if (!l || !c) return;
+    this.loops.delete(name);
+    l.gain.gain.setTargetAtTime(0, c.currentTime, fade / 3);
+    setTimeout(() => l.src.stop(), fade * 1000 + 200);
+  }
+
   // ------------------------------------------------------------ ambience
 
   /** The bed: detuned sub drone, wind gusts, and a slow-breathing filter. */
-  startAmbience(intensity = 1) {
+  startAmbience(intensity = 1, story = false) {
     const c = this.ensure();
     if (!c || this.ambience) return;
+    // the recorded dread: a cramped dark passage under a slow drone from somewhere below
+    if (story) this.startLoop("amb_cryptid", 0.85 * intensity, 4);
+    else {
+      this.startLoop("amb_passage", 0.75 * intensity, 4);
+      this.startLoop("amb_hell", 0.45 * intensity, 8);
+    }
     const bus = c.createGain();
     bus.gain.value = 0;
-    bus.gain.linearRampToValueAtTime(0.5 * intensity, c.currentTime + 4);
+    bus.gain.linearRampToValueAtTime(0.28 * intensity, c.currentTime + 4);
     const lp = c.createBiquadFilter();
     lp.type = "lowpass";
     lp.frequency.value = 420;
     bus.connect(lp);
-    const send = this.out(0, 1, 0.6);
-    lp.connect(send);
+    lp.connect(this.music!);
     const nodes: AudioScheduledSourceNode[] = [];
     for (const [f, type, v] of [[41.2, "sawtooth", 0.18], [41.9, "sawtooth", 0.16], [61.7, "triangle", 0.1], [98, "sine", 0.03]] as const) {
       const o = c.createOscillator();
@@ -219,6 +336,7 @@ class Audio {
   }
 
   stopAmbience() {
+    for (const n of ["amb_cryptid", "amb_passage", "amb_hell"]) this.stopLoop(n);
     this.ambience?.stop();
     this.ambience = null;
   }
@@ -452,6 +570,16 @@ class Audio {
   shotAt(weapon: number, dist = 0, pan = 0) {
     const c = this.ensure();
     if (!c || this.muted) return;
+    // a real gun: close is a sharp crack, far is a dull thud rolling off the walls
+    const [smp, rate, gunLoud] = GUN_SAMPLE[weapon] ?? GUN_SAMPLE[0];
+    if (this.has(smp)) {
+      const far = Math.min(1, dist / 28);
+      const jitter = 1 + (Math.random() - 0.5) * 0.06;
+      this.play(smp, { vol: gunLoud * (1 - far * 0.7), pan, rate: rate * jitter * (1 - far * 0.08), wet: 0.12 + far * 0.6, lp: 16000 * Math.pow(1 - far, 2) + 700 });
+      if (dist === 0 && weapon === 4) this.play("rack", { vol: 0.5, rate: 0.8, delay: 0.55, wet: 0.05 }); // work the bolt
+      if (dist === 0 && weapon === 2) this.play("rack", { vol: 0.55, rate: 0.62, delay: 0.32, wet: 0.05 }); // rack the pump
+      return;
+    }
     // [crack freq, body freq, body len, thump f0, thump len, tail len, loudness]
     const P = [
       [3600, 1100, 0.07, 150, 0.12, 0.7, 0.8], // P92: dry snap
@@ -555,7 +683,21 @@ class Audio {
   }
 
   /** mag out, mag in, charge */
-  reload() {
+  reload(weapon = 0) {
+    if (this.has("mag_out")) {
+      if (weapon === 2) {
+        for (let i = 0; i < 3; i++) this.play("shell_load", { vol: 0.8, delay: 0.1 + i * 0.42, wet: 0.08, rate: 0.97 + Math.random() * 0.06 });
+        this.play("rack", { vol: 0.7, rate: 0.62, delay: 1.45, wet: 0.08 });
+      } else if (weapon === 4) {
+        this.play("bolt_load", { vol: 0.85, delay: 0.05, wet: 0.08 });
+        this.play("rack", { vol: 0.6, rate: 0.8, delay: 1.2, wet: 0.08 });
+      } else {
+        this.play("mag_out", { vol: 0.8, wet: 0.08 });
+        this.play("mag_in", { vol: 0.85, delay: 0.6, wet: 0.08 });
+        this.play("rack", { vol: 0.75, delay: 1.05, wet: 0.08, rate: weapon === 0 ? 1.05 : 0.95 });
+      }
+      return;
+    }
     this.tick(2400, 0.1, 0);
     this.hit({ kind: "white", dur: 0.08, type: "bandpass", f: 1200, q: 2, vol: 0.1, wet: 0.1, delay: 0.05 });
     this.thump({ f0: 220, f1: 120, dur: 0.06, vol: 0.18, delay: 0.55, wet: 0.1 });

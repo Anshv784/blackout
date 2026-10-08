@@ -24,7 +24,9 @@ export interface Prefs {
   netStats: boolean;
   mapSize: number;
   // audio
-  volume: number; // 0..1
+  volume: number; // master, 0..1.5 (above 1 boosts)
+  sfxVol: number; // guns, steps, hits, 0..1.5
+  musicVol: number; // the night's ambience and music, 0..1.5
 }
 
 export const DEFAULT_PREFS: Prefs = {
@@ -46,7 +48,9 @@ export const DEFAULT_PREFS: Prefs = {
   names: true,
   netStats: true,
   mapSize: 140,
-  volume: 0.7,
+  volume: 1,
+  sfxVol: 1,
+  musicVol: 0.9,
 };
 
 const KEY = "bo-prefs-v1";
@@ -58,6 +62,17 @@ export const prefs: Prefs = (() => {
     return { ...DEFAULT_PREFS };
   }
 })();
+
+// it used to be too quiet: lift older saved volumes once
+try {
+  if (!localStorage.getItem("bo-vol-v2")) {
+    prefs.volume = Math.max(prefs.volume, DEFAULT_PREFS.volume);
+    localStorage.setItem("bo-vol-v2", "1");
+    localStorage.setItem(KEY, JSON.stringify(prefs));
+  }
+} catch {
+  /* ignore */
+}
 
 // the cross is the crosshair everyone starts with: reset older saved styles once
 try {
