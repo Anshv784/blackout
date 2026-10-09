@@ -2212,3 +2212,12 @@ button {
   .ns-step b{font-size:15px}
   .night-set .seg button{padding:4px 8px;font-size:11px}
 }
+/* podium crests */
+.rank-crest{width:74px;height:86px;filter:drop-shadow(0 6px 18px color-mix(in srgb,var(--m) 45%,transparent));animation:crestfloat 4s ease-in-out infinite}
+.pod.p1 .rank-crest{width:96px;height:112px;filter:drop-shadow(0 8px 28px rgba(255,209,102,.5))}
+.rank-crest.dim{filter:grayscale(.7) brightness(.6);animation:none}
+.crest-shine{animation:crestshine 4.5s ease-in-out infinite}
+.rank-crest.p2 .crest-shine{animation-delay:1.2s}.rank-crest.p3 .crest-shine{animation-delay:2.1s}
+@keyframes crestshine{0%,60%{transform:skewX(-18deg) translateX(0)}100%{transform:skewX(-18deg) translateX(240px)}}
+@keyframes crestfloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+@media (prefers-reduced-motion:reduce){.rank-crest,.crest-shine{animation:none}}

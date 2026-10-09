@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from "react";
+import { RankCrest } from "./RankCrest";
 import { TopBar } from "./TopBar";
 import { client } from "../game/identity";
 import { useStore } from "../game/store";
@@ -117,7 +118,7 @@ export function Board() {
               {["II", "I", "III"].map((r, i) => (
                 <div key={r} className={`pod ${i === 1 ? "p1" : ""}`} style={{ ["--m" as any]: MEDAL[[1, 0, 2][i]] }}>
                   <div className="pod-rank">{r}</div>
-                  <div className="pod-orb" />
+                  <RankCrest place={[1, 0, 2][i] as 0 | 1 | 2} dim />
                   <div className="pod-name">?</div>
                   <code>unclaimed</code>
                 </div>
@@ -137,12 +138,12 @@ export function Board() {
               return (
                 <div key={k} className={`pod p${i + 1} ${mine.has(k) ? "me" : ""}`} style={{ ["--m" as any]: MEDAL[i] }}>
                   <div className="pod-rank">{["I", "II", "III"][i]}</div>
-                  <div className="pod-orb" />
+                  <RankCrest place={i as 0 | 1 | 2} />
                   <div className="pod-name">{e.name || aliasFor(k)}</div>
                   <code>{short(k)}</code>
                   <div className="pod-stats">
                     <span>
-                      <b>{e.wins}</b> wins
+                      <b>{e.wins}</b> {e.wins === 1 ? "win" : "wins"}
                     </span>
                     <span>
                       <b>{(Number(e.earned) / 1e9).toFixed(2)}</b> SOL
