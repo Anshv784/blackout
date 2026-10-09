@@ -2179,3 +2179,36 @@ button {
 }
 .set-btn{display:inline-grid;place-items:center;padding:6px 9px}
 .set-btn svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+/* ---------- lag check ---------- */
+.lag-chip{position:absolute;left:16px;top:calc(max(14px, env(safe-area-inset-top)) + 50px);z-index:6;display:flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;background:rgba(6,8,13,.7);border:1px solid rgba(255,255,255,.1);color:#9aa3b6;font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;cursor:pointer;pointer-events:auto}
+.lag-chip .dot{width:6px;height:6px;border-radius:50%;background:#06d6a0;box-shadow:0 0 6px #06d6a0}
+.lag-chip.net .dot{background:#ffd166;box-shadow:0 0 6px #ffd166}.lag-chip.net{color:#ffd166}
+.lag-chip.device .dot{background:#ff8c42;box-shadow:0 0 6px #ff8c42}.lag-chip.device{color:#ff8c42}
+.lag-chip.server .dot{background:#c77dff;box-shadow:0 0 6px #c77dff}.lag-chip.server{color:#c77dff}
+.lag-chip.lost .dot{background:#ff4d6a;box-shadow:0 0 6px #ff4d6a;animation:clockpulse .8s infinite}.lag-chip.lost{color:#ff8fa3}
+.lag-tip{position:absolute;left:16px;top:calc(max(14px, env(safe-area-inset-top)) + 78px);z-index:7;max-width:320px;display:flex;flex-direction:column;gap:8px;align-items:center;text-align:center;padding:10px 12px;border-radius:10px;background:rgba(8,10,16,.95);border:1px solid var(--line);font-size:12px;color:#cfd5e4;pointer-events:auto}
+.reconnect{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);z-index:9;display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 22px;border-radius:14px;background:rgba(6,8,13,.85);border:1px solid rgba(255,77,106,.4);pointer-events:none;animation:kgin .2s ease-out both}
+.reconnect i{width:22px;height:22px;border-radius:50%;border:2px solid #ff8fa3;border-top-color:transparent;animation:spin .8s linear infinite}
+.reconnect b{letter-spacing:.24em;font-size:14px;color:#fff}
+.reconnect small{font-family:var(--mono);font-size:10px;color:#9aa3b6;letter-spacing:.08em}
+@keyframes spin{to{transform:rotate(360deg)}}
+.game.touch .lag-chip{top:calc(max(8px, env(safe-area-inset-top)) + 84px);left:16px}
+.game.touch .lag-tip{top:calc(max(8px, env(safe-area-inset-top)) + 110px)}
+.hud.is-dead ~ .lag-chip{display:none}
+@media (max-height:520px) and (orientation:landscape){
+  /* lobby bar: one slim row, nothing reaching up into the seats */
+  .dock{grid-template-columns:minmax(0,.9fr) auto minmax(0,1.6fr)!important;align-items:end!important}
+  .dock-cell.invite label,.dock-cell.bots .night-set>label{font-size:9px;margin:0}
+  .dock-cell.invite code{font-size:10px}
+  .dock-cell.main .dock-leave{display:none} /* CLOSE ROOM is already top-left */
+  .dock-cell.main .btn.huge{padding:12px 18px!important}
+  .ns-sum-inline{display:none}
+  .ns-grid{display:flex!important;flex-wrap:wrap;gap:6px 12px!important;align-items:center}
+  .ns-row{min-height:0;gap:6px}
+  .ns-row>span{font-size:11px;color:var(--dim)}
+  .ns-step{gap:6px}
+  .ns-step button{width:24px;height:24px;font-size:14px}
+  .ns-step b{font-size:15px}
+  .night-set .seg button{padding:4px 8px;font-size:11px}
+}
