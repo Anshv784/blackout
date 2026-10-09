@@ -163,6 +163,40 @@ function Tracers({ session }: { session: Session }) {
       g.setMatrixAt(n, tmp.matrix);
       n++;
     }
+    // your own shots: flown locally at the real speed, stopped by walls
+    for (const s of session.localShots) {
+      if (s.dead || n >= 31) continue;
+      const age = (now - s.born) / 50; // in ticks
+      if (age > s.ttl) {
+        s.dead = true;
+        continue;
+      }
+      let px = s.x + s.vx * age;
+      let py = s.y + s.vy * age;
+      // walk the path to the first wall
+      const steps = Math.ceil(age * 4);
+      for (let k = 1; k <= steps; k++) {
+        const qx = s.x + (s.vx * age * k) / steps;
+        const qy = s.y + (s.vy * age * k) / steps;
+        if (isWall(Math.floor(qx / 256), Math.floor(qy / 256))) {
+          s.dead = true;
+          sparks(qx / 256, 0.7, qy / 256, "#ffc56b", 9, { speed: 3.2, dir: Math.atan2(-s.vy, -s.vx), spread: 2.2, up: 2.2, life: 0.35 });
+          px = qx;
+          py = qy;
+          break;
+        }
+      }
+      if (s.dead) continue;
+      const len = Math.min(1.6, (Math.hypot(s.vx, s.vy) / 256) * 1.6);
+      const dir = Math.atan2(s.vy, s.vx);
+      tmp.position.set(px / 256 - (Math.cos(dir) * len) / 2, 0.7, py / 256 - (Math.sin(dir) * len) / 2);
+      tmp.rotation.set(0, -dir, 0);
+      tmp.scale.set(len, 1, 1);
+      tmp.updateMatrix();
+      c.setMatrixAt(n, tmp.matrix);
+      g.setMatrixAt(n, tmp.matrix);
+      n++;
+    }
     c.count = g.count = n;
     c.instanceMatrix.needsUpdate = g.instanceMatrix.needsUpdate = true;
   });

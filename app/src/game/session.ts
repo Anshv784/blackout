@@ -324,8 +324,12 @@ export class Session {
     if (r.status === ST_ENDED && !this.endedSince) this.endedSince = performance.now();
     if (r.status !== ST_ENDED) this.endedSince = 0;
     if (r.status === ST_REVEALED && !this.revealLoaded) void this.loadReveal();
-    const ticks = this.tickTimes;
-    const tps = ticks.length > 5 ? ((ticks.length - 1) * 1000) / (ticks[ticks.length - 1] - ticks[0]) : 0;
+    // ticks advanced over wall time, over a few seconds (arrival bursts don't inflate it)
+    const now = performance.now();
+    this.tickLog.push([now, r.tick]);
+    while (this.tickLog.length > 2 && now - this.tickLog[0][0] > 3000) this.tickLog.shift();
+    const [t0, k0] = this.tickLog[0];
+    const tps = now - t0 > 800 && r.tick >= k0 ? ((r.tick - k0) * 1000) / (now - t0) : 0;
     useStore.getState().set({
       room: r,
       mySeat: this.mySeat,
@@ -351,6 +355,51 @@ export class Session {
   private lateness: number[] = [];
   /** how far behind "now" other players are drawn: the network's jitter, plus a margin */
   interpDelay = 110;
+  private tickLog: [number, number][] = [];
+  /** your own shots, drawn the moment you fire instead of a round trip later */
+  localShots: { x: number; y: number; vx: number; vy: number; born: number; ttl: number; dead?: boolean }[] = [];
+  fireLocal(weapon: number, x: number, y: number, aim: number) {
+    const SPEED = [280, 300, 260, 340, 460]; // units per tick (mirror of WEAPONS)
+    const TTL = [16, 14, 8, 20, 26];
+    const pellets = weapon === 2 ? 5 : 1;
+    const a0 = (aim / 65536) * Math.PI * 2;
+    const now = performance.now();
+    for (let i = 0; i < pellets; i++) {
+      const a = a0 + (pellets > 1 ? ((i - 2) / 2) * 0.12 : 0);
+      const c = Math.cos(a);
+      const s = Math.sin(a);
+      this.localShots.push({ x: x + c * 130, y: y + s * 130, vx: c * SPEED[weapon], vy: s * SPEED[weapon], born: now, ttl: TTL[weapon] ?? 16 });
+    }
+    if (this.localShots.length > 40) this.localShots.splice(0, this.localShots.length - 40);
+  }
+  /** a bullet from the server that is one you already drew locally */
+  private isMine(b: { x: number; y: number; vx: number; vy: number }) {
+    const now = performance.now();
+    const window = Math.max(600, this.rtt * 2 + 300);
+    for (const s of this.localShots) {
+      if (now - s.born > window + s.ttl * 50) continue;
+      const sp = Math.hypot(s.vx, s.vy);
+      const bs = Math.hypot(b.vx, b.vy);
+      if (bs < 1) continue;
+      // same direction, and on the same line
+      if ((s.vx * b.vx + s.vy * b.vy) / (sp * bs) < 0.97) continue;
+      const ox = b.x - s.x;
+      const oy = b.y - s.y;
+      const along = (ox * s.vx + oy * s.vy) / sp;
+      const off = Math.abs(ox * s.vy - oy * s.vx) / sp;
+      if (along > -200 && off < 160) return true;
+    }
+    return false;
+  }
+  private gaps: [number, number][] = [];
+  /** worst gap between private-view updates in the last 4 s (ms) */
+  get worstGap() {
+    return this.gaps.reduce((m, g) => Math.max(m, g[1]), 0);
+  }
+  /** how long since the last update arrived (ms) */
+  get stalledFor() {
+    return this.viewAt ? performance.now() - this.viewAt : 0;
+  }
   private tickTime(tick: number) {
     return tick * 50 + (this.clockOff ?? 0);
   }
@@ -375,6 +424,11 @@ export class Session {
     const prev = this.view;
     const now0 = performance.now();
     void now0;
+    // the longest wait between updates over the last few seconds: the network's hiccups
+    if (this.viewAt) {
+      this.gaps.push([now, now - this.viewAt]);
+      while (this.gaps.length && now - this.gaps[0][0] > 4000) this.gaps.shift();
+    }
     this.view = v;
     this.viewAt = now;
     this.viewsRecv++;
@@ -455,7 +509,7 @@ export class Session {
       if (kind > 0) {
         const ttl = Math.round(b.vy / GADGET_TAG);
         this.nades.push({ x: b.x, y: b.y, vx: b.vx - kind * GADGET_TAG, vy: b.vy - ttl * GADGET_TAG, kind, ttl });
-      } else this.bullets.push(b);
+      } else if (!this.isMine(b)) this.bullets.push(b);
     }
     this.bulletsAt = now;
     // pings (sounds you can't see)

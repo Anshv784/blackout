@@ -1,12 +1,12 @@
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Html, PerformanceMonitor } from "@react-three/drei";
+import { Html, PerformanceMonitor, useGLTF } from "@react-three/drei";
 import { EffectComposer, Bloom, Vignette, Noise, ChromaticAberration } from "@react-three/postprocessing";
 import { BlendFunction } from "postprocessing";
 import * as THREE from "three";
 import { Arena, occlusion } from "./Arena";
 import { Avatar, Gun, SEAT_COLORS, aimToRotY } from "./Avatar";
-import { stillMotion, type Motion } from "./Soldier";
+import { stillMotion, SOLDIER_URL, type Motion } from "./Soldier";
 import type { Session } from "../game/session";
 import { ST_COUNTDOWN, ST_LIVE, ST_ENDED } from "../chain/layout";
 import { controls, wheelInput, gadgetCancel } from "../game/controls";
@@ -169,6 +169,7 @@ function MyPlayer({ session }: { session: Session }) {
     if (firing && now - lastShot.current > (COOLDOWN_MS[v.me.weapon] ?? 350)) {
       lastShot.current = now;
       audio.shoot(v.me.weapon);
+      session.fireLocal(v.me.weapon, pos.x, pos.y, session.input.aim);
       if (flash.current) flash.current.intensity = 14;
       feel.recoil = Math.min(1.8, feel.recoil + [0.8, 0.45, 1.3, 0.55, 1.8][v.me.weapon]);
       const [ky, kx] = RECOIL[v.me.weapon] ?? RECOIL[0];
@@ -1128,6 +1129,38 @@ function FlareLight({ session }: { session: Session }) {
   return <ambientLight ref={l} color="#ff9ed8" intensity={0.025} />;
 }
 
+/** Compile every shader before the fighting starts. Enemy soldiers, last-seen silhouettes, death
+ *  boxes, grenades, tracers and blood all start hidden, so without this the GPU compiles each one
+ *  the first time it appears: the big hitch when an opponent shows up and the shooting starts. */
+function Warmup() {
+  useGLTF(SOLDIER_URL); // waits (suspends) until the soldier model is here
+  const { gl, scene, camera } = useThree();
+  const done = useRef(0);
+  useFrame(() => {
+    // twice: once the soldiers have loaded, and again after the first second of the night
+    const t = performance.now();
+    if (done.current === 0) done.current = t;
+    if (done.current > 0 && t - done.current > 1200) {
+      done.current = -1;
+      const hidden: THREE.Object3D[] = [];
+      scene.traverse((o) => {
+        // lights stay as they are: compiling with extra lights on would build the wrong shaders
+        if (!o.visible && !(o as THREE.Light).isLight) {
+          hidden.push(o);
+          o.visible = true;
+        }
+      });
+      try {
+        gl.compile(scene, camera);
+      } catch {
+        /* only an optimisation */
+      }
+      hidden.forEach((o) => (o.visible = false));
+    }
+  });
+  return null;
+}
+
 /** Applies display settings that live on the renderer/camera. */
 function DisplayPrefs() {
   const { gl, camera, scene } = useThree();
@@ -1182,6 +1215,9 @@ export const GameScene = memo(function GameScene({ session }: { session: Session
       <FpsMeter />
       <LaserSight session={session} />
       <DisplayPrefs />
+      <Suspense fallback={null}>
+        <Warmup />
+      </Suspense>
       {/* phones: if the frame rate sags, render at 75% resolution (and back up when it recovers) */}
       {/* Auto graphics: watch the real frame rate. Struggling → Low (phones also drop to 75% pixels);
           plenty of headroom → back to High (not on phones). What it settles on is remembered. */}
