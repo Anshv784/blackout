@@ -8,7 +8,7 @@ import * as THREE from "three";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { Gun } from "./Gun";
 
-export const SOLDIER_URL = "/models/soldier.glb";
+export const SOLDIER_URL = "/models/soldier-v2.glb";
 useGLTF.preload(SOLDIER_URL);
 
 /** What the body should be doing this frame. Parents write it, the soldier reads it. */
