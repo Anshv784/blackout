@@ -56,7 +56,18 @@ const u64le = (n: bigint | number) => {
   new DataView(b.buffer, b.byteOffset, 8).setBigUint64(0, BigInt(n), true);
   return b;
 };
-const pda = (seeds: (Buffer | Uint8Array)[]) => PublicKey.findProgramAddressSync(seeds, PROGRAM_ID)[0];
+// PDAs are derived by hashing in a loop; inputs need two of them ~20 times a second, so remember them
+const pdaCache = new Map<string, PublicKey>();
+const pda = (seeds: (Buffer | Uint8Array)[]) => {
+  const key = seeds.map((x) => Buffer.from(x).toString("hex")).join("|");
+  let k = pdaCache.get(key);
+  if (!k) {
+    k = PublicKey.findProgramAddressSync(seeds, PROGRAM_ID)[0];
+    if (pdaCache.size > 500) pdaCache.clear();
+    pdaCache.set(key, k);
+  }
+  return k;
+};
 
 export const roomPda = (roomId: bigint | number) => pda([Buffer.from("room"), u64le(roomId)]);
 export const worldPda = (roomId: bigint | number) => pda([Buffer.from("world"), u64le(roomId)]);

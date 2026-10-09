@@ -7,6 +7,7 @@ import { ST_LOBBY, ST_STARTING, ST_COUNTDOWN, ST_LIVE, ST_ENDED, ST_REVEALED, ST
 import { Hud } from "./Hud";
 import { Reveal } from "./Reveal";
 import { TouchControls, useTouch } from "./TouchControls";
+import { LagCheck } from "./LagCheck";
 import { fullscreenOnTouch } from "./Fullscreen";
 import { controls } from "../game/controls";
 import { ChainPanel } from "./ChainPanel";
@@ -73,6 +74,7 @@ export function RoomPage({ roomId }: { roomId: bigint }) {
           </div>
         )}
         <ChainPanel session={session} />
+        <LagCheck session={session} />
         <Crosshair />
       </div>
     );
