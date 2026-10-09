@@ -474,7 +474,8 @@ pub mod blackout {
             }
         }
         let m = (max_players as u32).clamp(2, MAXP as u32);
-        room.cfg = m | if unlisted { 1 << 8 } else { 0 };
+        // new rooms start with easy bots (BOT_EASY in bits 9-10); the host can raise it
+        room.cfg = m | if unlisted { 1 << 8 } else { 0 } | (1 << 9);
         // private rooms are joined with a code the creator shares; public ones need none
         room.private_code = if unlisted { code.max(1) } else { 0 };
         room.host = ctx.accounts.player.key();
