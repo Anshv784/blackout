@@ -451,9 +451,9 @@ export class Session {
     // prediction reconcile
     if (v.me.alive && (v.status === ST_LIVE || v.status === ST_COUNTDOWN)) {
       if (!this.predValid) {
-        controls.camYaw = (v.me.aim / 65536) * Math.PI * 2; // camera starts behind your spawn facing
-        controls.camPitch = 0.32;
+        // the camera's start view is set by the scene (behind your back, facing open ground)
         this.input.aim = v.me.aim;
+        this.hist.clear(); // tick numbers restart each night: old moves must never replay
         this.pred = { x: v.me.x, y: v.me.y };
         this.predPrev = { ...this.pred };
         this.predMoved = v.me.moved;
