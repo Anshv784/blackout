@@ -25,7 +25,8 @@ export function LagCheck({ session }: { session: Session }) {
     const t = setInterval(() => {
       const st = session.room?.status;
       if (st !== ST_LIVE && st !== ST_COUNTDOWN) return setV({ kind: "ok", text: "" });
-      setV(judge(controls.fps, session.rtt, session.worstGap, session.stalledFor, tps));
+      // during the countdown nothing moves yet, so a quiet socket isn't a dropped one
+      setV(judge(controls.fps, session.rtt, session.worstGap, st === ST_LIVE ? session.stalledFor : 0, tps));
     }, 500);
     return () => clearInterval(t);
   }, [session, tps]);
