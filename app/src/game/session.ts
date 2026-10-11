@@ -79,6 +79,13 @@ export class Session {
   private predPrev = { x: 0, y: 0 };
   predValid = false;
   private predAcc = 0;
+  /** the server tick our predicted position corresponds to; it may only run a few ticks ahead of the
+   *  last server tick we've seen, so a slow network or a slow rollup can't make us drift and snap back */
+  private predTick = 0;
+  private serverTick = 0;
+  snaps = 0;
+  /** the move we predicted for each tick, to replay on top of each server state */
+  private hist = new Map<number, [number, number]>();
   /** predicted stamina word (see sim.ts sprintStep) and whether you're sprinting right now */
   predMoved = 0;
   predSpeed = SPEED;
@@ -357,8 +364,8 @@ export class Session {
   interpDelay = 110;
   private tickLog: [number, number][] = [];
   /** your own shots, drawn the moment you fire instead of a round trip later */
-  localShots: { x: number; y: number; vx: number; vy: number; born: number; ttl: number; dead?: boolean }[] = [];
-  fireLocal(weapon: number, x: number, y: number, aim: number) {
+  localShots: { x: number; y: number; vx: number; vy: number; born: number; ttl: number; h: number; dead?: boolean }[] = [];
+  fireLocal(weapon: number, x: number, y: number, aim: number, crouch = false) {
     const SPEED = [280, 300, 260, 340, 460]; // units per tick (mirror of WEAPONS)
     const TTL = [16, 14, 8, 20, 26];
     const pellets = weapon === 2 ? 5 : 1;
@@ -368,7 +375,9 @@ export class Session {
       const a = a0 + (pellets > 1 ? ((i - 2) / 2) * 0.12 : 0);
       const c = Math.cos(a);
       const s = Math.sin(a);
-      this.localShots.push({ x: x + c * 130, y: y + s * 130, vx: c * SPEED[weapon], vy: s * SPEED[weapon], born: now, ttl: TTL[weapon] ?? 16 });
+      // starts at the barrel tip, not the body
+      const f = ([0.4, 0.58, 0.78, 0.72, 1.02][weapon] ?? 0.6) * 256;
+      this.localShots.push({ x: x + c * f, y: y + s * f, vx: c * SPEED[weapon], vy: s * SPEED[weapon], born: now, ttl: TTL[weapon] ?? 16, h: crouch ? 0.74 : 1.0 });
     }
     if (this.localShots.length > 40) this.localShots.splice(0, this.localShots.length - 40);
   }
@@ -449,25 +458,37 @@ export class Session {
         this.predPrev = { ...this.pred };
         this.predMoved = v.me.moved;
         this.predValid = true;
+        this.predTick = this.serverTick = v.tick;
       } else {
-        const lagTicks = Math.min(12, Math.max(1, Math.round(this.rtt / 2 / 50)));
+        this.serverTick = Math.max(this.serverTick, v.tick);
+        if (this.predTick < v.tick) this.predTick = v.tick; // we paused (tab hidden, hitch): catch up
+        // how far ahead of this server state our prediction really is
+        const lagTicks = Math.max(0, Math.min(12, this.predTick - v.tick));
         // stamina follows the chain (it only gates sprint, so a little lag is harmless)
         // fatigue / winded follow the chain; crouch, jump and sprint bits stay local
         this.predMoved = (v.me.moved & 0xff04) | (this.predMoved & 0xfb);
-        const [vx, vy] = inputVelocity(this.input.dx, this.input.dy, this.predSpeed);
-        const tx = v.me.x + (v.status === ST_LIVE ? vx * lagTicks : 0);
-        const ty = v.me.y + (v.status === ST_LIVE ? vy * lagTicks : 0);
+        // where we should be: the server's position, plus the moves we've made since that tick
+        const base = { x: v.me.x, y: v.me.y };
+        if (v.status === ST_LIVE)
+          for (let t = v.tick + 1; t <= v.tick + lagTicks; t++) {
+            const h = this.hist.get(t);
+            if (h) moveBody(base, h[0], h[1]);
+          }
+        for (const t of this.hist.keys()) if (t <= v.tick) this.hist.delete(t);
+        const tx = base.x;
+        const ty = base.y;
         const ex = tx - this.pred.x;
         const ey = ty - this.pred.y;
         const e2 = ex * ex + ey * ey;
         // trust your own prediction; only nudge when we've clearly drifted, snap if way off
         if (e2 > (3 * UNIT) ** 2) {
-          this.pred = { x: v.me.x, y: v.me.y };
+          this.pred = { x: tx, y: ty };
           this.predPrev = { ...this.pred };
-        } else if (e2 > (0.45 * UNIT) ** 2) {
+          this.snaps++;
+        } else if (e2 > (0.3 * UNIT) ** 2) {
           // shift both ends of the interpolation so the correction never pops
-          const cx = ex * 0.05;
-          const cy = ey * 0.05;
+          const cx = ex * 0.12;
+          const cy = ey * 0.12;
           this.pred.x += cx;
           this.pred.y += cy;
           this.predPrev.x += cx;
@@ -621,12 +642,22 @@ export class Session {
     const live = this.room?.status === ST_LIVE && v?.me.alive;
     if (live && this.predValid) {
       this.predAcc += dt;
+      // allowed lead: about a one-way trip of ticks, at least 2, at most 8
+      const lead = Math.max(2, Math.min(8, Math.round(this.rtt / 100) + 2));
       while (this.predAcc >= 50) {
+        if (this.predTick >= this.serverTick + lead) {
+          // the server hasn't caught up: hold here instead of running off and snapping back
+          this.predAcc = Math.min(this.predAcc, 50);
+          break;
+        }
         this.predAcc -= 50;
+        this.predTick++;
         this.predPrev = { ...this.pred };
         const down = v?.me.alive === DOWNED;
         const [speed, sp, word] = moveStep(this.predMoved, this.input.buttons, this.input.dx, this.input.dy, down);
         const [vx, vy] = inputVelocity(this.input.dx, this.input.dy, speed);
+        this.hist.set(this.predTick, [vx, vy]);
+        if (this.hist.size > 64) this.hist.delete(this.hist.keys().next().value!);
         const ox = this.pred.x;
         const oy = this.pred.y;
         moveBody(this.pred, vx, vy);

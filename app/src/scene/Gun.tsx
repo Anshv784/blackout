@@ -37,6 +37,13 @@ const GUNS: Part[][] = [
 ];
 
 // where the under-barrel torch sits on each gun (x along the barrel, from the hand)
+/** where the barrel ends, relative to the player (forward, height): shots and flashes start here */
+export const MUZZLE_FWD = [0.4, 0.58, 0.78, 0.72, 1.02];
+export const MUZZLE_Y = 1.0;
+export function muzzleAt(x: number, y: number, aimRad: number, weapon: number, crouch = false) {
+  const f = MUZZLE_FWD[weapon] ?? 0.6;
+  return { x: x + Math.cos(aimRad) * f, z: y + Math.sin(aimRad) * f, y: MUZZLE_Y - (crouch ? 0.26 : 0) };
+}
 export const TORCH_X = [0.48, 0.66, 0.86, 0.8, 0.9];
 
 export function Gun({ weapon, ghost = false, display = false, torch = false }: { weapon: number; ghost?: boolean; display?: boolean; torch?: boolean }) {

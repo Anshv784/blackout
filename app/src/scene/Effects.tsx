@@ -91,6 +91,7 @@ function Tracers({ session }: { session: Session }) {
   const glow = useRef<THREE.InstancedMesh>(null);
   const tmp = useMemo(() => new THREE.Object3D(), []);
   const prev = useRef<{ list: Session["bullets"]; at: number }>({ list: [], at: 0 });
+  const origin = useRef(new Map<object, [number, number]>());
 
   useFrame(() => {
     const now = performance.now();
@@ -143,6 +144,20 @@ function Tracers({ session }: { session: Session }) {
           if (dn < 1.3 * 256 && db > 2.2 * 256) audio.whiz(Math.sin(Math.atan2(nb.y - me.y, nb.x - me.x) - angleToRad(session.input.aim)));
         }
       }
+      // each bullet's first-seen point (carried along while it keeps flying): its tracer starts there
+      const ticks = Math.max(1, Math.round((session.bulletsAt - prev.current.at) / 50));
+      const next = new Map<object, [number, number]>();
+      for (const nb of session.bullets) {
+        let o: [number, number] | undefined;
+        for (const pb of prev.current.list) {
+          if (Math.abs(pb.x + pb.vx * ticks - nb.x) < 90 && Math.abs(pb.y + pb.vy * ticks - nb.y) < 90) {
+            o = origin.current.get(pb);
+            break;
+          }
+        }
+        next.set(nb, o ?? [nb.x / 256, nb.y / 256]);
+      }
+      origin.current = next;
       prev.current = { list: session.bullets, at: session.bulletsAt };
     }
 
@@ -154,8 +169,10 @@ function Tracers({ session }: { session: Session }) {
     for (const b of session.bullets) {
       const x = (b.x + b.vx * k) / 256;
       const z = (b.y + b.vy * k) / 256;
-      const len = Math.min(1.6, Math.hypot(b.vx, b.vy) / 256 * 1.6);
-      tmp.position.set(x - (Math.cos(Math.atan2(b.vy, b.vx)) * len) / 2, 0.7, z - (Math.sin(Math.atan2(b.vy, b.vx)) * len) / 2);
+      const o = origin.current.get(b);
+      const flown = o ? Math.hypot(x - o[0], z - o[1]) : 1.6;
+      const len = Math.max(0.05, Math.min(1.6, Math.hypot(b.vx, b.vy) / 256 * 1.6, flown));
+      tmp.position.set(x - (Math.cos(Math.atan2(b.vy, b.vx)) * len) / 2, 1.0, z - (Math.sin(Math.atan2(b.vy, b.vx)) * len) / 2);
       tmp.rotation.set(0, -Math.atan2(b.vy, b.vx), 0);
       tmp.scale.set(len, 1, 1);
       tmp.updateMatrix();
@@ -180,16 +197,17 @@ function Tracers({ session }: { session: Session }) {
         const qy = s.y + (s.vy * age * k) / steps;
         if (isWall(Math.floor(qx / 256), Math.floor(qy / 256))) {
           s.dead = true;
-          sparks(qx / 256, 0.7, qy / 256, "#ffc56b", 9, { speed: 3.2, dir: Math.atan2(-s.vy, -s.vx), spread: 2.2, up: 2.2, life: 0.35 });
+          sparks(qx / 256, s.h, qy / 256, "#ffc56b", 9, { speed: 3.2, dir: Math.atan2(-s.vy, -s.vx), spread: 2.2, up: 2.2, life: 0.35 });
           px = qx;
           py = qy;
           break;
         }
       }
       if (s.dead) continue;
-      const len = Math.min(1.6, (Math.hypot(s.vx, s.vy) / 256) * 1.6);
+      const flown = Math.hypot(px - s.x, py - s.y) / 256;
+      const len = Math.max(0.05, Math.min(1.6, (Math.hypot(s.vx, s.vy) / 256) * 1.6, flown));
       const dir = Math.atan2(s.vy, s.vx);
-      tmp.position.set(px / 256 - (Math.cos(dir) * len) / 2, 0.7, py / 256 - (Math.sin(dir) * len) / 2);
+      tmp.position.set(px / 256 - (Math.cos(dir) * len) / 2, s.h, py / 256 - (Math.sin(dir) * len) / 2);
       tmp.rotation.set(0, -dir, 0);
       tmp.scale.set(len, 1, 1);
       tmp.updateMatrix();
@@ -597,7 +615,7 @@ function Reactions({ session }: { session: Session }) {
           const w = tr?.samples[tr.samples.length - 1]?.weapon ?? 0;
           audio.shotAt(w, d, Math.sin(rel));
         }
-        sparks(f.x / 256 + Math.cos(a) * 0.7, 0.72, f.y / 256 + Math.sin(a) * 0.7, "#ffcf7a", 5, { speed: 4, dir: a, spread: 0.7, up: 0.4, life: 0.12, grav: 0 });
+        sparks(f.x / 256 + Math.cos(a) * 0.72, 1.0, f.y / 256 + Math.sin(a) * 0.72, "#ffcf7a", 5, { speed: 4, dir: a, spread: 0.7, up: 0.4, life: 0.12, grav: 0 });
       }
     }
     if (session.fx.length) lastFx.current = session.fx[session.fx.length - 1].id;

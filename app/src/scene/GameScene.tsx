@@ -1,4 +1,5 @@
 import { memo, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { muzzleAt } from "./Gun";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Html, PerformanceMonitor, useGLTF } from "@react-three/drei";
 import { EffectComposer, Bloom, Vignette, Noise, ChromaticAberration } from "@react-three/postprocessing";
@@ -169,14 +170,15 @@ function MyPlayer({ session }: { session: Session }) {
     if (firing && now - lastShot.current > (COOLDOWN_MS[v.me.weapon] ?? 350)) {
       lastShot.current = now;
       audio.shoot(v.me.weapon);
-      session.fireLocal(v.me.weapon, pos.x, pos.y, session.input.aim);
+      session.fireLocal(v.me.weapon, pos.x, pos.y, session.input.aim, (session.predMoved & 8) !== 0);
       if (flash.current) flash.current.intensity = 14;
       feel.recoil = Math.min(1.8, feel.recoil + [0.8, 0.45, 1.3, 0.55, 1.8][v.me.weapon]);
       const [ky, kx] = RECOIL[v.me.weapon] ?? RECOIL[0];
       const steady = 1 - controls.adsK * 0.4;
       controls.camPitch = Math.max(0.02, controls.camPitch - ky * 0.7 * steady);
       controls.camYaw += (Math.random() - 0.5) * 2 * kx * 0.8 * steady;
-      sparks(pos.x / 256 + Math.cos(a) * 0.75, 0.7, pos.y / 256 + Math.sin(a) * 0.75, "#ffd27a", v.me.weapon === 2 ? 10 : 5, {
+      const mz = muzzleAt(pos.x / 256, pos.y / 256, a, v.me.weapon, (session.predMoved & 8) !== 0);
+      sparks(mz.x, mz.y, mz.z, "#ffd27a", v.me.weapon === 2 ? 10 : 5, {
         speed: 5,
         dir: a,
         spread: 0.6,
@@ -196,7 +198,7 @@ function MyPlayer({ session }: { session: Session }) {
         <mesh position={[VISION_TILES / 2 + 0.3, 0.75, 0]} rotation-z={Math.PI / 2} material={beam}>
           <coneGeometry args={[Math.tan(CONE_RAD) * VISION_TILES, VISION_TILES, 48, 1, true]} />
         </mesh>
-        <pointLight ref={flash} position={[0.9, 0.7, 0.12]} color="#ffcf7a" intensity={0} distance={5} decay={1.6} />
+        <pointLight ref={flash} position={[0.75, 1.0, 0.02]} color="#ffcf7a" intensity={0} distance={5} decay={1.6} />
       </group>
       <spotLight
         ref={spot}
@@ -690,7 +692,7 @@ function Fx({ session }: { session: Session }) {
         continue;
       }
       const a = angleToRad(f.angle ?? 0);
-      l.position.set(f.x / 256 + Math.cos(a) * 0.7, 0.8, f.y / 256 + Math.sin(a) * 0.7);
+      l.position.set(f.x / 256 + Math.cos(a) * 0.7, 1.0, f.y / 256 + Math.sin(a) * 0.7);
       l.intensity = 10 * (1 - (now - f.at) / 120);
     }
   });
