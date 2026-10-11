@@ -1168,8 +1168,7 @@ function DisplayPrefs() {
   const { gl, camera, scene } = useThree();
   const p = usePrefs();
   useEffect(() => {
-    (window as any).__gl = gl; // draw-call and triangle counts for perf checks
-    (window as any).__scene = scene;
+    if (import.meta.env.DEV) Object.assign(window as any, { __gl: gl, __scene: scene }); // perf checks, dev only
   }, [gl]);
   useEffect(() => {
     gl.toneMappingExposure = p.exposure;

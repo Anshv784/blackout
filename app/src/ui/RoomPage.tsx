@@ -38,9 +38,8 @@ export function RoomPage({ roomId }: { roomId: bigint }) {
   useEffect(() => {
     useStore.getState().set({ room: null, view: null, mySeat: null, reveal: null });
     session.start().catch((e) => setErr(String(e?.message ?? e)));
-    (window as any).__session = session;
-    (window as any).__controls = controls;
-    (window as any).__store = useStore;
+    // test handles for scripts/ui (dev server only, never in the live build)
+    if (import.meta.env.DEV) Object.assign(window as any, { __session: session, __controls: controls, __store: useStore });
     const bye = () => {
       // walking away from a lobby frees your seat (and the room, if you were alone)
       if (session.room?.status === ST_LOBBY && session.mySeat !== null) session.leave().catch(() => {});
