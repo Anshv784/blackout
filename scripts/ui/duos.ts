@@ -18,7 +18,7 @@ import { chromium } from "playwright";
   await p.waitForTimeout(6000);
   console.log("partner panel:", await p.locator(".partner").innerText().catch(() => "none"));
   console.log("modifier:", await p.locator(".mod-chip").innerText().catch(() => "none (normal night)"));
-  console.log("slots:", (await p.locator(".hud-slots").innerText()).replace(/\n/g, " | "));
+  console.log("loadout:", (await p.locator(".hud-loadout").innerText()).replace(/\n/g, " | "));
   await p.screenshot({ path: "demo/duos-game.png" });
   console.log("errors", errs);
   await b.close();

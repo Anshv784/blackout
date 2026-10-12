@@ -60,8 +60,16 @@ export function Home() {
   const [code, setCode] = useState("");
   const [blocked, setBlocked] = useState(false);
   /** One room at a time: anything that would put you in a different room asks first. */
-  const guard = (target: number | null, then: () => void) => {
-    const m = myRoom(Object.entries(rooms).map(([id, r]) => [Number(id), r] as const));
+  const guard = async (target: number | null, then: () => void) => {
+    // the room list may not have loaded yet (devnet can take a few seconds): check fresh, don't guess
+    let list = Object.entries(rooms).map(([id, r]) => [Number(id), r] as const);
+    if (!list.length) {
+      list = await Promise.all([...PUBLIC_ROOMS, ...STAKED_ROOMS].map(async (id) => [id, await client.fetchRoom(id).catch(() => null)] as const));
+      const fresh: Record<number, Room | null> = {};
+      for (const [id, r] of list) fresh[id] = r;
+      setRooms(fresh);
+    }
+    const m = myRoom(list);
     if (m !== null && m !== target) setBlocked(true);
     else then();
   };
@@ -129,7 +137,7 @@ export function Home() {
                 <small>you can only host one room at a time</small>
               </button>
             ) : (
-              <button className="btn primary huge" onClick={() => requireWallet(() => create(false))} disabled={!!busy}>
+              <button className="btn primary huge" onClick={() => guard(null, () => requireWallet(() => create(false)))} disabled={!!busy}>
                 {busy === "create" ? "OPENING A ROOM…" : "CREATE A ROOM"}
                 <small>you're the host · pick your seats · bots fill the rest</small>
               </button>

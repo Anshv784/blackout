@@ -11,8 +11,8 @@ import { chromium } from "playwright";
   await p.waitForURL(/\/r\//, { timeout: 60000 });
   const id = p.url().match(/\/r\/(\d+)/)![1];
   await p.getByRole("button", { name: "START THE NIGHT" }).waitFor({ timeout: 60000 });
-  await p.locator(".bot-level button", { hasText: "EASY" }).click();
-  await p.locator(".bot-level button.on", { hasText: "EASY" }).waitFor({ timeout: 20000 });
+  await p.locator(".night-set .seg button", { hasText: "Easy" }).click();
+  await p.locator(".night-set .seg button.on", { hasText: "Easy" }).waitFor({ timeout: 20000 });
   await p.screenshot({ path: "demo/bots-easy.png" });
   console.log("room", id, "bots set to EASY");
 
