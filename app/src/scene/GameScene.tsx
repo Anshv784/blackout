@@ -593,9 +593,12 @@ function LootCrates({ session }: { session: Session }) {
       {Array.from({ length: 12 }, (_, i) => (
         <group key={i} ref={(el) => (refs.current[i] = el)} visible={false}>
           {kindOf.current[i] > 0 && <Crate kind={kindOf.current[i]} />}
-          <Html position={[0, 0.95, 0]} center zIndexRange={[4, 0]} style={{ pointerEvents: "none" }}>
-            <div className="loot-tag" ref={(el) => (labels.current[i] = el)} />
-          </Html>
+          {/* phones skip the floating loot names: 12 page elements moved every frame is real lag there */}
+          {!TOUCH && (
+            <Html position={[0, 0.95, 0]} center zIndexRange={[4, 0]} style={{ pointerEvents: "none" }}>
+              <div className="loot-tag" ref={(el) => (labels.current[i] = el)} />
+            </Html>
+          )}
         </group>
       ))}
     </>

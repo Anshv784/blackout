@@ -2221,3 +2221,17 @@ button {
 @keyframes crestshine{0%,60%{transform:skewX(-18deg) translateX(0)}100%{transform:skewX(-18deg) translateX(240px)}}
 @keyframes crestfloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
 @media (prefers-reduced-motion:reduce){.rank-crest,.crest-shine{animation:none}}
+
+/* ---------- phone fixes ---------- */
+/* the lag chip never sits on top of a menu */
+.game:has(.menu-overlay) .lag-chip,.game:has(.vol-pop) .lag-chip,.game:has(.menu-overlay) .lag-tip{display:none}
+@media (max-height:520px) and (orientation:landscape) and (pointer:coarse){
+  /* ammo moves under the minimap so the jump button has the corner to itself */
+  .game.touch .hud-loadout{left:auto!important;right:10px!important;bottom:auto!important;top:88px!important;transform:scale(.46)!important;transform-origin:top right!important}
+  .game.touch .tb-cluster .swap{bottom:200px;right:96px!important}
+  .game.touch .tb-cluster .reload{bottom:140px}
+}
+@media (max-height:520px) and (orientation:landscape){
+  /* results: the replay bar wraps so MAKE CLIP is never hidden behind the results list */
+  .replay-bar{flex-wrap:wrap!important;row-gap:6px}
+}
