@@ -1,5 +1,6 @@
 // One live room: subscriptions, input sending, client prediction, interpolation,
 // and the "anyone can push the room forward" duties (tick/seed/finish fallbacks).
+import { TOUCH } from "./device";
 import { ComputeBudgetProgram, PublicKey } from "@solana/web3.js";
 import { client } from "./identity";
 import { ticketPda } from "../chain/client";
@@ -84,6 +85,7 @@ export class Session {
   private predTick = 0;
   private serverTick = 0;
   snaps = 0;
+  private hudAt = 0;
   /** the move we predicted for each tick, to replay on top of each server state */
   private hist = new Map<number, [number, number]>();
   /** predicted stamina word (see sim.ts sprintStep) and whether you're sprinting right now */
@@ -609,7 +611,12 @@ export class Session {
       banner(["", WEAPON_NAME[v.me.weapon] ?? "WEAPON", "+ HEALTH", "+ ARMOR", "FLARE: YOU SEE EVERYONE"][what], "event", what === 1 ? FIRE_MODE[v.me.weapon] : undefined);
     }
     if (prev && prev.me.reload === 0 && v.me.reload > 0) audio.reload(v.me.weapon);
-    useStore.getState().set({ view: v });
+    // the HUD re-renders on every store change; phones get it 8 times a second instead of 20
+    // (the 3D scene reads this.view directly every frame, so movement stays smooth)
+    if (!TOUCH || now - this.hudAt > 120 || v.me.alive !== prev?.me.alive || v.status !== prev?.status) {
+      this.hudAt = now;
+      useStore.getState().set({ view: v });
+    }
   }
 
   private pushSample(p: VisPlayer, tick: number, now: number) {

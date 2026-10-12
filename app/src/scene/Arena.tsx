@@ -1,4 +1,5 @@
 import { useMemo, useRef } from "react";
+import { TOUCH } from "../game/device";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { MAP_ROWS, LOOT_SPOTS, LAMPS, MAP_W, MAP_H, WALL_CHARS } from "../game/gen";
@@ -358,7 +359,7 @@ function Lamps() {
   // every lamp head glows, but only the 6 nearest the camera cast real light: a fixed number
   // of lights (no shader recompiles) and far fewer per-pixel light loops
   // every light costs on every pixel: phones light only the 3 nearest lamps
-  const N = typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches ? 3 : 6;
+  const N = TOUCH ? 2 : 6;
   const lights = useRef<(THREE.PointLight | null)[]>([]);
   const heads = useRef<(THREE.MeshBasicMaterial | null)[]>([]);
   const { camera } = useThree();
@@ -441,7 +442,7 @@ function Towers({ boxes }: { boxes: WallBox[] }) {
                   <coneGeometry args={[1.8, 0.6, 4]} />
                   <meshStandardMaterial color="#2a3022" roughness={0.8} />
                 </mesh>
-                <spotLight ref={beam} position={[0, 5, 0]} angle={0.22} penumbra={0.3} distance={16} decay={1} intensity={40} color="#eaf2ff" />
+                {!TOUCH && <spotLight ref={beam} position={[0, 5, 0]} angle={0.22} penumbra={0.3} distance={16} decay={1} intensity={40} color="#eaf2ff" />}
               </>
             )}
           </group>

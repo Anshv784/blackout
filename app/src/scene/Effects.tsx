@@ -2,6 +2,7 @@
 // dust in your flashlight, footstep dust, and the poisoned ground outside the zone.
 // Everything here is drawn from data you're already allowed to see: lightning lights
 // the walls, never the players (others only exist in your scene while in your view).
+import { TOUCH } from "../game/device";
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
@@ -472,7 +473,8 @@ function Lightning({ session }: { session: Session }) {
   return (
     <>
       <hemisphereLight ref={sky} args={["#cfdcff", "#1a1c2a", 0]} />
-      <directionalLight ref={sun} position={[6, 20, 2]} color="#dfe8ff" intensity={0} />
+      {/* phones: lightning flashes through the sky and fog only, no extra light on every surface */}
+      {!TOUCH && <directionalLight ref={sun} position={[6, 20, 2]} color="#dfe8ff" intensity={0} />}
     </>
   );
 }
@@ -760,7 +762,7 @@ function SmokeAndBooms({ session }: { session: Session }) {
           <spriteMaterial map={tex} transparent depthWrite={false} opacity={0.85} color="#9aa0aa" />
         </sprite>
       ))}
-      <pointLight ref={boomLight} color="#ffb070" intensity={0} distance={9} decay={1.4} />
+      {!TOUCH && <pointLight ref={boomLight} color="#ffb070" intensity={0} distance={9} decay={1.4} />}
     </>
   );
 }
