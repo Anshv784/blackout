@@ -1190,12 +1190,13 @@ function DisplayPrefs() {
 
 export const GameScene = memo(function GameScene({ session }: { session: Session }) {
   const p = usePrefs();
-  const [dpr, setDpr] = useState(1);
+  // phones start at 70% pixels (phone screens are dense; this is the biggest single win)
+  const [dpr, setDpr] = useState(TOUCH ? 0.7 : 1);
   return (
     <Canvas
       shadows
       dpr={TOUCH ? dpr : gfx(p) === "high" ? [1, 1.5] : 1}
-      camera={{ fov: 46, position: [16, 30, 30], near: 0.1, far: 120 }}
+      camera={{ fov: 46, position: [16, 30, 30], near: 0.1, far: TOUCH ? 40 : 120 }}
       // phones: no MSAA (dense screens hide jaggies, and it's a big cost on mobile GPUs)
       gl={{ antialias: !TOUCH, powerPreference: "high-performance" }}
       onCreated={({ gl }) => {
@@ -1205,7 +1206,7 @@ export const GameScene = memo(function GameScene({ session }: { session: Session
       }}
     >
       <color attach="background" args={["#020203"]} />
-      <fog attach="fog" args={["#020203", 18, 46]} />
+      <fog attach="fog" args={["#020203", TOUCH ? 14 : 18, TOUCH ? 34 : 46]} />
       <hemisphereLight args={["#20305a", "#000000", 0.06]} />
       <FlareLight session={session} />
       <Arena />
@@ -1230,15 +1231,15 @@ export const GameScene = memo(function GameScene({ session }: { session: Session
       <PerformanceMonitor
         flipflops={4}
         onDecline={() => {
-          if (TOUCH) setDpr(0.75);
+          if (TOUCH) setDpr(0.55);
           if (prefs.quality === "auto" && prefs.autoTier !== "low") setPref("autoTier", "low");
         }}
         onIncline={() => {
-          if (TOUCH) setDpr(1);
+          if (TOUCH) setDpr(0.7);
           else if (prefs.quality === "auto" && prefs.autoTier !== "high") setPref("autoTier", "high");
         }}
         onFallback={() => {
-          if (TOUCH) setDpr(0.75);
+          if (TOUCH) setDpr(0.55);
           if (prefs.quality === "auto") setPref("autoTier", "low");
         }}
       />

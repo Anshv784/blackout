@@ -17,7 +17,7 @@ import { prefs, usePrefs, gfx } from "../game/prefs";
 
 // ------------------------------------------------------------------ sparks
 
-const MAX_SPARKS = 420;
+const MAX_SPARKS = TOUCH ? 160 : 420;
 const sp = {
   pos: new Float32Array(MAX_SPARKS * 3),
   vel: new Float32Array(MAX_SPARKS * 3),
@@ -393,7 +393,7 @@ function ThrowPreview({ session }: { session: Session }) {
 // ------------------------------------------------------------------ rain
 
 function Rain({ session }: { session: Session }) {
-  const N = 1400;
+  const N = TOUCH ? 350 : 1400;
   const geo = useMemo(() => {
     const g = new THREE.BufferGeometry();
     const seed = new Float32Array(N * 2 * 3);
