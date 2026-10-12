@@ -109,7 +109,9 @@ export class Session {
   // input
   input = { dx: 0, dy: 0, aim: 0, buttons: 0 };
   private sent = { dx: 999, dy: 999, aim: -1, buttons: -1 };
-  private seq = 0;
+  // starts from the clock (10 ms steps), so after a page reload mid-night our inputs are still
+  // newer than the last one the program saw, which it now requires
+  private seq = Math.floor((Date.now() - 1_790_000_000_000) / 10); // ~497 days of 10 ms steps from 2026-09
   private lastSendAt = 0;
   private sentAt = new Map<number, number>();
   rtt = 150;
@@ -335,10 +337,14 @@ export class Session {
     if (r.status === ST_REVEALED && !this.revealLoaded) void this.loadReveal();
     // ticks advanced over wall time, over a few seconds (arrival bursts don't inflate it)
     const now = performance.now();
+    // over 5 s, so a burst of delayed updates arriving together doesn't read as a speed-up;
+    // a new night (tick goes back) starts the measurement over
+    if (this.tickLog.length && r.tick < this.tickLog[this.tickLog.length - 1][1]) this.tickLog = [];
     this.tickLog.push([now, r.tick]);
-    while (this.tickLog.length > 2 && now - this.tickLog[0][0] > 3000) this.tickLog.shift();
+    while (this.tickLog.length > 2 && now - this.tickLog[0][0] > 5000) this.tickLog.shift();
     const [t0, k0] = this.tickLog[0];
-    const tps = now - t0 > 800 && r.tick >= k0 ? ((r.tick - k0) * 1000) / (now - t0) : 0;
+    // the crank runs at 20 Hz; a reading above that is only arrival jitter
+    const tps = now - t0 > 2000 ? Math.min(20, ((r.tick - k0) * 1000) / (now - t0)) : 0;
     useStore.getState().set({
       room: r,
       mySeat: this.mySeat,

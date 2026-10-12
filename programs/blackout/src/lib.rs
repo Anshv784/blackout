@@ -785,6 +785,10 @@ pub mod blackout {
         let w: &mut World = world_mut(&mut d, rid)?;
         let tick = w.tick;
         let p = &mut w.players[seat];
+        // an input that arrives after a newer one is stale: ignore it (sequence numbers only go up)
+        if seq < p.in_seq {
+            return Ok(());
+        }
         p.in_dx = dx as i32;
         p.in_dy = dy as i32;
         p.aim = aim as u32;
