@@ -704,7 +704,10 @@ export class Session {
     const firing = (i.buttons & 1) === 1;
     const aimChanged = firing ? aimDelta > 30 : aimDelta > 150;
     const since = now - this.lastSendAt;
-    if ((changed && since >= 40) || (aimChanged && since >= (firing ? 40 : 50)) || since >= 500) {
+    // on a slow link every transaction queues behind the last: send less often so they don't pile up
+    const slow = this.rtt > 350;
+    const gap = slow ? 90 : 40;
+    if ((changed && since >= gap) || (aimChanged && since >= (firing ? gap : gap + 10)) || since >= 500) {
       this.lastSendAt = now;
       this.sent = { ...i };
       const seq = ++this.seq;
