@@ -6,7 +6,7 @@ import { useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
-import { Gun } from "./Gun";
+import { Gun, MUZZLE_FWD } from "./Gun";
 
 export const SOLDIER_URL = "/models/soldier-v2.glb";
 useGLTF.preload(SOLDIER_URL);
@@ -20,6 +20,7 @@ export interface Motion {
   throwAt: number; // performance.now() of the last throw
   crouch?: boolean;
   jumpAt?: number; // performance.now() a jump started
+  shotAt?: number; // performance.now() of the latest shot (each one kicks)
   torch?: boolean; // the under-barrel torch is on
   deadAt?: number; // performance.now() they were killed: knees go, then they fall back and the gun drops
 }
@@ -28,6 +29,14 @@ export const stillMotion = (): Motion => ({ speed: 0, firing: false, reloading: 
 /** seconds after death the body becomes a crate, and how long the change takes */
 const BOX_AT = 1.6;
 const BOX_DUR = 0.45;
+/** per gun: [push back, muzzle climb (rad), flash size, settle (lower = faster)] */
+const RECOIL: [number, number, number, number][] = [
+  [0.06, 0.16, 0.8, 0.0004], // P92: snappy flip
+  [0.035, 0.07, 0.7, 0.00002], // UMP: light, fast
+  [0.12, 0.3, 1.5, 0.002], // S12K: big shove
+  [0.05, 0.09, 1.0, 0.00005], // M416: tight climb
+  [0.14, 0.34, 1.4, 0.004], // KAR98K: heavy, slow to settle
+];
 const HEIGHT = 1.38; // world units (a tile is 1)
 const GUN_POS = new THREE.Vector3(0.1, 1.0, 0.13); // the stock, at the right shoulder (+x forward, +z right)
 
@@ -134,6 +143,10 @@ export function Soldier({ color, weapon = 0, ghost = false, motion }: { color: s
 
   const w = useRef({ idle: 1, walk: 0, run: 0 });
   const kick = useRef(0);
+  const roll = useRef(0);
+  const lastShot = useRef(0);
+  const flashAt = useRef(-1e9);
+  const flash = useRef<THREE.Group>(null);
   const crouchK = useRef(0);
   const landed = useRef(false); // the fallen pose has been drawn at least once
   const [torchOn, setTorchOn] = useState(false);
@@ -160,6 +173,9 @@ export function Soldier({ color, weapon = 0, ghost = false, motion }: { color: s
     if (wantTorch !== torchOn) setTorchOn(wantTorch);
     const g = root.current;
     if (!g) return;
+    // hidden (enemy out of sight, unused ghost, etc.): don't animate it at all, it's the biggest
+    // per-frame cost on phones with up to 17 soldiers in the scene
+    for (let o: THREE.Object3D | null = g; o; o = o.parent) if (!o.visible) return;
     // locomotion blend
     const want = m.downed ? { idle: 0, walk: m.speed > 0 ? 1 : 0, run: 0 } : { idle: m.speed === 0 ? 1 : 0, walk: m.speed === 1 ? 1 : 0, run: m.speed === 2 ? 1 : 0 };
     const k = 1 - Math.pow(0.0005, dt);
@@ -264,13 +280,32 @@ export function Soldier({ color, weapon = 0, ghost = false, motion }: { color: s
       bones.spine.rotation.x += 0.18 * ck;
     }
 
-    // shots kick the gun back
-    if (m.firing && !lastFire.current) kick.current = 1;
+    // every shot kicks: the gun slams back into the shoulder and the muzzle climbs, then settles
+    const shot = m.shotAt ?? 0;
+    if (shot && shot !== lastShot.current) {
+      lastShot.current = shot;
+      kick.current = Math.min(1.6, kick.current + 1);
+      roll.current = (Math.random() - 0.5) * 2;
+      flashAt.current = performance.now();
+    } else if (!m.shotAt && m.firing && !lastFire.current) {
+      kick.current = 1;
+      flashAt.current = performance.now();
+    }
     lastFire.current = m.firing;
-    kick.current *= Math.pow(0.0002, dt);
+    const K = RECOIL[weapon] ?? RECOIL[0];
+    kick.current *= Math.pow(K[3], dt);
+    const kk = kick.current;
     if (gunRef.current) {
-      gunRef.current.position.set(GUN_POS.x - kick.current * 0.07, GUN_POS.y + kick.current * 0.02 + (m.downed ? 0 : lift), GUN_POS.z);
-      gunRef.current.rotation.set(0, 0, kick.current * 0.12);
+      gunRef.current.position.set(GUN_POS.x - kk * K[0], GUN_POS.y + kk * K[0] * 0.3 + (m.downed ? 0 : lift), GUN_POS.z + kk * 0.012 * roll.current);
+      gunRef.current.rotation.set(kk * 0.04 * roll.current, 0, kk * K[1]);
+      if (flash.current) {
+        const fa = (performance.now() - flashAt.current) / 55;
+        flash.current.visible = fa >= 0 && fa < 1 && !ghost;
+        if (flash.current.visible) {
+          flash.current.scale.setScalar((1 - fa * 0.5) * K[2]);
+          flash.current.rotation.x = flashAt.current * 7.3;
+        }
+      }
       // the swap: 0.45 s, gun dips muzzle-down and out to the side, then back up into the shoulder
       const sp = swapAt.current < 0 ? 1 : (performance.now() - swapAt.current) / 450;
       if (sp < 1) {
@@ -287,7 +322,8 @@ export function Soldier({ color, weapon = 0, ghost = false, motion }: { color: s
 
     // shoulder into the stock, head up behind the sights
     bones.spine.rotation.y += 0.12;
-    bones.spine.rotation.z -= kick.current * 0.05;
+    bones.spine.rotation.z -= kick.current * 0.08; // the shoulder takes the hit
+    bones.spine.rotation.y -= kick.current * 0.03;
     bones.neck.rotation.x -= 0.1;
 
     // hands on the gun: right on the grip, left on the handguard (or the mag while reloading)
@@ -346,6 +382,19 @@ export function Soldier({ color, weapon = 0, ghost = false, motion }: { color: s
       <group ref={gunRef} position={GUN_POS.toArray()}>
         <group position={[-0.17, 0, -0.12]} scale={0.85}>
           <Gun weapon={shown} ghost={ghost} torch={torchOn} />
+        </group>
+        {/* muzzle flash: two crossed bright cards at the barrel tip, for ~55 ms per shot */}
+        <group ref={flash} position={[(MUZZLE_FWD[shown] ?? 0.6) - 0.1, 0, -0.11]} visible={false}>
+          {[0, Math.PI / 2].map((r) => (
+            <mesh key={r} rotation-x={r}>
+              <planeGeometry args={[0.32, 0.16]} />
+              <meshBasicMaterial color="#ffd27a" transparent opacity={0.95} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} side={THREE.DoubleSide} />
+            </mesh>
+          ))}
+          <mesh position={[-0.03, 0, 0]}>
+            <sphereGeometry args={[0.05, 8, 6]} />
+            <meshBasicMaterial color="#fff6dc" toneMapped={false} />
+          </mesh>
         </group>
       </group>
     </group>

@@ -169,6 +169,7 @@ function MyPlayer({ session }: { session: Session }) {
     const firing = (session.input.buttons & 1) === 1 && alive && v.me.reload === 0 && v.me.mag > 0 && session.room?.status === ST_LIVE;
     if (firing && now - lastShot.current > (COOLDOWN_MS[v.me.weapon] ?? 350)) {
       lastShot.current = now;
+      motion.current.shotAt = now;
       audio.shoot(v.me.weapon);
       session.fireLocal(v.me.weapon, pos.x, pos.y, session.input.aim, (session.predMoved & 8) !== 0);
       if (flash.current) flash.current.intensity = 14;
@@ -317,6 +318,7 @@ function Others({ session }: { session: Session }) {
         const mo = motions.current[s];
         mo.speed = gaits.current[s] < 0.5 ? 0 : spd > 1400 ? 2 : 1;
         mo.firing = (smp.flags & 4) !== 0;
+        if (mo.firing && now - (mo.shotAt ?? 0) > (COOLDOWN_MS[smp.weapon] ?? 300)) mo.shotAt = now;
         mo.downed = (smp.flags & 16) !== 0;
         mo.crouch = (smp.flags & 256) !== 0;
         const inAir = (smp.flags & 128) !== 0;
@@ -704,7 +706,7 @@ function Fx({ session }: { session: Session }) {
           <meshBasicMaterial transparent opacity={0} toneMapped={false} side={THREE.DoubleSide} />
         </mesh>
       ))}
-      {Array.from({ length: TOUCH ? 1 : 3 }, (_, i) => (
+      {Array.from({ length: TOUCH ? 0 : 3 }, (_, i) => (
         <pointLight key={i} ref={(el) => (flashes.current[i] = el)} color="#ffb347" intensity={0} distance={4} decay={1.5} />
       ))}
     </>
