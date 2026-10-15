@@ -144,6 +144,8 @@ export class Session {
     // websockets can stall; a slow poll keeps the lobby honest
     this.timers.push(window.setInterval(() => this.poll(), 1000));
     this.timers.push(window.setInterval(() => this.duties(), 100));
+    // the game clock: if MagicBlock's crank stops ticking, the players' browsers keep the night running
+    this.timers.push(window.setInterval(() => this.keepClock(), 50));
     // websocket watchdog: if private view pushes stall mid-match, poll over HTTP and resubscribe
     this.timers.push(window.setInterval(() => this.viewWatchdog(), 150));
   }
@@ -721,6 +723,26 @@ export class Session {
     }
   }
 
+  /**
+   * Keep the night moving at 20 ticks a second when the scheduled crank isn't delivering.
+   * One browser drives (the lowest seated human); the others step in only if it goes quiet.
+   * The program ignores ticks that come too soon (slot-gated), so extra ones are harmless.
+   */
+  private clockN = 0;
+  private keepClock() {
+    const r = this.room;
+    if (!r || this.closed || this.mySeat === null) return;
+    if (r.status !== ST_LIVE && r.status !== ST_COUNTDOWN) return;
+    const quiet = performance.now() - this.lastRoomTickAt;
+    const humans = r.players.map((p, i) => (r.isBot[i] === 0 && !isEmptyKey(p) ? i : -1)).filter((i) => i >= 0);
+    const driver = humans.length ? Math.min(...humans) : this.mySeat;
+    const mine = this.mySeat === driver;
+    if (quiet < (mine ? 120 : 900)) return; // the crank (or the driver) is keeping time
+    // a different compute limit each time makes every tick a distinct transaction (no duplicate drops)
+    const cu = 1_400_000 - (++this.clockN % 997);
+    client.sendEr([ComputeBudgetProgram.setComputeUnitLimit({ units: cu }), client.tickIx(this.roomId)], { confirm: false }).catch(() => {});
+  }
+
   /** Room upkeep any client may do: nothing here needs a server. */
   private lastBeat = 0;
 
@@ -736,11 +758,7 @@ export class Session {
       this.lastBeat = now;
       client.sendEr([client.heartbeatIx(this.roomId)], { confirm: false }).catch(() => {});
     }
-    // crank fallback: if the 20 Hz crank stalls, clients tick (slot-gated on chain)
-    if ((r.status === ST_LIVE || r.status === ST_COUNTDOWN) && now - this.lastRoomTickAt > 700) {
-      // same compute budget as the crank: a live tick (vision for 8 seats) needs far more than the default
-      client.sendEr([ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 }), client.tickIx(this.roomId)], { confirm: false }).catch(() => {});
-    }
+    // (crank fallback lives in keepClock, at 20 Hz)
     // VRF fallback after ~6 s
     if (r.status === ST_STARTING && this.startingSince && now - this.startingSince > 6500 && (now | 0) % 1000 < 110) {
       client.sendEr([client.fallbackSeedIx(this.roomId)], { confirm: false }).catch(() => {});
