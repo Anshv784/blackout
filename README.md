@@ -21,7 +21,9 @@
   <img src="https://img.shields.io/badge/Rust-sim%20%2B%20tests-b7410e?logo=rust" alt="Rust">
   <img src="https://img.shields.io/badge/React-Three.js-61dafb?logo=react&logoColor=black" alt="React + Three.js">
   <img src="https://img.shields.io/badge/TypeScript-client-3178c6?logo=typescript&logoColor=white" alt="TypeScript">
-  <img src="https://img.shields.io/badge/Built%20for-Solana%20Blitz%20v9-14f195" alt="Solana Blitz v9">
+  <img src="https://img.shields.io/badge/%F0%9F%A5%88%202nd%20place-MagicBlock%20Solana%20Blitz%20v9-ffd166" alt="2nd place, MagicBlock Solana Blitz v9">
+  <img src="https://img.shields.io/badge/Submitted-Superteam%20side%20track-14f195" alt="Superteam side track">
+  <img src="https://img.shields.io/badge/Submitted-Colosseum-7b61ff" alt="Colosseum">
 </p>
 
 <p align="center">
@@ -36,6 +38,14 @@ On a normal blockchain, fog of war is impossible: every account is public, so a 
 | Program (devnet) | [`VWHcbCSH4kATcuPJgjZ6QC56W3NBQ53U6fxJNtGknh3`](https://explorer.solana.com/address/VWHcbCSH4kATcuPJgjZ6QC56W3NBQ53U6fxJNtGknh3?cluster=devnet) |
 | TEE validator | [`MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo`](https://explorer.solana.com/address/MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo?cluster=devnet) (`devnet-tee.magicblock.app`) |
 | Live proof | The **How it works** page has a *Try to cheat* button that asks the TEE for a real room's sealed accounts and shows the denial |
+
+### Hackathons
+
+| Event | Status |
+|---|---|
+| **MagicBlock Solana Blitz v9** | 🥈 **Won 2nd place** |
+| **Superteam side track** | Submitted |
+| **Colosseum** | Submitted |
 
 ---
 
