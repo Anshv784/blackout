@@ -21,7 +21,7 @@
   <img src="https://img.shields.io/badge/Rust-sim%20%2B%20tests-b7410e?logo=rust" alt="Rust">
   <img src="https://img.shields.io/badge/React-Three.js-61dafb?logo=react&logoColor=black" alt="React + Three.js">
   <img src="https://img.shields.io/badge/TypeScript-client-3178c6?logo=typescript&logoColor=white" alt="TypeScript">
-  <img src="https://img.shields.io/badge/%F0%9F%A5%88%202nd%20place-MagicBlock%20Solana%20Blitz%20v9-ffd166" alt="2nd place, MagicBlock Solana Blitz v9">
+  <a href="https://x.com/magicblock/status/2110732865923383620"><img src="https://img.shields.io/badge/%F0%9F%A5%88%202nd%20place-MagicBlock%20Solana%20Blitz%20v9-ffd166" alt="2nd place, MagicBlock Solana Blitz v9"></a>
   <a href="https://superteam.fun/earn/listing/colosseum-crypto-worlds-fair-hackathon-superteam-india-track"><img src="https://img.shields.io/badge/Superteam%20India-Crypto%20World's%20Fair%20track-14f195" alt="Superteam India track"></a>
   <a href="https://colosseum.com/arena/projects/blackout"><img src="https://img.shields.io/badge/Colosseum-Crypto%20World's%20Fair-7b61ff" alt="Colosseum Crypto World's Fair"></a>
 </p>
@@ -43,7 +43,7 @@ On a normal blockchain, fog of war is impossible: every account is public, so a 
 
 | Event | Status |
 |---|---|
-| **MagicBlock Solana Blitz v9** | 🥈 **Won 2nd place** |
+| **MagicBlock Solana Blitz v9** | 🥈 **Won 2nd place** · [announcement](https://x.com/magicblock/status/2110732865923383620) |
 | **Superteam India track** · Colosseum Crypto World's Fair | [Listing](https://superteam.fun/earn/listing/colosseum-crypto-worlds-fair-hackathon-superteam-india-track) |
 | **Colosseum Crypto World's Fair Hackathon** | [Project page](https://colosseum.com/arena/projects/blackout) |
 
