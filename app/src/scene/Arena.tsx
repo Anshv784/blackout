@@ -3,6 +3,8 @@ import { TOUCH } from "../game/device";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { MAP_ROWS, LOOT_SPOTS, LAMPS, MAP_W, MAP_H, WALL_CHARS } from "../game/gen";
+import { Dressing } from "./Dressing";
+import { usePrefs, gfx } from "../game/prefs";
 
 /** Collision height on chain is just "wall"; visual heights vary for silhouette. */
 export const WALL_H = 1.25;
@@ -709,6 +711,7 @@ export function Arena({ lit = false }: { lit?: boolean }) {
         <lineBasicMaterial color={lit ? "#8fb4ff" : "#31406b"} transparent opacity={lit ? 0.45 : 0.5} />
       </lineSegments>
       <Beacons boxes={boxes} />
+      <Dressing boxes={boxes} />
       <Lamps />
       <Towers boxes={boxes} />
     </group>
