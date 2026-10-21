@@ -25,6 +25,7 @@ import {
 } from "../chain/layout";
 import { inputVelocity, moveBody, moveStep, SPEED, UNIT, COUNTDOWN_TICKS, blackoutTick, BLACKOUT_TICKS } from "./sim";
 import { banner, feel } from "./feel";
+import { ClockKeeper } from "./clock";
 import { audio } from "./audio";
 import { controls } from "./controls";
 
@@ -724,23 +725,26 @@ export class Session {
   }
 
   /**
-   * Keep the night moving at 20 ticks a second when the scheduled crank isn't delivering.
-   * One browser drives (the lowest seated human); the others step in only if it goes quiet.
-   * The program ignores ticks that come too soon (slot-gated), so extra ones are harmless.
+   * Keep the night moving if MagicBlock's crank stops. One browser drives (the lowest seated
+   * human); the others step in only if it goes quiet too. See clock.ts for why it waits.
    */
   private clockN = 0;
+  private clock = new ClockKeeper(() => {
+    // a different compute limit each time makes every tick a distinct transaction (no duplicate drops)
+    const cu = 1_400_000 - (++this.clockN % 997);
+    return client.sendEr([ComputeBudgetProgram.setComputeUnitLimit({ units: cu }), client.tickIx(this.roomId)], { confirm: false });
+  });
   private keepClock() {
     const r = this.room;
     if (!r || this.closed || this.mySeat === null) return;
-    if (r.status !== ST_LIVE && r.status !== ST_COUNTDOWN) return;
-    const quiet = performance.now() - this.lastRoomTickAt;
-    const humans = r.players.map((p, i) => (r.isBot[i] === 0 && !isEmptyKey(p) ? i : -1)).filter((i) => i >= 0);
-    const driver = humans.length ? Math.min(...humans) : this.mySeat;
-    const mine = this.mySeat === driver;
-    if (quiet < (mine ? 120 : 900)) return; // the crank (or the driver) is keeping time
-    // a different compute limit each time makes every tick a distinct transaction (no duplicate drops)
-    const cu = 1_400_000 - (++this.clockN % 997);
-    client.sendEr([ComputeBudgetProgram.setComputeUnitLimit({ units: cu }), client.tickIx(this.roomId)], { confirm: false }).catch(() => {});
+    if (r.status !== ST_LIVE && r.status !== ST_COUNTDOWN) return this.clock.reset();
+    let driver = this.mySeat;
+    for (let i = 0; i < r.players.length; i++)
+      if (r.isBot[i] === 0 && !r.players[i].equals(PublicKey.default)) {
+        driver = i;
+        break;
+      }
+    this.clock.step(performance.now(), performance.now() - this.lastRoomTickAt, r.tick, this.mySeat === driver);
   }
 
   /** Room upkeep any client may do: nothing here needs a server. */
