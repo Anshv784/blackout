@@ -6,6 +6,13 @@ export const feel = {
   killAt: 0,
   hurtAt: 0,
   lightning: 0, // 0..1 sky flash
+  /** your last pickup: when, what (loot kind), and where the crate stood (map units) */
+  pickAt: 0,
+  pickKind: 0,
+  pickFrom: { x: 0, y: 0 },
+  /** the gun's reload started (performance.now) and how long it takes (ms) */
+  reloadAt: 0,
+  reloadDur: 0,
 };
 
 export interface Banner {

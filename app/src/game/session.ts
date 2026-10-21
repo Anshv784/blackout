@@ -96,6 +96,8 @@ export class Session {
   drop: { x: number; y: number; at: number } | null = null;
   /** smoke clouds you can see from afar (from smoke pings), keyed by rounded position */
   smokes = new Map<string, { x: number; y: number; at: number }>();
+  /** crates that were emptied: drawn open on the ground for a while */
+  looted: { x: number; y: number; kind: number; at: number }[] = [];
   /** explosions to draw */
   booms: { x: number; y: number; at: number }[] = [];
   private announcedMod = -1;
@@ -322,6 +324,7 @@ export class Session {
         // new match: forget the previous one's view, hits and pings
         if (r.status === ST_STARTING) {
           this.view = null;
+          this.looted = [];
           this.lastHitTick = 0;
           useStore.getState().set({ view: null });
         }
@@ -612,14 +615,43 @@ export class Session {
       audio.death();
     }
     if (prev && v.me.flare > prev.me.flare + 50) audio.flare();
+    // loot that vanished: next to you, you took it (the program picks up within 0.7 tiles);
+    // anywhere else, someone did. Either way the empty crate stays open on the ground a while.
+    let took = 0;
+    if (prev && v.status === ST_LIVE && prev.status === ST_LIVE)
+      for (const l of prev.loot) {
+        if (v.loot.some((x) => x.id === l.id && x.kind === l.kind)) continue;
+        const mine = Math.hypot(l.x - v.me.x, l.y - v.me.y) < 320 && v.me.alive === 1;
+        this.looted.push({ x: l.x, y: l.y, kind: l.kind, at: now });
+        if (this.looted.length > 12) this.looted.shift();
+        if (mine && !took) {
+          took = l.kind;
+          feel.pickAt = now;
+          feel.pickKind = l.kind;
+          feel.pickFrom = { x: l.x, y: l.y };
+          audio.pickup(l.kind);
+        }
+      }
+    if (prev && v.status === ST_LIVE && prev.status === ST_LIVE && v.tick > prev.tick && v.inv.count > prev.inv.count && !took) {
+      // a gadget you didn't see the crate of (it was under you): still a pickup
+      feel.pickAt = now;
+      feel.pickKind = 9;
+      feel.pickFrom = { x: v.me.x, y: v.me.y };
+      audio.pickup(9);
+    }
     // pickups (only while playing: a new night "changes" your gun back to the pistol)
     if (prev && v.status === ST_LIVE && prev.status === ST_LIVE && v.tick > prev.tick && (v.me.weapon !== prev.me.weapon || v.me.hp > prev.me.hp + 10 || v.me.armor > prev.me.armor + 10 || v.me.flare > prev.me.flare + 50)) {
-      audio.pickup();
+      if (!took) audio.pickup();
       const what = v.me.weapon !== prev.me.weapon ? 1 : v.me.flare > prev.me.flare + 50 ? 4 : v.me.armor > prev.me.armor + 10 ? 3 : 2;
       this.addFx({ kind: "loot", x: v.me.x, y: v.me.y, sub: what });
       banner(["", WEAPON_NAME[v.me.weapon] ?? "WEAPON", "+ HEALTH", "+ ARMOR", "FLARE: YOU SEE EVERYONE"][what], "event", what === 1 ? FIRE_MODE[v.me.weapon] : undefined);
     }
-    if (prev && prev.me.reload === 0 && v.me.reload > 0) audio.reload(v.me.weapon);
+    if (prev && prev.me.reload === 0 && v.me.reload > 0) {
+      // the animation and the sounds run over the gun's real reload time (ticks of 50 ms)
+      feel.reloadAt = now;
+      feel.reloadDur = v.me.reload * 50;
+      audio.reload(v.me.weapon, feel.reloadDur / 1000);
+    }
     // the HUD re-renders on every store change; phones get it 8 times a second instead of 20
     // (the 3D scene reads this.view directly every frame, so movement stays smooth)
     if (!TOUCH || now - this.hudAt > 120 || v.me.alive !== prev?.me.alive || v.status !== prev?.status) {

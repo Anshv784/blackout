@@ -10,6 +10,7 @@ import { gfx } from "../game/prefs";
 import { TOUCH } from "../game/device";
 import { MAP_W, MAP_H } from "../game/gen";
 import { wallBoxes } from "./Arena";
+import { feel } from "../game/feel";
 
 // ------------------------------------------------------------------ shell casings
 
@@ -138,6 +139,110 @@ function Casings({ session }: { session: Session }) {
       <cylinderGeometry args={[0.011, 0.011, 0.045, 6]} />
       {/* a faint glint, so brass in the dark still catches the eye */}
       <meshStandardMaterial metalness={0.85} roughness={0.3} emissive="#3a2a08" emissiveIntensity={0.6} />
+    </instancedMesh>
+  );
+}
+
+// ------------------------------------------------------------------ dropped magazines
+
+const MAX_MAGS = 12;
+/** size of the empty mag per gun (pistol, UMP, -, M416) */
+const MAG_SIZE: [number, number, number][] = [
+  [0.035, 0.11, 0.03],
+  [0.042, 0.15, 0.038],
+  [0.042, 0.15, 0.038],
+  [0.042, 0.17, 0.038],
+  [0.042, 0.15, 0.038],
+];
+const mg = {
+  pos: new Float32Array(MAX_MAGS * 3),
+  vel: new Float32Array(MAX_MAGS * 3),
+  quat: Array.from({ length: MAX_MAGS }, () => new THREE.Quaternion()),
+  spin: new Float32Array(MAX_MAGS * 3),
+  age: new Float32Array(MAX_MAGS).fill(-1),
+  bounces: new Uint8Array(MAX_MAGS),
+  weapon: new Uint8Array(MAX_MAGS),
+  loud: new Float32Array(MAX_MAGS),
+  next: 0,
+};
+const MAG_REST = 12;
+
+/** An empty magazine falls out of the gun at world `pos`, oriented `quat`. */
+export function dropMag(pos: THREE.Vector3, quat: THREE.Quaternion, weapon: number, loud = 1) {
+  const i = mg.next;
+  mg.next = (mg.next + 1) % MAX_MAGS;
+  mg.pos.set([pos.x, pos.y, pos.z], i * 3);
+  mg.vel.set([(Math.random() - 0.5) * 0.4, -0.6, (Math.random() - 0.5) * 0.4], i * 3);
+  mg.quat[i].copy(quat);
+  mg.spin.set([(Math.random() - 0.5) * 6, (Math.random() - 0.5) * 3, (Math.random() - 0.5) * 6], i * 3);
+  mg.age[i] = 0;
+  mg.bounces[i] = 0;
+  mg.weapon[i] = weapon;
+  mg.loud[i] = loud;
+}
+
+const spinQ = new THREE.Quaternion();
+const spinE = new THREE.Euler();
+const lie = new THREE.Quaternion();
+function Mags({ session }: { session: Session }) {
+  const mesh = useRef<THREE.InstancedMesh>(null);
+  const tmp = useMemo(() => new THREE.Object3D(), []);
+  const match = useRef(-1);
+  useFrame((_, dt) => {
+    const m = mesh.current;
+    if (!m) return;
+    const no = session.room?.matchNo ?? -1;
+    if (no !== match.current) {
+      match.current = no;
+      mg.age.fill(-1);
+    }
+    dt = Math.min(dt, 0.05);
+    let n = 0;
+    for (let i = 0; i < MAX_MAGS; i++) {
+      if (mg.age[i] < 0) continue;
+      mg.age[i] += dt;
+      if (mg.age[i] > MAG_REST) {
+        mg.age[i] = -1;
+        continue;
+      }
+      const j = i * 3;
+      if (mg.bounces[i] < 2) {
+        mg.vel[j + 1] -= 9.8 * dt;
+        mg.pos[j] += mg.vel[j] * dt;
+        mg.pos[j + 1] += mg.vel[j + 1] * dt;
+        mg.pos[j + 2] += mg.vel[j + 2] * dt;
+        mg.quat[i].multiply(spinQ.setFromEuler(spinE.set(mg.spin[j] * dt, mg.spin[j + 1] * dt, mg.spin[j + 2] * dt)));
+        const floor = 0.02;
+        if (mg.pos[j + 1] < floor) {
+          mg.pos[j + 1] = floor;
+          mg.vel[j + 1] = -mg.vel[j + 1] * 0.25;
+          mg.vel[j] *= 0.3;
+          mg.vel[j + 2] *= 0.3;
+          mg.bounces[i]++;
+          if (mg.bounces[i] === 1 && mg.loud[i] > 0.05) audio.magDrop(mg.loud[i]);
+          if (mg.bounces[i] >= 2) {
+            // settle flat on its side, keeping the heading it landed with
+            const e = new THREE.Euler().setFromQuaternion(mg.quat[i], "YXZ");
+            mg.quat[i].copy(lie.setFromEuler(spinE.set(0, e.y, Math.PI / 2, "YXZ")));
+            mg.pos[j + 1] = 0.022;
+          }
+        }
+      }
+      const fade = mg.age[i] > MAG_REST - 1 ? MAG_REST - mg.age[i] : 1;
+      const sz = MAG_SIZE[mg.weapon[i]] ?? MAG_SIZE[1];
+      tmp.position.set(mg.pos[j], mg.pos[j + 1], mg.pos[j + 2]);
+      tmp.quaternion.copy(mg.quat[i]);
+      tmp.scale.set(sz[0] * fade, sz[1] * fade, sz[2] * fade);
+      tmp.updateMatrix();
+      m.setMatrixAt(n++, tmp.matrix);
+    }
+    m.count = n;
+    m.instanceMatrix.needsUpdate = true;
+  });
+  return (
+    <instancedMesh ref={mesh} args={[undefined, undefined, MAX_MAGS]} frustumCulled={false}>
+      <boxGeometry args={[1, 1, 1]} />
+      <meshStandardMaterial color="#5a606c" metalness={0.6} roughness={0.4} emissive="#121418" />
     </instancedMesh>
   );
 }
@@ -288,10 +393,139 @@ function Holes({ session }: { session: Session }) {
   );
 }
 
+// ------------------------------------------------------------------ pickups
+
+/** loot colours (mirror of the crate rings in GameScene) */
+const PICK_COLOR = ["#fff", "#06d6a0", "#4cc9f0", "#ff8c42", "#ef476f", "#f15bb5", "#ffd166", "#c77dff", "#ff3b3b", "#9ae64a", "#c9ccd1", "#ffffff", "#ffb347", "#38e1ff", "#3cff7a"];
+
+/** What you just took leaves the crate and lands in your hand as you reach for it. */
+function PickupFlight({ session }: { session: Session }) {
+  const mesh = useRef<THREE.Mesh>(null);
+  const mat = useRef<THREE.MeshBasicMaterial>(null);
+  useFrame(() => {
+    const m = mesh.current;
+    if (!m) return;
+    const k = (performance.now() - feel.pickAt) / 650;
+    const me = session.myPos();
+    if (k < 0.1 || k > 0.6 || !me) {
+      m.visible = false;
+      return;
+    }
+    const t = ss(0.1, 0.55, k);
+    // a short arc from the crate up into the left hand
+    const fx = feel.pickFrom.x / 256;
+    const fz = feel.pickFrom.y / 256;
+    m.visible = true;
+    m.position.set(fx + (me.x / 256 - fx) * t, 0.3 + 0.7 * t + Math.sin(t * Math.PI) * 0.25, fz + (me.y / 256 - fz) * t);
+    m.scale.setScalar(1 - 0.6 * t);
+    m.rotation.y = k * 9;
+    mat.current?.color.set(PICK_COLOR[feel.pickKind] ?? "#fff");
+  });
+  return (
+    <mesh ref={mesh} visible={false}>
+      <boxGeometry args={[0.13, 0.08, 0.1]} />
+      <meshBasicMaterial ref={mat} toneMapped={false} />
+    </mesh>
+  );
+}
+
+const ss = (a: number, b: number, x: number) => {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
+
+const hinge = new THREE.Vector3();
+const lidPos = new THREE.Vector3();
+const lidQ = new THREE.Quaternion();
+const lidE = new THREE.Euler();
+const ONE = new THREE.Vector3(1, 1, 1);
+const lidOff = new THREE.Matrix4();
+const lidScale = new THREE.Matrix4();
+const LOOTED_FOR = 7; // seconds an emptied crate stays on the ground
+/** size [w, h, d] and colour of the case each loot kind came in */
+function caseOf(kind: number): [[number, number, number], string] {
+  if (kind === 3 || kind === 4 || kind === 6 || kind === 7) return [[1.05, 0.2, 0.4], "#3d4630"];
+  if (kind === 1) return [[0.52, 0.32, 0.38], "#d9dce0"];
+  if (kind === 2) return [[0.58, 0.3, 0.44], "#33402f"];
+  if (kind === 5) return [[0.34, 0.12, 0.34], "#2b2d33"];
+  if (kind === 8) return [[0.85, 0.6, 0.85], "#b9bcc1"];
+  return [[0.42, 0.24, 0.32], "#2b2f36"];
+}
+
+/** Crates someone emptied: still there, lid thrown open, nothing inside. */
+function Looted({ session }: { session: Session }) {
+  const base = useRef<THREE.InstancedMesh>(null);
+  const lid = useRef<THREE.InstancedMesh>(null);
+  const hollow = useRef<THREE.InstancedMesh>(null);
+  const tmp = useMemo(() => new THREE.Object3D(), []);
+  const lidObj = useMemo(() => new THREE.Object3D(), []);
+  const col = useMemo(() => new THREE.Color(), []);
+  useFrame(() => {
+    const b = base.current;
+    const l = lid.current;
+    if (!b || !l) return;
+    const now = performance.now();
+    let n = 0;
+    for (const c of session.looted) {
+      const age = (now - c.at) / 1000;
+      if (age > LOOTED_FOR || n >= 12) continue;
+      const [[w, h, d], color] = caseOf(c.kind);
+      const sink = age > LOOTED_FOR - 1 ? (age - (LOOTED_FOR - 1)) * h : 0;
+      const yaw = ((c.x * 7 + c.y * 13) % 628) / 100;
+      tmp.position.set(c.x / 256, h / 2 - sink, c.y / 256);
+      tmp.rotation.set(0, yaw, 0);
+      tmp.scale.set(w, h, d);
+      tmp.updateMatrix();
+      b.setMatrixAt(n, tmp.matrix);
+      b.setColorAt(n, col.set(color).multiplyScalar(0.55));
+      // the empty inside, seen through the open top
+      tmp.position.y = h - sink + 0.004;
+      tmp.scale.set(w * 0.86, 0.004, d * 0.8);
+      tmp.updateMatrix();
+      hollow.current?.setMatrixAt(n, tmp.matrix);
+      // the lid, hinged at the back edge and swung open past upright
+      const open = Math.min(1, age / 0.25) * 1.95;
+      hinge.set(0, 0, -d / 2).applyAxisAngle(THREE.Object3D.DEFAULT_UP, yaw).add(lidPos.set(c.x / 256, h - sink, c.y / 256));
+      lidQ.setFromEuler(lidE.set(-open, yaw, 0, "YXZ"));
+      lidObj.matrix.compose(hinge, lidQ, ONE).multiply(lidOff.makeTranslation(0, 0.015, d / 2)).multiply(lidScale.makeScale(w * 1.02, 0.03, d * 1.02));
+      l.setMatrixAt(n, lidObj.matrix);
+      l.setColorAt(n, col.set(color).multiplyScalar(0.7));
+      n++;
+    }
+    b.count = l.count = n;
+    b.instanceMatrix.needsUpdate = l.instanceMatrix.needsUpdate = true;
+    if (hollow.current) {
+      hollow.current.count = n;
+      hollow.current.instanceMatrix.needsUpdate = true;
+    }
+    if (b.instanceColor) b.instanceColor.needsUpdate = true;
+    if (l.instanceColor) l.instanceColor.needsUpdate = true;
+  });
+  return (
+    <>
+      <instancedMesh ref={base} args={[undefined, undefined, 12]} frustumCulled={false}>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshStandardMaterial roughness={0.75} metalness={0.15} />
+      </instancedMesh>
+      <instancedMesh ref={lid} args={[undefined, undefined, 12]} frustumCulled={false}>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshStandardMaterial roughness={0.75} metalness={0.15} />
+      </instancedMesh>
+      <instancedMesh ref={hollow} args={[undefined, undefined, 12]} frustumCulled={false}>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshBasicMaterial color="#050506" />
+      </instancedMesh>
+    </>
+  );
+}
+
 export function Details({ session }: { session: Session }) {
   return (
     <>
       <Casings session={session} />
+      <Mags session={session} />
+      <PickupFlight session={session} />
+      <Looted session={session} />
       <Holes session={session} />
     </>
   );

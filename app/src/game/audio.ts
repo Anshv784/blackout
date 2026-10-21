@@ -365,9 +365,35 @@ class Audio {
     this.heart.timer = window.setInterval(beat, 60000 / bpm);
   }
 
-  pickup() {
-    this.tone(440, 0.12, "triangle", 0.2, 0, undefined, 0, 0.5);
-    this.tone(660, 0.18, "triangle", 0.18, 0, undefined, 0.08, 0.5);
+  /** picking something up, by loot kind: what your hands are actually doing */
+  pickup(kind = 0) {
+    // the grab itself: kit brushing against your vest
+    this.hit({ kind: "pink", dur: 0.14, type: "bandpass", f: 900, q: 0.8, vol: 0.07, wet: 0.08 });
+    if (kind === 1) {
+      // medkit: unzip the pouch, rip the tape
+      this.hit({ kind: "white", dur: 0.28, type: "bandpass", f: 2400, f2: 4200, q: 3, vol: 0.06, wet: 0.08, delay: 0.12, attack: 0.04 });
+      this.hit({ kind: "white", dur: 0.16, type: "highpass", f: 2600, vol: 0.09, wet: 0.08, delay: 0.5, attack: 0.01 });
+    } else if (kind === 2) {
+      // armor: two velcro straps torn open and pressed shut
+      for (const d of [0.12, 0.42]) this.hit({ kind: "white", dur: 0.2, type: "bandpass", f: 3200, q: 1.2, vol: 0.08, wet: 0.06, delay: d, attack: 0.01 });
+      this.thump({ f0: 150, f1: 90, dur: 0.08, vol: 0.14, delay: 0.66, wet: 0.1 });
+    } else if (kind === 3 || kind === 4 || kind === 6 || kind === 7 || kind === 8) {
+      // a gun case: two latches, lid, then the weapon racked
+      this.tick(3300, 0.1, 0.04);
+      this.tick(3500, 0.1, 0.13);
+      this.hit({ kind: "brown", dur: 0.1, type: "lowpass", f: 500, vol: 0.14, wet: 0.15, delay: 0.2 });
+      if (!this.play("rack", { vol: 0.55, delay: 0.42, wet: 0.08, rate: 0.9 })) this.tick(2600, 0.12, 0.42);
+    } else if (kind === 5) {
+      // flare: the cap twisted off
+      this.hit({ kind: "white", dur: 0.12, type: "bandpass", f: 1800, q: 4, vol: 0.06, wet: 0.08, delay: 0.1 });
+      this.tick(2200, 0.08, 0.26);
+    } else if (kind >= 9) {
+      // a gadget clipped to the belt
+      this.clink(0.8);
+      this.tick(4100, 0.06, 0.18);
+    } else {
+      this.tone(440, 0.12, "triangle", 0.2, 0, undefined, 0, 0.5);
+    }
   }
 
   flare() {
@@ -690,27 +716,45 @@ class Audio {
   }
 
   /** mag out, mag in, charge */
-  reload(weapon = 0) {
+  /**
+   * The reload, timed to the animation over `dur` seconds (the gun's real reload time):
+   * mag guns: mag out, mag in, charging handle; the shotgun: shells one by one, then the pump;
+   * the Kar98k: bolt open, rounds pushed in, bolt home.
+   */
+  reload(weapon = 0, dur = 2) {
     if (this.has("mag_out")) {
       if (weapon === 2) {
-        for (let i = 0; i < 3; i++) this.play("shell_load", { vol: 0.5, delay: 0.1 + i * 0.42, wet: 0.08, rate: 0.97 + Math.random() * 0.06 });
-        this.play("rack", { vol: 0.7, rate: 0.62, delay: 1.45, wet: 0.08 });
+        for (let i = 0; i < 3; i++) this.play("shell_load", { vol: 0.5, delay: dur * (0.3 + i * 0.22), wet: 0.08, rate: 0.97 + Math.random() * 0.06 });
+        this.play("rack", { vol: 0.7, rate: 0.62, delay: dur * 0.84, wet: 0.08 });
       } else if (weapon === 4) {
-        this.play("bolt_load", { vol: 0.5, delay: 0.05, wet: 0.08 });
-        this.play("rack", { vol: 0.6, rate: 0.8, delay: 1.2, wet: 0.08 });
+        this.play("bolt_load", { vol: 0.5, delay: dur * 0.06, wet: 0.08 });
+        for (let i = 0; i < 3; i++) this.tick(3600 + Math.random() * 500, 0.05, dur * (0.38 + i * 0.13));
+        this.play("rack", { vol: 0.6, rate: 0.8, delay: dur * 0.84, wet: 0.08 });
       } else {
-        this.play("mag_out", { vol: 0.5, wet: 0.08 });
-        this.play("mag_in", { vol: 0.55, delay: 0.6, wet: 0.08 });
-        this.play("rack", { vol: 0.5, delay: 1.05, wet: 0.08, rate: weapon === 0 ? 1.05 : 0.95 });
+        this.play("mag_out", { vol: 0.5, delay: dur * 0.12, wet: 0.08 });
+        // fingers in the vest pouch
+        this.hit({ kind: "pink", dur: 0.18, type: "bandpass", f: 1400, q: 0.9, vol: 0.06, wet: 0.05, delay: dur * 0.3 });
+        this.play("mag_in", { vol: 0.55, delay: dur * 0.5, wet: 0.08 });
+        this.play("rack", { vol: 0.5, delay: dur * 0.72, wet: 0.08, rate: weapon === 0 ? 1.05 : 0.95 });
       }
       return;
     }
     this.tick(2400, 0.1, 0);
     this.hit({ kind: "white", dur: 0.08, type: "bandpass", f: 1200, q: 2, vol: 0.1, wet: 0.1, delay: 0.05 });
-    this.thump({ f0: 220, f1: 120, dur: 0.06, vol: 0.18, delay: 0.55, wet: 0.1 });
-    this.tick(3100, 0.12, 0.6);
-    this.tick(4200, 0.09, 0.85);
-    this.tick(2900, 0.1, 0.95);
+    this.thump({ f0: 220, f1: 120, dur: 0.06, vol: 0.18, delay: dur * 0.5, wet: 0.1 });
+    this.tick(3100, 0.12, dur * 0.72);
+  }
+
+  /** the trigger on an empty chamber */
+  dryFire() {
+    if (!this.play("dry_fire", { vol: 0.55, wet: 0.05, rate: 0.95 + Math.random() * 0.1 })) this.tick(2800, 0.12, 0);
+  }
+
+  /** an empty magazine hitting concrete: a dull plastic-and-steel clunk */
+  magDrop(vol = 1, pan = 0) {
+    this.thump({ f0: 320, f1: 160, dur: 0.07, vol: 0.22 * vol, pan, wet: 0.15 });
+    this.tone(1250 + Math.random() * 200, 0.07, "triangle", 0.03 * vol, pan, 900, 0.01, 0.2);
+    this.hit({ kind: "brown", dur: 0.05, type: "lowpass", f: 700, vol: 0.2 * vol, pan, wet: 0.2, delay: 0.09 });
   }
 
   /** slinging one gun and bringing up the other: strap rattle, then the new one seated */

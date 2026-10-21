@@ -54,6 +54,8 @@ function MyPlayer({ session }: { session: Session }) {
   const flash = useRef<THREE.PointLight>(null);
   const beam = useMemo(beamMaterial, []);
   const lastShot = useRef(0);
+  const trigWas = useRef(false);
+  const dryAt = useRef(0);
   const lastPos = useRef({ x: 0, y: 0 });
   const myWeapon = useStore((s) => s.view?.me.weapon ?? 0);
   const myAlive = useStore((s) => (s.view?.me.alive ?? 1) !== 0);
@@ -109,6 +111,9 @@ function MyPlayer({ session }: { session: Session }) {
     mo.speed = gait.current < 0.5 ? 0 : session.sprinting ? 2 : 1;
     mo.firing = (session.input.buttons & 1) === 1 && alive && v.me.reload === 0 && v.me.mag > 0;
     mo.reloading = v.me.reload > 0;
+    mo.reloadAt = feel.reloadAt;
+    mo.reloadDur = feel.reloadDur;
+    mo.pickAt = feel.pickAt;
     mo.downed = v.me.alive === 2;
     // killed: the body falls where you stood (the night after this one starts you alive again)
     const killed = v.me.alive === 0 && session.room?.status === ST_LIVE;
@@ -169,6 +174,13 @@ function MyPlayer({ session }: { session: Session }) {
     // local muzzle flash on fire (server is authoritative for the bullet)
     const now = performance.now();
     const firing = (session.input.buttons & 1) === 1 && alive && v.me.reload === 0 && v.me.mag > 0 && session.room?.status === ST_LIVE;
+    // trigger on an empty chamber (or mid-reload): the click you feel before you think
+    const trigger = (session.input.buttons & 1) === 1 && alive && session.room?.status === ST_LIVE;
+    if (trigger && !trigWas.current && (v.me.mag === 0 || v.me.reload > 0) && now - dryAt.current > 220) {
+      dryAt.current = now;
+      audio.dryFire();
+    }
+    trigWas.current = trigger;
     if (firing && now - lastShot.current > (COOLDOWN_MS[v.me.weapon] ?? 350)) {
       lastShot.current = now;
       motion.current.shotAt = now;

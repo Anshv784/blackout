@@ -7,6 +7,7 @@ import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { Gun, MUZZLE_FWD } from "./Gun";
+import { dropMag } from "./Details";
 
 export const SOLDIER_URL = "/models/soldier-v2.glb";
 useGLTF.preload(SOLDIER_URL);
@@ -23,6 +24,30 @@ export interface Motion {
   shotAt?: number; // performance.now() of the latest shot (each one kicks)
   torch?: boolean; // the under-barrel torch is on
   deadAt?: number; // performance.now() they were killed: knees go, then they fall back and the gun drops
+  reloadAt?: number; // performance.now() the reload started (your own soldier only)
+  reloadDur?: number; // and how long it takes, ms
+  pickAt?: number; // performance.now() of a pickup: bend down and grab it
+}
+
+const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
+/** 0 → 1 between a and b, eased */
+const ss = (a: number, b: number, x: number) => {
+  const t = clamp01((x - a) / (b - a));
+  return t * t * (3 - 2 * t);
+};
+/** rises a → b, holds, falls c → d */
+const win = (a: number, b: number, c: number, d: number, x: number) => ss(a, b, x) * (1 - ss(c, d, x));
+/** where the hand is at time x along keyframes [time, point] (eased between them) */
+function along(keys: [number, THREE.Vector3][], x: number, out: THREE.Vector3) {
+  if (x <= keys[0][0]) return out.copy(keys[0][1]);
+  for (let i = 1; i < keys.length; i++) {
+    const [t1, p1] = keys[i];
+    if (x <= t1) {
+      const [t0, p0] = keys[i - 1];
+      return out.copy(p0).lerp(p1, ss(t0, t1, x));
+    }
+  }
+  return out.copy(keys[keys.length - 1][1]);
 }
 export const stillMotion = (): Motion => ({ speed: 0, firing: false, reloading: false, downed: false, throwAt: 0 });
 
@@ -165,6 +190,14 @@ export function Soldier({ color, weapon = 0, ghost = false, motion }: { color: s
   const lastFire = useRef(false);
   const target = useMemo(() => new THREE.Vector3(), []);
   const pole = useMemo(() => new THREE.Vector3(), []);
+  // reload: scratch points for the hand's path, the gun's moving parts, what the left hand carries
+  const kp = useMemo(() => Array.from({ length: 9 }, () => new THREE.Vector3()), []);
+  const held = useRef<THREE.Group>(null);
+  const heldMag = useRef<THREE.Mesh>(null);
+  const heldShell = useRef<THREE.Mesh>(null);
+  const heldRound = useRef<THREE.Mesh>(null);
+  const magDropped = useRef(0);
+  const wq = useMemo(() => new THREE.Quaternion(), []);
 
   useFrame((_, dt) => {
     dt = Math.min(dt, 0.05);
@@ -316,6 +349,55 @@ export function Soldier({ color, weapon = 0, ghost = false, motion }: { color: s
         gunRef.current.rotation.z -= 1.1 * s;
         gunRef.current.rotation.x += 0.5 * s;
       }
+      // ---- reloading: the gun tips toward the left hand, and its parts actually move
+      const gr = gunRef.current;
+      const rp = m.reloading && m.reloadAt ? clamp01((performance.now() - m.reloadAt) / Math.max(300, m.reloadDur ?? 2000)) : -1;
+      const mag = gr.getObjectByName("mag");
+      const pump = gr.getObjectByName("pump");
+      const bolt = gr.getObjectByName("bolt");
+      const magGun = weapon === 0 || weapon === 1 || weapon === 3;
+      if (rp >= 0) {
+        const tilt = win(0, 0.12, 0.86, 1, rp);
+        // the gun swings across, muzzle down and out to the right, mag well turned toward the
+        // left hand (and toward the shoulder camera, which otherwise only sees your back)
+        gr.rotation.y -= 0.5 * tilt;
+        gr.position.z += 0.08 * tilt;
+        if (magGun) {
+          gr.rotation.x -= 0.6 * tilt;
+          gr.rotation.z -= 0.22 * tilt;
+          gr.position.y -= 0.06 * tilt;
+          gr.position.x -= 0.03 * win(0.68, 0.71, 0.74, 0.8, rp); // the charging handle snaps back
+        } else if (weapon === 2) {
+          gr.rotation.x += 0.85 * tilt; // loading port up
+          gr.rotation.z -= 0.1 * tilt;
+          gr.position.y -= 0.03 * tilt;
+        } else {
+          gr.rotation.x += 0.3 * tilt;
+          gr.rotation.z -= 0.08 * tilt;
+        }
+      }
+      if (mag) {
+        // out at 12%, back in from 45%: the empty one falls to the ground
+        const out = rp >= 0.12 && rp < 0.45;
+        const rest = mag.userData.rest ?? (mag.userData.rest = mag.position.y);
+        mag.visible = !out;
+        mag.position.y = rp >= 0.45 && rp < 0.53 ? rest - 0.2 * (1 - ss(0.45, 0.52, rp)) : rest;
+        if (rp >= 0.12 && magDropped.current !== m.reloadAt && !ghost) {
+          magDropped.current = m.reloadAt ?? 0;
+          mag.updateWorldMatrix(true, false);
+          dropMag(mag.getWorldPosition(tmpA), mag.getWorldQuaternion(wq), weapon, 1);
+        }
+      }
+      if (pump) {
+        const rest = pump.userData.rest ?? (pump.userData.rest = pump.position.x);
+        pump.position.x = rest - 0.09 * (rp >= 0 ? win(0.82, 0.86, 0.88, 0.92, rp) : 0);
+      }
+      if (bolt) {
+        const restX = bolt.userData.rest ?? (bolt.userData.rest = bolt.position.x);
+        const open = rp >= 0 ? win(0.04, 0.14, 0.8, 0.9, rp) : 0;
+        bolt.rotation.x = -1.1 * open; // up
+        bolt.position.x = restX - 0.08 * open; // and back
+      }
       gunRef.current.visible = !m.downed;
     }
     if (m.downed) return;
@@ -325,23 +407,108 @@ export function Soldier({ color, weapon = 0, ghost = false, motion }: { color: s
     bones.spine.rotation.z -= kick.current * 0.08; // the shoulder takes the hit
     bones.spine.rotation.y -= kick.current * 0.03;
     bones.neck.rotation.x -= 0.1;
-
-    // hands on the gun: right on the grip, left on the handguard (or the mag while reloading)
-    g.updateWorldMatrix(true, true);
     const now = performance.now();
     const throwing = now - m.throwAt < 450;
-    const grip = gunRef.current ? gunRef.current.localToWorld(target.set(0.14, -0.05, 0)) : target.set(0, 0, 0);
+    const gr = gunRef.current;
+    const rp = m.reloading && m.reloadAt ? clamp01((now - m.reloadAt) / Math.max(300, m.reloadDur ?? 2000)) : -1;
+    // a pickup: bend at the waist and reach down for it (not while your hands are busy)
+    const pk = m.pickAt ? (now - m.pickAt) / 600 : 1;
+    const picking = pk >= 0 && pk < 1 && rp < 0 && !throwing;
+    const bendK = picking ? Math.sin(pk * Math.PI) : 0;
+    if (picking) bones.spine.rotation.x += 0.5 * bendK;
+
+    // hands on the gun: right on the grip, left on the handguard (and through the reload)
+    g.updateWorldMatrix(true, true);
+    const grip = gr ? gr.localToWorld(target.set(0.14, -0.05, 0)) : target.set(0, 0, 0);
+    let rightT: THREE.Vector3 = grip;
     if (throwing) {
       // overhand throw with the right arm
       const p = (now - m.throwAt) / 450;
-      g.localToWorld(target.set(0.1 + p * 0.5, 1.45 - p * 0.35, 0.18));
+      rightT = g.localToWorld(kp[7].set(0.1 + p * 0.5, 1.45 - p * 0.35, 0.18));
     }
+    const front = gr ? gr.localToWorld(ikF.set(0.42, -0.03, 0)) : grip;
+    let leftT: THREE.Vector3 = front;
+    let carry = 0; // what the left hand holds: 1 a magazine, 2 a shell, 3 a rifle round
+    if (rp >= 0 && gr && !throwing) {
+      const pouch = g.localToWorld(kp[0].set(0.06, 0.92, -0.17)); // the vest, left side
+      const handguard = kp[1].copy(front);
+      if (weapon === 0 || weapon === 1 || weapon === 3) {
+        const mag = gr.getObjectByName("mag");
+        const well = mag ? mag.getWorldPosition(kp[2]) : kp[2].copy(front);
+        const below = kp[3].copy(well);
+        below.y -= 0.12;
+        const handle = gr.localToWorld(kp[4].set(weapon === 0 ? 0.26 : 0.12, 0.08, 0));
+        const pulled = gr.localToWorld(kp[5].set(weapon === 0 ? 0.14 : 0.02, 0.08, 0));
+        leftT = along(
+          [
+            [0, handguard],
+            [0.08, well], // thumb on the release, fingers on the mag
+            [0.13, well],
+            [0.27, pouch], // the empty one is falling; reach for a fresh one
+            [0.35, pouch],
+            [0.45, below], // line it up under the well
+            [0.52, well], // and slap it home
+            [0.6, handle],
+            [0.68, handle],
+            [0.75, pulled], // rack
+            [0.92, handguard],
+          ],
+          rp,
+          kp[6],
+        );
+        carry = rp > 0.29 && rp < 0.5 ? 1 : 0;
+      } else if (weapon === 2) {
+        const port = gr.localToWorld(kp[2].set(0.4, -0.07, 0));
+        const pumpObj = gr.getObjectByName("pump");
+        const pumpP = pumpObj ? pumpObj.getWorldPosition(kp[3]) : kp[3].copy(front);
+        const keys: [number, THREE.Vector3][] = [[0, handguard]];
+        for (let i = 0; i < 3; i++) {
+          const s0 = 0.12 + i * 0.22;
+          keys.push([s0 + 0.08, pouch], [s0 + 0.18, port]);
+        }
+        keys.push([0.8, pumpP], [1, pumpP]);
+        leftT = along(keys, rp, kp[6]);
+        // a shell travels from the pouch to the port in each cycle
+        const ph = (rp - 0.12) / 0.22 - Math.floor((rp - 0.12) / 0.22);
+        carry = rp > 0.12 && rp < 0.78 && ph > 0.38 && ph < 0.82 ? 2 : 0;
+      } else if (weapon === 4) {
+        const top = gr.localToWorld(kp[2].set(0.24, 0.09, 0)); // the open breech
+        const keys: [number, THREE.Vector3][] = [[0, handguard]];
+        for (let i = 0; i < 3; i++) {
+          const s0 = 0.22 + i * 0.13;
+          keys.push([s0 + 0.06, pouch], [s0 + 0.13, top]);
+        }
+        keys.push([0.8, handguard]);
+        leftT = along(keys, rp, kp[6]);
+        const ph = (rp - 0.22) / 0.13 - Math.floor((rp - 0.22) / 0.13);
+        carry = rp > 0.22 && rp < 0.61 && ph > 0.45 ? 3 : 0;
+        // the right hand leaves the grip to work the bolt, open and then closed
+        const boltObj = gr.getObjectByName("bolt");
+        if (boltObj) {
+          const bp = boltObj.getWorldPosition(kp[4]);
+          const b = Math.max(win(0.0, 0.05, 0.16, 0.22, rp), win(0.74, 0.79, 0.9, 0.96, rp));
+          rightT = kp[7].copy(grip).lerp(bp, b);
+        }
+      }
+    }
+    if (picking) leftT = kp[8].copy(leftT).lerp(g.localToWorld(kp[5].set(0.5, 0.26, -0.12)), bendK);
     g.localToWorld(pole.set(-0.2, 0.7, 0.75));
-    reach(bones.rArm, bones.rFore, bones.rHand, throwing ? target : grip, pole);
-    const front = gunRef.current ? gunRef.current.localToWorld(ikF.set(m.reloading ? 0.22 : 0.42, m.reloading ? -0.14 : -0.03, 0)) : grip;
-    if (m.reloading) front.y += Math.sin(now / 90) * 0.02;
+    reach(bones.rArm, bones.rFore, bones.rHand, rightT, pole);
     g.localToWorld(pole.set(0.25, 0.55, -0.55));
-    reach(bones.lArm, bones.lFore, bones.lHand, front, pole);
+    reach(bones.lArm, bones.lFore, bones.lHand, leftT, pole);
+    // what the left hand is carrying, in the hand, lined up with the gun
+    const h = held.current;
+    if (h) {
+      h.visible = carry > 0 && !ghost;
+      if (carry) {
+        bones.lHand.updateWorldMatrix(true, false);
+        g.worldToLocal(h.position.setFromMatrixPosition(bones.lHand.matrixWorld));
+        if (gr) h.quaternion.copy(gr.quaternion);
+        if (heldMag.current) heldMag.current.visible = carry === 1;
+        if (heldShell.current) heldShell.current.visible = carry === 2;
+        if (heldRound.current) heldRound.current.visible = carry === 3;
+      }
+    }
   });
 
   return (
@@ -379,6 +546,21 @@ export function Soldier({ color, weapon = 0, ghost = false, motion }: { color: s
         <circleGeometry args={[0.55, 24]} />
         <meshStandardMaterial color="#3a0408" roughness={0.15} metalness={0.2} transparent opacity={0.85} depthWrite={false} polygonOffset polygonOffsetFactor={-4} />
       </mesh>
+      {/* what the left hand brings from the vest during a reload */}
+      <group ref={held} visible={false}>
+        <mesh ref={heldMag} position={[0, -0.04, 0]} scale={0.85}>
+          <boxGeometry args={[0.042, 0.15, 0.038]} />
+          <meshStandardMaterial color="#5a606c" metalness={0.6} roughness={0.4} />
+        </mesh>
+        <mesh ref={heldShell} rotation-z={Math.PI / 2}>
+          <cylinderGeometry args={[0.012, 0.012, 0.055, 8]} />
+          <meshStandardMaterial color="#b8322a" roughness={0.5} />
+        </mesh>
+        <mesh ref={heldRound} rotation-z={Math.PI / 2}>
+          <cylinderGeometry args={[0.0055, 0.0055, 0.07, 6]} />
+          <meshStandardMaterial color="#d8b45a" metalness={0.85} roughness={0.3} emissive="#3a2a08" />
+        </mesh>
+      </group>
       <group ref={gunRef} position={GUN_POS.toArray()}>
         <group position={[-0.17, 0, -0.12]} scale={0.85}>
           <Gun weapon={shown} ghost={ghost} torch={torchOn} />
