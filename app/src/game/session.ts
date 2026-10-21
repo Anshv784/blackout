@@ -156,6 +156,8 @@ export class Session {
     audio.setHeartbeat(0);
     this.unsubs.forEach((u) => u());
     this.unsubs = [];
+    this.viewSub?.();
+    this.viewSub = null;
     this.timers.forEach((t) => clearInterval(t));
   }
 
