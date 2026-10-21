@@ -2235,3 +2235,12 @@ button {
   /* results: the replay bar wraps so MAKE CLIP is never hidden behind the results list */
   .replay-bar{flex-wrap:wrap!important;row-gap:6px}
 }
+
+/* lobby stage on short landscape phones: the 3D seats sit closer together than the labels are wide */
+@media (max-height:520px) and (orientation:landscape){
+  .stage-open{font-size:8px;letter-spacing:.12em;padding:3px 6px}
+  .stage-open small{display:none}
+  .stage-tag b{font-size:10px;letter-spacing:.06em}
+  .stage-tag.me b{font-size:11px}
+  .stage-tag span{font-size:7px;letter-spacing:.12em}
+}
