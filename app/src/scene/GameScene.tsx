@@ -944,6 +944,7 @@ function InputController({ session }: { session: Session }) {
   const hit = useMemo(() => new THREE.Vector3(), []);
   useEffect(() => {
     const el = gl.domElement;
+    let lockFailedAt = -1e9;
     const move = (e: PointerEvent) => {
       if (e.pointerType === "touch") return;
       // a second mouse button pressed while one is held arrives as pointermove, not pointerdown
@@ -969,9 +970,12 @@ function InputController({ session }: { session: Session }) {
       audio.unlock();
       if (e.pointerType === "touch") return;
 
-      // third person needs the mouse: the first click captures it (and doesn't shoot)
-      if (controls.view === "chase" && document.pointerLockElement !== el) {
-        el.requestPointerLock?.();
+      // third person needs the mouse: the first click captures it (and doesn't shoot). If the
+      // browser refuses (just after Esc, or no pointer lock at all), the click shoots instead of
+      // being swallowed by capture attempts forever.
+      if (controls.view === "chase" && document.pointerLockElement !== el && performance.now() - lockFailedAt > 1500) {
+        const p = el.requestPointerLock?.() as unknown as Promise<void> | undefined;
+        p?.catch?.(() => (lockFailedAt = performance.now()));
         return;
       }
       // aiming a throw: right-click puts it away instead of scoping
