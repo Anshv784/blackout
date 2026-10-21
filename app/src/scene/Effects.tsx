@@ -14,6 +14,7 @@ import { audio } from "../game/audio";
 import { feel } from "../game/feel";
 import { MAP_W } from "../game/gen";
 import { prefs, usePrefs, gfx } from "../game/prefs";
+import { bulletHole, ejectCasing } from "./Details";
 
 // ------------------------------------------------------------------ sparks
 
@@ -130,6 +131,7 @@ function Tracers({ session }: { session: Session }) {
           const back = Math.atan2(-b.vy, -b.vx);
           if (hit === "wall") {
             sparks(hx / 256, 0.7, hy / 256, "#ffc56b", 9, { speed: 3.2, dir: back, spread: 2.2, up: 2.2, life: 0.35 });
+            bulletHole(b.x, b.y, hx, hy, 1.0);
             const me = session.myPos();
             if (me && Math.hypot(hx - me.x, hy - me.y) < 6 * 256) audio.ricochet(Math.sin(Math.atan2(hy - me.y, hx - me.x) - angleToRad(session.input.aim)));
           }
@@ -199,6 +201,7 @@ function Tracers({ session }: { session: Session }) {
         if (isWall(Math.floor(qx / 256), Math.floor(qy / 256))) {
           s.dead = true;
           sparks(qx / 256, s.h, qy / 256, "#ffc56b", 9, { speed: 3.2, dir: Math.atan2(-s.vy, -s.vx), spread: 2.2, up: 2.2, life: 0.35 });
+          bulletHole(s.x, s.y, qx, qy, s.h);
           px = qx;
           py = qy;
           break;
@@ -616,6 +619,7 @@ function Reactions({ session }: { session: Session }) {
           const tr = session.tracks.get(f.sub ?? -1);
           const w = tr?.samples[tr.samples.length - 1]?.weapon ?? 0;
           audio.shotAt(w, d, Math.sin(rel));
+          ejectCasing(f.x / 256, f.y / 256, a, w, 1.0, Math.max(0, 1 - d / 8));
         }
         sparks(f.x / 256 + Math.cos(a) * 0.72, 1.0, f.y / 256 + Math.sin(a) * 0.72, "#ffcf7a", 5, { speed: 4, dir: a, spread: 0.7, up: 0.4, life: 0.12, grav: 0 });
       }

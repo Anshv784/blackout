@@ -16,6 +16,7 @@ import { feel } from "../game/feel";
 import { useStore } from "../game/store";
 import { Effects, sparks } from "./Effects";
 import { radToAngle, angleToRad, isWall, lightsOut } from "../game/sim";
+import { Details, ejectCasing } from "./Details";
 import { MAP_W } from "../game/gen";
 import { audio } from "../game/audio";
 
@@ -173,6 +174,7 @@ function MyPlayer({ session }: { session: Session }) {
       motion.current.shotAt = now;
       audio.shoot(v.me.weapon);
       session.fireLocal(v.me.weapon, pos.x, pos.y, session.input.aim, (session.predMoved & 8) !== 0);
+      ejectCasing(pos.x / 256, pos.y / 256, angleToRad(session.input.aim), v.me.weapon, (session.predMoved & 8) !== 0 ? 0.74 : 1.0);
       if (flash.current) flash.current.intensity = 14;
       feel.recoil = Math.min(1.8, feel.recoil + [0.8, 0.45, 1.3, 0.55, 1.8][v.me.weapon]);
       const [ky, kx] = RECOIL[v.me.weapon] ?? RECOIL[0];
@@ -1227,6 +1229,7 @@ export const GameScene = memo(function GameScene({ session }: { session: Session
       <Others session={session} />
       <Corpses session={session} />
       <Effects session={session} />
+      <Details session={session} />
       <LootCrates session={session} />
       <Zone session={session} />
       <Fx session={session} />
