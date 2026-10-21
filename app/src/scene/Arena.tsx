@@ -454,16 +454,89 @@ function floorTexture() {
   });
 }
 
-/** Street lamps: a post, a warm glow on the ground, dark during the blackout. */
+/** Street lamps: a post, a warm glow on the ground, dark during the blackout. Two of them are
+ *  failing and flicker; every head has a faint cone of light and a few moths. */
+const FLICKER = new Set([2, 7]);
+/** 1 = fully on. A failing lamp buzzes, dips, and now and then cuts out for a moment. */
+function lampLevel(i: number, t: number) {
+  if (!FLICKER.has(i)) return 1;
+  const s = Math.sin(t * 2.1 + i * 4.7) * Math.sin(t * 0.73 + i);
+  if (s > 0.55) return Math.sin(t * 60 + i) > 0 ? 0.15 : 0.9; // the stutter
+  if (s > 0.45) return 0.05; // out
+  return 0.85 + Math.sin(t * 31 + i) * 0.08;
+}
+
+/** Light falling through damp air under every lamp, in one draw call: brightest at the bulb, gone
+ *  at the ground, and soft at the silhouette (faces seen edge-on fade), so it reads as a glow. */
+function lampCones() {
+  const one = new THREE.ConeGeometry(1.25, 3.1, 18, 1, true);
+  const n = one.attributes.position.count;
+  const pos = new Float32Array(n * 3 * LAMPS.length);
+  const nor = new Float32Array(n * 3 * LAMPS.length);
+  const hgt = new Float32Array(n * LAMPS.length);
+  const lamp = new Float32Array(n * LAMPS.length);
+  const idx: number[] = [];
+  const src = one.index!.array;
+  LAMPS.forEach(([x, y], k) => {
+    for (let v = 0; v < n; v++) {
+      const o = (k * n + v) * 3;
+      pos[o] = one.attributes.position.getX(v) + x + 0.5;
+      pos[o + 1] = one.attributes.position.getY(v) + 1.58;
+      pos[o + 2] = one.attributes.position.getZ(v) + y + 0.5;
+      nor[o] = one.attributes.normal.getX(v);
+      nor[o + 1] = one.attributes.normal.getY(v);
+      nor[o + 2] = one.attributes.normal.getZ(v);
+      hgt[k * n + v] = one.attributes.position.getY(v) / 3.1 + 0.5;
+      lamp[k * n + v] = k;
+    }
+    for (let t = 0; t < src.length; t++) idx.push(src[t] + k * n);
+  });
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  g.setAttribute("normal", new THREE.BufferAttribute(nor, 3));
+  g.setAttribute("h", new THREE.BufferAttribute(hgt, 1));
+  g.setAttribute("lamp", new THREE.BufferAttribute(lamp, 1));
+  g.setIndex(idx);
+  const m = new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    uniforms: { levels: { value: new Array(LAMPS.length).fill(1) }, color: { value: new THREE.Color("#ffc777") } },
+    vertexShader: `attribute float h; attribute float lamp; uniform float levels[${LAMPS.length}];
+      varying float vH; varying float vFace; varying float vLevel;
+      void main(){
+        vH = h;
+        vLevel = levels[int(lamp + 0.5)];
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vFace = abs(dot(normalize(normalMatrix * normal), normalize(-mv.xyz)));
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: `uniform vec3 color; varying float vH; varying float vFace; varying float vLevel;
+      void main(){
+        float a = pow(vH, 1.8) * pow(vFace, 2.5) * 0.11 * vLevel;
+        gl_FragColor = vec4(color * a, 1.0);
+      }`,
+  });
+  return { g, m };
+}
+
+const MOTHS_PER = 3;
 function Lamps() {
-  // every lamp head glows, but only the 6 nearest the camera cast real light: a fixed number
-  // of lights (no shader recompiles) and far fewer per-pixel light loops
-  // every light costs on every pixel: phones light only the 3 nearest lamps
+  // every lamp head glows, but only the nearest ones cast real light: a fixed number of lights
+  // (no shader recompiles); every light costs on every pixel, so phones light only 2
   const N = TOUCH ? 2 : 6;
   const lights = useRef<(THREE.PointLight | null)[]>([]);
   const heads = useRef<(THREE.MeshBasicMaterial | null)[]>([]);
+  const cones = useMemo(lampCones, []);
+  // the low graphics tier (weak phones) skips the glow and the moths: extra pixels to fill
+  const low = gfx(usePrefs()) === "low";
+  const moths = useRef<THREE.Points>(null);
+  const mothPos = useMemo(() => new Float32Array(LAMPS.length * MOTHS_PER * 3), []);
+  const head = useMemo(() => new THREE.Color("#ffd89a"), []);
+  const dark = useMemo(() => new THREE.Color("#222"), []);
   const { camera } = useThree();
-  useFrame(() => {
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
     const out = (globalThis as any).__boLightsOut === true;
     const near = LAMPS.map(([x, y], i) => [(x + 0.5 - camera.position.x) ** 2 + (y + 0.5 - camera.position.z) ** 2, i] as const)
       .sort((a, b) => a[0] - b[0])
@@ -472,10 +545,29 @@ function Lamps() {
       const l = lights.current[k];
       if (!l) return;
       l.position.set(LAMPS[li][0] + 0.5, 3, LAMPS[li][1] + 0.5);
-      l.intensity = out ? 0 : 7;
+      l.intensity = out ? 0 : 7 * lampLevel(li, t);
     });
-    heads.current.forEach((m) => m && m.color.set(out ? "#222" : "#ffd89a"));
+    LAMPS.forEach(([x, y], i) => {
+      const lv = out ? 0 : lampLevel(i, t);
+      heads.current[i]?.color.copy(dark).lerp(head, lv);
+      cones.m.uniforms.levels.value[i] = lv;
+      // moths: lazy loops around the bulb, gone when it's dark
+      for (let m = 0; m < MOTHS_PER; m++) {
+        const j = (i * MOTHS_PER + m) * 3;
+        const a = t * (1.6 + m * 0.7) + i * 2 + m * 2.1;
+        const r = lv > 0.3 ? 0.22 + 0.12 * Math.sin(t * 3.1 + m) : 0;
+        mothPos[j] = x + 0.5 + Math.cos(a) * r;
+        mothPos[j + 1] = lv > 0.3 ? 3.05 + Math.sin(a * 1.7) * 0.12 : -10;
+        mothPos[j + 2] = y + 0.5 + Math.sin(a * 1.3) * r;
+      }
+    });
+    if (moths.current) moths.current.geometry.attributes.position.needsUpdate = true;
   });
+  const mothGeo = useMemo(() => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(mothPos, 3));
+    return g;
+  }, [mothPos]);
   return (
     <>
       {LAMPS.map(([x, y], i) => (
@@ -490,6 +582,12 @@ function Lamps() {
           </mesh>
         </group>
       ))}
+      {!low && <mesh geometry={cones.g} material={cones.m} frustumCulled={false} />}
+      {!low && (
+        <points ref={moths} geometry={mothGeo} frustumCulled={false}>
+          <pointsMaterial size={0.035} color="#fff1cf" sizeAttenuation transparent opacity={0.8} />
+        </points>
+      )}
       {Array.from({ length: N }, (_, k) => (
         <pointLight key={k} ref={(l) => (lights.current[k] = l)} color="#ffc777" intensity={7} distance={6.5} decay={1.4} />
       ))}
