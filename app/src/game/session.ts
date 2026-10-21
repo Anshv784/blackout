@@ -239,8 +239,8 @@ export class Session {
     const prev = this.room;
     if (!prev || r.tick !== prev.tick || r.status !== prev.status) this.lastRoomAt = performance.now();
     this.room = r;
-    const me = client.publicKey.toBase58();
-    const seat = r.players.findIndex((p, i) => p.toBase58() === me && r.isBot[i] === 0);
+    const me = client.publicKey;
+    const seat = r.players.findIndex((p, i) => r.isBot[i] === 0 && p.equals(me));
     this.mySeat = seat >= 0 ? seat : null;
     void this.ensureViewSub(this.mySeat);
 
@@ -444,8 +444,6 @@ export class Session {
     // ignore reordered updates, but a big jump back means a new match on a reused seat
     if (this.view && v.tick < this.view.tick && this.view.tick - v.tick < 100) return;
     const prev = this.view;
-    const now0 = performance.now();
-    void now0;
     // the longest wait between updates over the last few seconds: the network's hiccups
     if (this.viewAt) {
       this.gaps.push([now, now - this.viewAt]);
@@ -937,5 +935,5 @@ export class Session {
   }
 }
 
-export const isEmptyKey = (k: PublicKey) => k.toBase58() === DEFAULT_KEY;
+export const isEmptyKey = (k: PublicKey) => k.equals(PublicKey.default);
 export { ST_LOBBY, ST_STARTING, ST_COUNTDOWN, ST_LIVE, ST_ENDED, ST_REVEALED };
