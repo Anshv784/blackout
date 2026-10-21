@@ -28,6 +28,7 @@ const COOLDOWN_MS = [350, 100, 800, 150, 1500];
 const RECOIL = [[0.02, 0.004], [0.009, 0.006], [0.045, 0.01], [0.013, 0.005], [0.07, 0.002]];
 
 const TOUCH = typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches;
+const CENTER = new THREE.Vector2(0, 0);
 
 function beamMaterial() {
   return new THREE.ShaderMaterial({
@@ -730,12 +731,15 @@ function CameraRig({ session }: { session: Session }) {
   const diedPos = useRef({ x: 0, y: 0 });
   const startedNight = useRef("");
   const pos = useRef(new THREE.Vector3(16, 30, 30));
+  // scratch vectors: the camera runs every frame, so it allocates nothing
+  const wantPos = useMemo(() => new THREE.Vector3(), []);
+  const wantLook = useMemo(() => new THREE.Vector3(), []);
+  /** the shoulder camera's distance: pulls in at once when a wall gets behind you, eases back out */
+  const camDist = useRef(-1);
   useFrame((_, dt) => {
     const p = session.myPos();
     const r = session.room;
     const playing = p && r && (r.status === ST_LIVE || r.status === ST_COUNTDOWN) && session.view?.me.alive;
-    let wantLook: THREE.Vector3;
-    let wantPos: THREE.Vector3;
     // a new night: start behind your own back, looking the way you spawned facing
     const night = r ? `${r.matchNo}:${r.status === ST_COUNTDOWN || r.status === ST_LIVE}` : "";
     if (r && (r.status === ST_COUNTDOWN || r.status === ST_LIVE) && session.view && night !== startedNight.current) {
@@ -761,8 +765,8 @@ function CameraRig({ session }: { session: Session }) {
       const bx = diedPos.current.x / 256 - Math.cos(diedYaw.current) * 0.7; // the chest, after falling back
       const bz = diedPos.current.y / 256 - Math.sin(diedYaw.current) * 0.7;
       const dist = 2.4 + 3.2 * rise;
-      wantPos = new THREE.Vector3(bx - Math.cos(yaw) * dist, 1.5 + 5 * rise, bz - Math.sin(yaw) * dist);
-      wantLook = new THREE.Vector3(bx, 0.2, bz);
+      wantPos.set(bx - Math.cos(yaw) * dist, 1.5 + 5 * rise, bz - Math.sin(yaw) * dist);
+      wantLook.set(bx, 0.2, bz);
       const k = 1 - Math.pow(0.02, dt);
       pos.current.lerp(wantPos, k);
       look.current.lerp(wantLook, k);
@@ -780,7 +784,7 @@ function CameraRig({ session }: { session: Session }) {
       const tx = p!.x / 256 - fz * shoulder;
       const tz = p!.y / 256 + fx * shoulder;
       const ty = 1.15 + controls.chaseHeight * 0.06;
-      const dir = new THREE.Vector3(fx * Math.cos(pitch), -Math.sin(pitch), fz * Math.cos(pitch));
+      const dir = { x: fx * Math.cos(pitch), y: -Math.sin(pitch), z: fz * Math.cos(pitch) };
       let d = controls.chaseDist * 0.62 + ((sniper ? 1.8 : 2.3) - controls.chaseDist * 0.62) * ads;
       // pull in before a wall gets between the camera and you
       const steps = Math.ceil(d / 0.12);
@@ -794,10 +798,14 @@ function CameraRig({ session }: { session: Session }) {
           break;
         }
       }
+      // in at once (never inside a wall), back out smoothly (no flicker walking past crates and doors)
+      if (camDist.current < 0 || d < camDist.current) camDist.current = d;
+      else camDist.current += (d - camDist.current) * (1 - Math.pow(0.002, dt));
+      d = camDist.current;
       // squeezed against a wall: rise a little so you still look over your shoulder, not into your back
       const squeeze = Math.max(0, 1 - d / Math.max(1, controls.chaseDist * 0.62));
-      wantPos = new THREE.Vector3(tx - dir.x * d, Math.max(0.45, ty - dir.y * d) + squeeze * 0.55, tz - dir.z * d);
-      wantLook = new THREE.Vector3(tx + dir.x * 12, ty + dir.y * 12, tz + dir.z * 12);
+      wantPos.set(tx - dir.x * d, Math.max(0.45, ty - dir.y * d) + squeeze * 0.55, tz - dir.z * d);
+      wantLook.set(tx + dir.x * 12, ty + dir.y * 12, tz + dir.z * 12);
       // rigid: the camera is on your shoulder, it doesn't float behind
       pos.current.copy(wantPos);
       look.current.copy(wantLook);
@@ -806,8 +814,9 @@ function CameraRig({ session }: { session: Session }) {
       const tz = p ? p.y / 256 : MAP_W / 2;
       const height = playing ? controls.topZoom : 30;
       const back = playing ? controls.topZoom * 0.38 : 14;
-      wantLook = new THREE.Vector3(tx, 0, tz);
-      wantPos = new THREE.Vector3(tx, height, tz + back);
+      camDist.current = -1;
+      wantLook.set(tx, 0, tz);
+      wantPos.set(tx, height, tz + back);
       const k = 1 - Math.pow(0.00002, dt);
       pos.current.lerp(wantPos, k);
       look.current.lerp(wantLook, k);
@@ -1047,7 +1056,7 @@ function InputController({ session }: { session: Session }) {
     if (controls.touchAim !== null) aim = controls.touchAim;
     else if (controls.view === "chase" && p) {
       // the crosshair is the centre of the screen
-      ray.setFromCamera(new THREE.Vector2(0, 0), camera);
+      ray.setFromCamera(CENTER, camera);
       if (ray.ray.intersectPlane(plane, hit) && hit.distanceTo(ray.ray.origin) < 60) {
         const dx = hit.x - p.x / 256;
         const dz = hit.z - p.y / 256;
