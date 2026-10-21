@@ -8,3 +8,4 @@ scripts/*keypair*.json
 *-keypair.json
 scripts/spike_lib.rs.bak
 demo/
+scripts/.tmp/
