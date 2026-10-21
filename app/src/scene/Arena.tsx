@@ -338,6 +338,104 @@ function floorTexture() {
       g.arc(x, y, r, 0, Math.PI * 2);
       g.fill();
     }
+    // road furniture: manholes, storm drains at the kerb, lane arrows, skid marks
+    const road = (x: number, y: number) => at(Math.floor(x / cell), Math.floor(y / cell)) === "=";
+    const manhole = (x: number, y: number) => {
+      g.fillStyle = "#16181c";
+      g.beginPath();
+      g.arc(x, y, 22, 0, Math.PI * 2);
+      g.fill();
+      g.strokeStyle = "rgba(120,125,135,0.5)";
+      g.lineWidth = 2;
+      g.stroke();
+      g.strokeStyle = "rgba(90,95,105,0.45)";
+      g.lineWidth = 1.5;
+      for (let k = -16; k <= 16; k += 6) {
+        g.beginPath();
+        g.moveTo(x + k, y - Math.sqrt(22 * 22 - k * k) + 3);
+        g.lineTo(x + k, y + Math.sqrt(22 * 22 - k * k) - 3);
+        g.stroke();
+      }
+    };
+    for (const [mx, my] of [[8, 23.5], [38, 24.6], [23.4, 8], [24.6, 37], [16, 24.5], [23.5, 43]]) manhole(mx * cell, my * cell);
+    const drain = (x: number, y: number, vertical: boolean) => {
+      const w = vertical ? 12 : 40;
+      const h = vertical ? 40 : 12;
+      g.fillStyle = "#0d0e11";
+      g.fillRect(x - w / 2, y - h / 2, w, h);
+      g.fillStyle = "rgba(110,115,125,0.55)";
+      for (let k = 0; k < 6; k++) vertical ? g.fillRect(x - w / 2, y - h / 2 + 4 + k * 6, w, 2) : g.fillRect(x - w / 2 + 4 + k * 6, y - h / 2, 2, h);
+    };
+    for (let i = 3; i < MAP_W - 3; i += 7) {
+      if (road(i * cell, 22.1 * cell)) drain(i * cell, 22 * cell + 8, false);
+      if (road(i * cell, 25.9 * cell)) drain(i * cell + 30, 26 * cell - 8, false);
+      if (road(22.1 * cell, i * cell)) drain(22 * cell + 8, i * cell + 20, true);
+      if (road(25.9 * cell, i * cell)) drain(26 * cell - 8, i * cell, true);
+    }
+    const arrow = (x: number, y: number, a: number) => {
+      g.save();
+      g.translate(x, y);
+      g.rotate(a);
+      g.fillStyle = "rgba(230,230,225,0.32)";
+      g.fillRect(-46, -5, 60, 10);
+      g.beginPath();
+      g.moveTo(14, -20);
+      g.lineTo(46, 0);
+      g.lineTo(14, 20);
+      g.fill();
+      g.restore();
+    };
+    for (const k of [6, 16, 33, 42]) {
+      arrow(k * cell, 23 * cell, Math.PI); // westbound lane
+      arrow(k * cell, 25 * cell, 0);
+      arrow(23 * cell, k * cell, -Math.PI / 2);
+      arrow(25 * cell, k * cell, Math.PI / 2);
+    }
+    g.strokeStyle = "rgba(0,0,0,0.5)";
+    g.lineWidth = 7;
+    for (let i = 0; i < 7; i++) {
+      // a car that braked hard: two parallel black curves
+      const x0 = (4 + Math.random() * 40) * cell;
+      const y0 = (22.6 + Math.random() * 2.6) * cell;
+      if (!road(x0, y0)) continue;
+      const len = 120 + Math.random() * 180;
+      const bend = (Math.random() - 0.5) * 60;
+      for (const off of [0, 22]) {
+        g.beginPath();
+        g.moveTo(x0, y0 + off);
+        g.quadraticCurveTo(x0 + len / 2, y0 + off + bend, x0 + len, y0 + off + bend * 0.4);
+        g.stroke();
+      }
+    }
+    // tyre tracks rutted into the dirt field
+    g.strokeStyle = "rgba(25,20,12,0.4)";
+    g.lineWidth = 9;
+    for (const off of [0, 30]) {
+      g.beginPath();
+      g.moveTo(26 * cell, 27 * cell + off);
+      g.bezierCurveTo(32 * cell, 30 * cell + off, 30 * cell, 38 * cell + off, 38 * cell, 46 * cell + off);
+      g.stroke();
+    }
+    // litter: paper scraps on concrete, dead leaves in the field
+    for (let i = 0; i < 700; i++) {
+      const x = Math.random() * size;
+      const y = Math.random() * size;
+      const c = at(Math.floor(x / cell), Math.floor(y / cell));
+      if (WALL_CHARS.includes(c) || c === "=") continue;
+      g.save();
+      g.translate(x, y);
+      g.rotate(Math.random() * Math.PI);
+      if (c === ",") {
+        g.fillStyle = `rgba(${90 + Math.random() * 40},${55 + Math.random() * 25},25,0.6)`;
+        g.beginPath();
+        g.ellipse(0, 0, 4 + Math.random() * 3, 2, 0, 0, Math.PI * 2);
+        g.fill();
+      } else if (Math.random() < 0.25) {
+        g.fillStyle = `rgba(${200 + Math.random() * 40},${195 + Math.random() * 40},${180 + Math.random() * 30},0.32)`;
+        g.fillRect(-6, -4, 10 + Math.random() * 6, 7 + Math.random() * 5);
+      }
+      g.restore();
+    }
     // loot pads: hazard squares
     for (const [lx, ly] of LOOT_SPOTS) {
       const x0 = lx * cell + 6;
