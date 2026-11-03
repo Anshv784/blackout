@@ -1,3 +1,4 @@
+import { MapPicker } from "./MapPicker";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { PublicKey } from "@solana/web3.js";
 import { Session } from "../game/session";
@@ -287,6 +288,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
         {quick.current && <p className="sub">Opening the gate for you…</p>}
       </div>
 
+      <MapPicker value={room.map} canChange={!!canStart && !isDaily} busy={!!busy} onPick={(id) => run("map", () => session.setMode(room.duos, id))} />
       <button className="exit-room" onClick={exit} disabled={busy === "leave"}>
         ← {canStart ? "CLOSE ROOM" : "EXIT ROOM"}
       </button>
@@ -485,8 +487,14 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
               {busy === "start" ? "WAKING THE WARDEN…" : staked && humans < 2 ? `WAITING FOR ${2 - humans} MORE STAKER` : "START THE NIGHT"}
             </button>
           ) : (
-            <div className="waiting">
-              <div className="warden-loader small" /> the host starts the night
+            <div className="waiting-card">
+              <span className="wc-pulse" />
+              <div>
+                <b>Waiting for {room.names[effectiveHost] || "the host"}</b>
+                <span>
+                  {humans} of {size} seats taken · empty ones get bots
+                </span>
+              </div>
             </div>
           )}
           {mySeat !== null && (
@@ -500,12 +508,19 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
           {!staked ? (
             <div className="night-set">
               <label>
-                NIGHT SETTINGS{canStart ? "" : " · host decides"}
+                <span>NIGHT SETTINGS{canStart ? "" : <b className="ns-host"> HOST DECIDES</b>}</span>
                 <em className="ns-sum-inline">
-                  {humans} {humans === 1 ? "player" : "players"} + {Math.max(0, size - humans)} {size - humans === 1 ? "bot" : "bots"}
-                  {room.duos ? " · teams of two" : ""} · 5:00
+                  {humans}P + {Math.max(0, size - humans)} {size - humans === 1 ? "bot" : "bots"} · 5:00
                 </em>
               </label>
+              {!canStart ? (
+                <div className="ns-chips">
+                  <span><i>SEATS</i>{size}</span>
+                  <span><i>BOTS</i>{["Easy", "Medium", "Hard"][room.botLevel] ?? "Easy"}</span>
+                  <span><i>MODE</i>{room.duos ? "Duos" : "Solo"}</span>
+                  <span><i>MAP</i>{room.map === 1 ? "Meadow" : "Yard"}</span>
+                </div>
+              ) : (
               <div className="ns-grid">
               <div className="ns-row">
                 <span>Seats</span>
@@ -533,13 +548,14 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
                 <span>Mode</span>
                 <div className="seg">
                   {[false, true].map((d) => (
-                    <button key={String(d)} className={room.duos === d ? "on" : ""} disabled={!canStart || !!busy} onClick={() => room.duos !== d && run("mode", () => session.setMode(d))}>
+                    <button key={String(d)} className={room.duos === d ? "on" : ""} disabled={!canStart || !!busy} onClick={() => room.duos !== d && run("mode", () => session.setMode(d, room.map))}>
                       {d ? "Duos" : "Solo"}
                     </button>
                   ))}
                 </div>
               </div>
               </div>
+              )}
             </div>
           ) : (
             <>
@@ -553,16 +569,23 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
         </div>
       </div>
       <div className="keys-hint">
-        <span>mouse aim</span>
-        <span>WASD move</span>
-        <span>Shift tap to run</span>
-        <span>Space jump</span>
-        <span>C sneak</span>
-        <span>RMB scope</span>
-        <span>G gadget</span>
-        <span>Wheel swap</span>
-        <span>R reload</span>
-        <span>Tab map</span>
+        {[
+          ["Mouse", "aim"],
+          ["WASD", "move"],
+          ["Shift", "run"],
+          ["Space", "jump"],
+          ["C", "sneak"],
+          ["RMB", "scope"],
+          ["G", "throw"],
+          ["Wheel", "swap"],
+          ["R", "reload"],
+          ["Tab", "map"],
+        ].map(([k, a]) => (
+          <span key={k}>
+            <kbd>{k}</kbd>
+            {a}
+          </span>
+        ))}
       </div>
     </div>
   );

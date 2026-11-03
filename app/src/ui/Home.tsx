@@ -1,7 +1,8 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { client } from "../game/identity";
 import { PUBLIC_ROOMS, PRIVATE_POOL, QUICK_ROOMS, STAKED_ROOMS } from "../config";
-import { ST_LOBBY, ST_LIVE, ST_COUNTDOWN, ST_STARTING, ST_REVEALED, ST_ENDED, type Room, type BoardEntry } from "../chain/layout";
+import { ST_LOBBY, ST_LIVE, ST_COUNTDOWN, ST_STARTING, ST_REVEALED, ST_ENDED, type Room, type BoardEntry, type Daily } from "../chain/layout";
+import { todayUtc } from "../chain/client";
 import { go } from "../App";
 import { useStore } from "../game/store";
 import { audio } from "../game/audio";
@@ -11,6 +12,7 @@ import { codeToText, createRoom, ensureDaily, findByCode, myRoom, playedToday, s
 import { AlreadyInRoom } from "./AlreadyInRoom";
 
 const Backdrop = lazy(() => import("../scene/Backdrop").then((m) => ({ default: m.Backdrop })));
+const HeroSoldier = lazy(() => import("../scene/HeroSoldier").then((m) => ({ default: m.HeroSoldier })));
 
 const EMPTY = "11111111111111111111111111111111";
 export const humansIn = (r: Room) => r.players.filter((p, i) => r.isBot[i] === 0 && p.toBase58() !== EMPTY).length;
@@ -26,12 +28,131 @@ function statusLine(r: Room, slot: number) {
   return h ? `${h} waiting` : "empty";
 }
 
+const untilMidnight = () => {
+  const ms = (todayUtc() + 1) * 86_400_000 - Date.now();
+  const h = Math.floor(ms / 3_600_000);
+  const m = Math.floor((ms % 3_600_000) / 60_000);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+};
+
+/** Today's daily: one sealed night for everyone, one try each. Its own card, not one button in a row. */
+function DailyCard({ daily, busy, onPlay, className = "" }: { daily: Daily | null; busy: boolean; onPlay: () => void; className?: string }) {
+  const wallet = useStore((s) => s.wallet);
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => tick((n) => n + 1), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  const today = daily && daily.day === todayUtc() ? daily.entries : [];
+  const best = today[0];
+  const mine = wallet ? today.find((e) => e.key.toBase58() === wallet) : undefined;
+  const rank = mine ? today.indexOf(mine) + 1 : 0;
+  const name = (e: { name: string; key: { toBase58(): string } }) => e.name || `${e.key.toBase58().slice(0, 4)}…`;
+  return (
+    <div className={`daily-card ${className}`}>
+      <div className="dc-top">
+        <span className="dc-badge">DAILY CHALLENGE</span>
+        <span className="dc-timer">new night in {untilMidnight()}</span>
+      </div>
+      <h3>Today's Night</h3>
+      <p>Same sealed map, loot and zone for everyone. You and three bots. One try per wallet.</p>
+      <div className="dc-stats">
+        <div>
+          <b>{today.length}</b>
+          <span>played</span>
+        </div>
+        <div>
+          <b>{best ? best.score : "—"}</b>
+          <span>{best ? `best · ${name(best)}` : "no score yet"}</span>
+        </div>
+        <div>
+          <b>{mine ? `#${rank}` : "—"}</b>
+          <span>{mine ? `you · ${mine.score}` : "your rank"}</span>
+        </div>
+      </div>
+      {mine ? (
+        <button className="btn dc-btn done" onClick={() => go("/board")}>
+          PLAYED ✓ · SEE TODAY'S BOARD
+        </button>
+      ) : (
+        <button className="btn primary dc-btn" onClick={onPlay} disabled={busy}>
+          {busy ? "OPENING TODAY'S NIGHT…" : "PLAY TODAY'S NIGHT"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Line icons for the room tiles. */
+function TileIcon({ name }: { name: "room" | "friends" | "stake" }) {
+  return (
+    <svg className="tile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      {name === "room" && (
+        <>
+          <path d="M3 10.5 12 4l9 6.5" />
+          <path d="M5 9.5V20h14V9.5" />
+          <path d="M12 13v5M9.5 15.5h5" />
+        </>
+      )}
+      {name === "friends" && (
+        <>
+          <circle cx="9" cy="8" r="3.2" />
+          <path d="M3 19.5c.8-3.2 3.2-5 6-5s5.2 1.8 6 5" />
+          <path d="M16 5.2a3 3 0 0 1 0 5.6M18.2 14.6c1.4.8 2.4 2.4 2.8 4.9" />
+        </>
+      )}
+      {name === "stake" && (
+        <>
+          <ellipse cx="12" cy="6.5" rx="7" ry="2.8" />
+          <path d="M5 6.5v5c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8v-5" />
+          <path d="M5 11.5v5c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8v-5" />
+        </>
+      )}
+    </svg>
+  );
+}
+
+/** Line icons for the bottom bar (drawn here, no emoji). */
+function BarIcon({ name }: { name: string }) {
+  const p: Record<string, JSX.Element> = {
+    lock: (
+      <>
+        <rect x="5" y="11" width="14" height="9" rx="2" />
+        <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+      </>
+    ),
+    bolt: <path d="M13 3 5 14h6l-1 7 8-11h-6l1-7z" />,
+    dice: (
+      <>
+        <rect x="4" y="4" width="16" height="16" rx="3" />
+        <circle cx="9" cy="9" r="1.2" fill="currentColor" />
+        <circle cx="15" cy="15" r="1.2" fill="currentColor" />
+        <circle cx="15" cy="9" r="1.2" fill="currentColor" />
+        <circle cx="9" cy="15" r="1.2" fill="currentColor" />
+      </>
+    ),
+    eye: (
+      <>
+        <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" />
+        <circle cx="12" cy="12" r="3" />
+      </>
+    ),
+  };
+  return (
+    <svg className="gb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      {p[name]}
+    </svg>
+  );
+}
+
 export function Home() {
   const [rooms, setRooms] = useState<Record<number, Room | null>>({});
   const [board, setBoard] = useState<BoardEntry[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [slot, setSlot] = useState(0);
+  const [daily, setDaily] = useState<Daily | null>(null);
   const toast = useStore((s) => s.toast);
+  const myName = useStore((s) => s.name);
 
   useEffect(() => {
     let alive = true;
@@ -46,6 +167,10 @@ export function Home() {
       }
     };
     load();
+    client
+      .fetchDaily()
+      .then((d) => alive && setDaily(d))
+      .catch(() => {});
     client
       .fetchBoard()
       .then((b) => alive && b && setBoard([...b.entries].sort((a, c) => c.wins - a.wins || Number(c.earned - a.earned) || c.kills - a.kills).slice(0, 3)))
@@ -152,9 +277,7 @@ export function Home() {
         <section className="gate-hero">
           <div className="kicker">
             <span className="dot" /> THE WARDEN IS WATCHING ·{" "}
-            {live > 0
-              ? `${live} ${live === 1 ? "night" : "nights"} in the dark · ${players} still alive`
-              : `${openRooms.length ? `${openRooms.length} open ${openRooms.length === 1 ? "room" : "rooms"}` : "every room is free"} · sealed in a MagicBlock TEE`}
+            {live > 0 ? `${live} ${live === 1 ? "night" : "nights"} in the dark` : openRooms.length ? `${openRooms.length} open ${openRooms.length === 1 ? "room" : "rooms"}` : "every room is free"}
           </div>
           <h1 className="gate-title">BLACKOUT</h1>
           <p className="gate-tag">
@@ -173,42 +296,49 @@ export function Home() {
               </button>
             )}
             <div className="gate-alt">
-              <button className="btn gold-outline" onClick={() => guard(null, () => requireRealWallet(playDaily))} disabled={!!busy}>
-                {busy === "daily" ? "OPENING TODAY'S NIGHT…" : "DAILY CHALLENGE"}
+              <button className="alt-tile" onClick={() => guard(null, () => requireWallet(() => create(false)))} disabled={!!busy}>
+                <TileIcon name="room" />
+                <b>{busy === "create" ? "OPENING…" : "CREATE ROOM"}</b>
+                <span>public · you host</span>
               </button>
-              <button className="btn" onClick={() => guard(null, () => requireWallet(() => create(false)))} disabled={!!busy}>
-                CREATE A ROOM
+              <button className="alt-tile" onClick={() => guard(null, () => requireWallet(() => create(true)))} disabled={!!busy}>
+                <TileIcon name="friends" />
+                <b>{busy === "friends" ? "OPENING…" : "WITH FRIENDS"}</b>
+                <span>private · share a code</span>
               </button>
-              <button className="btn" onClick={() => guard(null, () => requireWallet(() => create(true)))} disabled={!!busy}>
-                {busy === "friends" ? "OPENING…" : "PRIVATE ROOM FOR FRIENDS"}
-              </button>
-              <button className="btn gold-outline" onClick={() => guard(STAKED_ROOMS[0], () => requireRealWallet(() => go(`/r/${STAKED_ROOMS[0]}`)))}>
-                STAKED NIGHT · 0.01 SOL
+              <button className="alt-tile gold" onClick={() => guard(STAKED_ROOMS[0], () => requireRealWallet(() => go(`/r/${STAKED_ROOMS[0]}`)))}>
+                <TileIcon name="stake" />
+                <b>STAKED NIGHT</b>
+                <span>0.01 SOL · winner takes all</span>
               </button>
             </div>
             <form
-              className="join-code"
+              className="code-bar"
               onSubmit={(e) => {
                 e.preventDefault();
                 joinCode();
               }}
             >
-              <label>GOT A ROOM CODE?</label>
-              <input placeholder="ABC-123" maxLength={7} value={code} onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""))} />
-              <button className="btn" type="submit" disabled={!!busy || code.replace("-", "").length !== 6}>
-                {busy === "code" ? "FINDING…" : "JOIN PRIVATE ROOM"}
+              <span className="cb-label">GOT A CODE?</span>
+              <input aria-label="Room code" placeholder="ABC-123" maxLength={7} value={code} onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""))} />
+              <button type="submit" disabled={!!busy || code.replace("-", "").length !== 6}>
+                {busy === "code" ? "FINDING…" : "JOIN"} <span aria-hidden>→</span>
               </button>
             </form>
           </div>
-          <div className="gate-facts">
-            <span>🔒 positions sealed in a TEE</span>
-            <span>⚡ 20 ticks/s · no server</span>
-            <span>🎲 VRF-rolled loot &amp; zone</span>
-            <span>💡 lights-on replay</span>
-          </div>
         </section>
 
+        <div className="hero-stage" aria-hidden>
+          <Suspense fallback={null}>
+            <HeroSoldier />
+          </Suspense>
+          <div className="hero-plate">
+            <span>OPERATOR</span>
+            <b>{myName || "SURVIVOR"}</b>
+          </div>
+        </div>
         <aside className="gate-side">
+          <DailyCard daily={daily} busy={busy === "daily"} onPlay={() => guard(null, () => requireRealWallet(playDaily))} />
           <div className="side-card">
             <label>OPEN ROOMS · JOIN SOMEONE</label>
             {openRooms.length === 0 && <div className="side-empty">No one is waiting right now. Create a room — friends can join from your link.</div>}
@@ -252,6 +382,29 @@ export function Home() {
           )}
         </aside>
       </main>
+      <footer className="gate-bar">
+        {[
+          ["lock", "Sealed positions", "only your view leaves the TEE"],
+          ["bolt", "20 ticks a second", "on-chain, no game server"],
+          ["dice", "VRF loot & zone", "nobody can rig the night"],
+          ["eye", "Lights-on replay", "every move revealed after"],
+        ].map(([icon, b, t]) => (
+          <div key={icon} className="gb-item">
+            <BarIcon name={icon} />
+            <div>
+              <b>{b}</b>
+              <span>{t}</span>
+            </div>
+          </div>
+        ))}
+        <div className="gb-live">
+          <span className={`pulse ${live > 0 ? "st-3" : "st-0"}`} />
+          <div>
+            <b>{live > 0 ? `${live} ${live === 1 ? "night" : "nights"} live` : "The Yard is quiet"}</b>
+            <span>{live > 0 ? `${players} ${players === 1 ? "player" : "players"} in the dark` : "be the first in tonight"}</span>
+          </div>
+        </div>
+      </footer>
       {blocked && mine !== null && rooms[mine] && <AlreadyInRoom id={mine} room={rooms[mine]!} onClose={() => setBlocked(false)} onLeft={() => toast(`Left room ${mine}`)} />}
     </div>
   );

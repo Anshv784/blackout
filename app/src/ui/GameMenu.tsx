@@ -6,7 +6,8 @@ import type { Session } from "../game/session";
 import type { Room } from "../chain/layout";
 import { ST_LIVE } from "../chain/layout";
 import { angleToRad, COUNTDOWN_TICKS, matchTicks, zoneSchedule } from "../game/sim";
-import { MAP_ROWS, MAP_W, WALL_CHARS, LAMPS } from "../game/gen";
+import { MAP_W, WALL_CHARS } from "../game/gen";
+import { activeMap } from "../game/maps";
 import { SEAT_COLORS } from "../game/colors";
 import { controls, setLaser, setSetting, toggleView } from "../game/controls";
 import { DEFAULT_PREFS, resetPrefs, setPref, usePrefs } from "../game/prefs";
@@ -77,7 +78,14 @@ export function drawMap(c: HTMLCanvasElement, session: Session, big: boolean) {
   }
   g.fillStyle = "#273454";
   // ground and walls by type: roads, field, buildings, containers, fences
-  const TILE: Record<string, string> = { "=": "#1c1f27", ",": "#2a2618", _: "#232733", "#": "#273454", C: "#3b5a7a", B: "#5a5f72", T: "#7d8496", F: "#4b5566", K: "#6b5234" };
+  const map = activeMap();
+  const MAP_ROWS = map.rows;
+  const LAMPS = map.lamps;
+  const TILE: Record<string, string> =
+    map.id === 1
+      ? // the Meadow: fields, tall grass, hedges, rocks, trees, the creek and its crossings, farm floors
+        { ".": "#1b2617", ",": "#24331b", "=": "#4a3a26", _: "#2b2620", "#": "#273454", H: "#35552d", R: "#6a6d72", T: "#2e4a26", W: "#1f4a6b", B: "#6b5a44" }
+      : { "=": "#1c1f27", ",": "#2a2618", _: "#232733", "#": "#273454", C: "#3b5a7a", B: "#5a5f72", T: "#7d8496", F: "#4b5566", K: "#6b5234" };
   for (let y = 0; y < MAP_W; y++)
     for (let x = 0; x < MAP_W; x++) {
       const col = TILE[MAP_ROWS[y][x]];
