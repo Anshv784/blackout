@@ -304,6 +304,13 @@ function Cover({ boxes }: { boxes: WallBox[] }) {
             const z = b.y + yy + 0.5 + (r() - 0.5) * 0.4;
             const h = 2.2 + r() * 1.4;
             trunk.push({ p: [x, h * 0.35, z], s: [0.13 + r() * 0.05, h * 0.7, 0.13], r: 0 });
+            // dense undergrowth round the trunk fills the tile, so what blocks you is what you see
+            if (b.kind === "tree")
+              for (let k = 0; k < 4; k++) {
+                const a = (k / 4) * Math.PI * 2 + r();
+                const sz = 0.34 + r() * 0.1;
+                hedge.push({ p: [b.x + xx + 0.5 + Math.cos(a) * 0.24, 0.28 + r() * 0.12, b.y + yy + 0.5 + Math.sin(a) * 0.24], s: [sz, sz * 0.8, sz], r: r() });
+              }
             for (let k = 0; k < 3; k++) {
               const s = 0.8 + r() * 0.5 - k * 0.15;
               canopy.push({ p: [x + (r() - 0.5) * 0.5, h * 0.65 + k * 0.55, z + (r() - 0.5) * 0.5], s: [s, s * 0.85, s], r: r() });
@@ -373,7 +380,8 @@ function Creek({ time }: { time: { value: number } }) {
     return g;
   }, []);
   const mat = useMemo(() => {
-    const m = new THREE.MeshStandardMaterial({ color: "#0a1a22", roughness: 0.08, metalness: 0.75, side: THREE.DoubleSide });
+    // shallow enough to wade: a clear, slightly murky surface over a stony bed
+    const m = new THREE.MeshStandardMaterial({ color: "#13303a", roughness: 0.1, metalness: 0.55, transparent: true, opacity: 0.82, side: THREE.DoubleSide });
     m.onBeforeCompile = (sh) => {
       sh.uniforms.uTime = time;
       sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vW;").replace("#include <worldpos_vertex>", "#include <worldpos_vertex>\nvW = (modelMatrix * vec4(transformed, 1.0)).xyz;");
@@ -390,7 +398,30 @@ function Creek({ time }: { time: { value: number } }) {
     };
     return m;
   }, [time]);
-  return <mesh geometry={geo} material={mat} position={[0, -0.06, 0]} receiveShadow />;
+  const bed = useMemo(() => {
+    const out: { p: [number, number, number]; s: [number, number, number]; r: number }[] = [];
+    const r = rnd(19);
+    for (let y = 0; y < MAP_H; y++)
+      for (let x = 0; x < MAP_W; x++) {
+        if (at(x, y) !== "W") continue;
+        for (let k = 0; k < 3; k++) {
+          const sz = 0.06 + r() * 0.08;
+          out.push({ p: [x + r(), -0.1, y + r()], s: [sz, sz * 0.5, sz * 0.8], r: r() });
+        }
+      }
+    return out;
+  }, []);
+  const stone = useMemo(() => ({ g: lumpy(1, 0, 0.3, 4), m: new THREE.MeshStandardMaterial({ color: "#4a4c48", roughness: 0.9, flatShading: true }) }), []);
+  return (
+    <>
+      <mesh rotation-x={-Math.PI / 2} position={[MAP_W / 2, -0.14, MAP_H / 2]}>
+        <planeGeometry args={[MAP_W, MAP_H]} />
+        <meshStandardMaterial color="#1c2018" roughness={1} />
+      </mesh>
+      <Lumps items={bed} geo={stone.g} mat={stone.m} cast={false} />
+      <mesh geometry={geo} material={mat} position={[0, -0.04, 0]} receiveShadow />
+    </>
+  );
 }
 
 function Crossings() {
