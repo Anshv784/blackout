@@ -168,7 +168,9 @@ pub fn handle_start_daily<'info>(ctx: Context<'info, StartDaily<'info>>) -> Resu
         let humans = (0..MAXP).filter(|&i| room.players[i] != Pubkey::default() && room.is_bot[i] == 0).count();
         require!(room.seat_of(&player) == Some(0) && humans == 1, BlackoutError::BadSeat);
         // the same table for everyone: 4 seats, medium bots, solo, no host controls mid-night
-        room.cfg = DAILY_SEATS as u32 | (room.cfg & (1 << 8)) | sim::CFG_DAILY;
+        // the map alternates by day (Yard on even days, Meadow on odd), the same for everyone
+        let meadow = if day % 2 == 1 { sim::CFG_MEADOW } else { 0 };
+        room.cfg = DAILY_SEATS as u32 | (room.cfg & (1 << 8)) | sim::CFG_DAILY | meadow;
         room.payout[0] = wallet;
         room.stake_deadline = day as i64; // free rooms don't use it: the day this night counts for
         fill_bots(&mut room, DAILY_SEATS);

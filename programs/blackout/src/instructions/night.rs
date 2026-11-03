@@ -191,7 +191,7 @@ pub fn handle_fallback_seed(ctx: Context<FallbackSeed>) -> Result<()> {
 }
 
 /// Player input. Hidden: it only touches the private World.
-pub fn handle_input(ctx: Context<Input>, dx: i8, dy: i8, aim: u16, buttons: u8, seq: u32) -> Result<()> {
+pub fn handle_input(ctx: Context<Input>, dx: i8, dy: i8, aim: u16, buttons: u8, seq: u32, throw: u8) -> Result<()> {
     let room = ctx.accounts.room.load()?;
     require!(room.status == ST_COUNTDOWN || room.status == ST_LIVE, BlackoutError::NotInLobby);
     let seat = room.seat_of(&ctx.accounts.player.key()).ok_or(BlackoutError::NotSeated)?;
@@ -208,7 +208,8 @@ pub fn handle_input(ctx: Context<Input>, dx: i8, dy: i8, aim: u16, buttons: u8, 
     p.in_dx = dx as i32;
     p.in_dy = dy as i32;
     p.aim = aim as u32;
-    p.buttons = buttons as u32;
+    // bits 8-15: how far a grenade thrown now should fly (0 = the old fixed throw)
+    p.buttons = buttons as u32 | (throw as u32) << 8;
     p.in_seq = seq;
     p.last_input_tick = tick;
     Ok(())

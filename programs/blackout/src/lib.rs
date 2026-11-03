@@ -115,8 +115,8 @@ pub mod blackout {
         instructions::lobby::handle_set_bots(ctx, level)
     }
 
-    pub fn set_mode(ctx: Context<Heartbeat>, duos: bool) -> Result<()> {
-        instructions::lobby::handle_set_mode(ctx, duos)
+    pub fn set_mode(ctx: Context<Heartbeat>, mode: u8) -> Result<()> {
+        instructions::lobby::handle_set_mode(ctx, mode)
     }
 
     pub fn set_size(ctx: Context<Heartbeat>, max_players: u8) -> Result<()> {
@@ -163,8 +163,8 @@ pub mod blackout {
         instructions::night::handle_fallback_seed(ctx)
     }
 
-    pub fn input(ctx: Context<Input>, dx: i8, dy: i8, aim: u16, buttons: u8, seq: u32) -> Result<()> {
-        instructions::night::handle_input(ctx, dx, dy, aim, buttons, seq)
+    pub fn input(ctx: Context<Input>, dx: i8, dy: i8, aim: u16, buttons: u8, seq: u32, throw: u8) -> Result<()> {
+        instructions::night::handle_input(ctx, dx, dy, aim, buttons, seq, throw)
     }
 
     pub fn tick<'info>(ctx: Context<'info, Tick<'info>>) -> Result<()> {

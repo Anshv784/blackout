@@ -105,15 +105,21 @@ pub fn handle_set_bots(ctx: Context<Heartbeat>, level: u8) -> Result<()> {
 }
 
 /// Host switches the room between solo and duos (seats pair up 0-1, 2-3, 4-5, 6-7).
-pub fn handle_set_mode(ctx: Context<Heartbeat>, duos: bool) -> Result<()> {
+/// Host sets the night: bit 0 duos (teams of two), bit 1 the Meadow instead of the Yard.
+/// (A plain `true`/`false` from an older client still just means duos on/off, on the Yard.)
+pub fn handle_set_mode(ctx: Context<Heartbeat>, mode: u8) -> Result<()> {
     let mut room = ctx.accounts.room.load_mut()?;
     require!(room.status == ST_LOBBY, BlackoutError::NotInLobby);
     require!(room.host == ctx.accounts.player.key(), BlackoutError::NotHost);
-    require!(room.stake == 0, BlackoutError::NotReady); // staked nights are every player for themselves
+    let duos = mode & 1 != 0;
+    // staked nights are every player for themselves
+    require!(!duos || room.stake == 0, BlackoutError::NotReady);
+    room.cfg &= !(crate::sim::CFG_DUOS | crate::sim::CFG_MEADOW);
     if duos {
         room.cfg |= crate::sim::CFG_DUOS;
-    } else {
-        room.cfg &= !crate::sim::CFG_DUOS;
+    }
+    if mode & 2 != 0 {
+        room.cfg |= crate::sim::CFG_MEADOW;
     }
     Ok(())
 }

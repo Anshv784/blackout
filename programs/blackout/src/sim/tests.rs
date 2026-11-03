@@ -1,3 +1,5 @@
+#[allow(dead_code)]
+const YARD: super::math::M = &super::math::MAPS[0];
 use super::*;
 
 #[cfg(test)]
@@ -447,7 +449,7 @@ mod mirror {
                 let (speed, sprinting, word) = move_step(moved, buttons, dx, dy, false);
                 let (vx, vy) = input_velocity_at(dx, dy, speed);
                 let (ox, oy) = (x, y);
-                move_body(&mut x, &mut y, vx, vy);
+                move_body(YARD, &mut x, &mut y, vx, vy);
                 let m = ox != x || oy != y;
                 moved = m as u32 | if sprinting && m { word } else { word & !2 };
                 out.push_str(&format!("{x},{y},{};", moved >> 8));
@@ -464,7 +466,7 @@ mod golden {
     use super::*;
     use anchor_lang::prelude::Pubkey;
 
-    const EXPECTED: u64 = 0x42806429e588d5e8;
+    const EXPECTED: u64 = 0x43a8e90ab8405877;
 
     fn fnv(h: &mut u64, bytes: &[u8]) {
         for b in bytes {
@@ -532,5 +534,250 @@ mod golden {
             }
         }
         assert_eq!(h, EXPECTED, "simulation behaviour changed: {h:#x}");
+    }
+}
+
+#[cfg(test)]
+mod crates {
+    use super::*;
+
+    #[test]
+    fn a_crate_is_solid_on_foot_and_never_traps_you() {
+        let boxes = [(tile_center(5), tile_center(2))];
+        // walking straight at it: stopped short of the crate
+        let (mut x, mut y) = (tile_center(3), tile_center(2));
+        for _ in 0..60 {
+            move_body_boxes(YARD, &mut x, &mut y, 20, 0, &boxes);
+        }
+        assert!(dist2(x, y, boxes[0].0, boxes[0].1) >= ((PLAYER_R + BOX_R) as i64).pow(2), "walked into the crate");
+        // a crate that appears on top of you: you can always step out
+        let (mut x, mut y) = (boxes[0].0 + 10, boxes[0].1);
+        for _ in 0..20 {
+            move_body_boxes(YARD, &mut x, &mut y, 20, 0, &boxes);
+        }
+        assert!(x > boxes[0].0 + 10, "stuck inside a crate");
+        // jumping (no boxes passed): straight over
+        let (mut x, mut y) = (tile_center(3), tile_center(2));
+        for _ in 0..30 {
+            move_body_boxes(YARD, &mut x, &mut y, 20, 0, &[]);
+        }
+        assert!(x > boxes[0].0, "a jump should clear the crate");
+    }
+}
+
+#[cfg(test)]
+mod throws {
+    use super::*;
+
+    /// Open floor along row `ty` from tile `t0`, or None.
+    fn open_run(len: i32) -> Option<(i32, i32)> {
+        for ty in 1..MAP_H as i32 - 1 {
+            for t0 in 1..MAP_W as i32 - len - 1 {
+                if (t0..t0 + len).all(|tx| !is_wall(YARD, tx, ty) && !is_wall(YARD, tx, ty - 1) && !is_wall(YARD, tx, ty + 1)) {
+                    return Some((t0, ty));
+                }
+            }
+        }
+        None
+    }
+
+    #[test]
+    fn an_aimed_throw_lands_where_you_aimed() {
+        let (t0, ty) = open_run(11).expect("an open stretch of floor");
+        for tiles in [2u32, 4, 6, 9] {
+            let (mut x, mut y) = (t0 * UNIT + UNIT / 2, ty * UNIT + UNIT / 2);
+            let x0 = x;
+            let v0 = throw_speed(tiles * THROW_PER_TILE);
+            let (mut vx, mut vy) = (v0, 0);
+            for _ in 0..THROW_TTL {
+                fly_step(YARD, &mut x, &mut y, &mut vx, &mut vy);
+            }
+            let got = (x - x0) as f64 / UNIT as f64;
+            assert!((got - tiles as f64).abs() < 0.35, "aimed {tiles} tiles, landed {got:.2}");
+        }
+    }
+
+    #[test]
+    fn a_hard_throw_never_passes_through_a_wall() {
+        // from every open tile, throw as hard as possible in 8 directions: it must never end inside a wall
+        for ty in 1..MAP_H as i32 - 1 {
+            for tx in 1..MAP_W as i32 - 1 {
+                if is_wall(YARD, tx, ty) { continue; }
+                for d in 0..8u32 {
+                    let a = d * 8192;
+                    let v0 = throw_speed(255);
+                    let (mut x, mut y) = (tx * UNIT + UNIT / 2, ty * UNIT + UNIT / 2);
+                    let (mut vx, mut vy) = (cos(a) * v0 / 1024, sin(a) * v0 / 1024);
+                    for _ in 0..THROW_TTL {
+                        fly_step(YARD, &mut x, &mut y, &mut vx, &mut vy);
+                        assert!(!is_wall(YARD, x >> 8, y >> 8), "went into a wall from ({tx},{ty}) dir {d}");
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod throw_mirror {
+    use super::*;
+    /// Prints throw landings for scripts/throw_mirror.ts to compare against sim.ts.
+    #[test]
+    #[ignore]
+    fn print_throws() {
+        for (tx, ty) in [(5i32, 5i32), (10, 20), (24, 24), (30, 12)] {
+            if is_wall(YARD, tx, ty) { continue; }
+            for aim in [0u32, 9000, 20000, 33000, 47000, 61000] {
+                for t in [0u32, 56, 140, 252] {
+                    let (c, sn) = (cos(aim), sin(aim));
+                    let (mut x, mut y) = (tx * UNIT + 128 + c * (PLAYER_R + 40) / 1024, ty * UNIT + 128 + sn * (PLAYER_R + 40) / 1024);
+                    let v0 = throw_speed(t);
+                    let (mut vx, mut vy) = (c * v0 / 1024, sn * v0 / 1024);
+                    for _ in 0..THROW_TTL { fly_step(YARD, &mut x, &mut y, &mut vx, &mut vy); }
+                    println!("T {} {} {} {} {} {}", tx * UNIT + 128, ty * UNIT + 128, aim, t, x, y);
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod meadow {
+    use super::*;
+
+    #[test]
+    fn meadow_nights_run_start_to_finish() {
+        // the same 48-night run as the golden test's setup, on the Meadow: every night must end
+        for night in 0..12u32 {
+            let mut room: Room = bytemuck::Zeroable::zeroed();
+            let mut w: World = bytemuck::Zeroable::zeroed();
+            for s in 0..MAXP {
+                room.is_bot[s] = 1;
+            }
+            room.cfg = 8 | ((night % 3) << 9) | CFG_MEADOW;
+            let mut seed = [(night as u8).wrapping_mul(53); 32];
+            seed[1] = night as u8;
+            seed[31] = night as u8;
+            seed_match(&mut room, &mut w, seed);
+            // everyone spawns on open ground of the Meadow
+            for s in 0..MAXP {
+                let p = &w.players[s];
+                assert!(!circle_hits_wall(map_of(&room), p.x, p.y, PLAYER_R), "spawned in a wall on night {night}");
+            }
+            let mut views: Vec<View> = (0..MAXP).map(|_| bytemuck::Zeroable::zeroed()).collect();
+            let mut recs: Vec<Vec<u8>> = (0..5).map(|_| vec![0u8; REC_CHUNK_LEN]).collect();
+            let mut ended = false;
+            for _ in 0..(COUNTDOWN_TICKS + MATCH_TICKS + 20) {
+                let mut refs: Vec<&mut View> = views.iter_mut().collect();
+                let mut rr: Vec<&mut [u8]> = recs.iter_mut().map(|b| &mut b[..]).collect();
+                if tick(&mut room, &mut w, &mut refs[..], &mut rr[..]).ended {
+                    ended = true;
+                    break;
+                }
+                for s in 0..MAXP {
+                    let p = &w.players[s];
+                    if p.alive != 0 {
+                        assert!(!circle_hits_wall(map_of(&room), p.x, p.y, PLAYER_R), "walked into a Meadow wall");
+                    }
+                }
+            }
+            assert!(ended, "Meadow night {night} never ended");
+        }
+    }
+
+    #[test]
+    fn the_maps_really_differ() {
+        let (y, m) = (&MAPS[0], &MAPS[1]);
+        let differ = (0..MAP_H).flat_map(|ty| (0..MAP_W).map(move |tx| (tx, ty))).filter(|&(tx, ty)| is_wall(y, tx, ty) != is_wall(m, tx, ty)).count();
+        assert!(differ > 300, "only {differ} tiles differ");
+    }
+}
+
+#[cfg(test)]
+mod new_guns {
+    use super::*;
+
+    #[test]
+    fn every_gun_loot_round_trips() {
+        for w in [W_SMG, W_SHOTGUN, W_AR, W_SNIPER, W_DMR, W_LMG, W_XBOW] {
+            assert_eq!(loot_gun(gun_loot(w)), Some(w), "gun {w}");
+            assert!(!is_gadget_loot(gun_loot(w)), "gun {w} loot taken for a gadget");
+        }
+        for k in LOOT_FRAG..=LOOT_NVG {
+            assert!(is_gadget_loot(k) && loot_gun(k).is_none());
+        }
+    }
+
+    #[test]
+    fn the_new_guns_turn_up_as_loot() {
+        let kinds: Vec<u32> = (0..100).map(|r| loot_for_roll(r, 0)).collect();
+        for k in [LOOT_DMR, LOOT_LMG, LOOT_XBOW] {
+            assert!(kinds.contains(&k), "loot {k} never rolls");
+        }
+    }
+
+    #[test]
+    fn every_gun_can_kill() {
+        for (i, w) in WEAPONS.iter().enumerate() {
+            let per_shot = w.dmg * w.pellets;
+            let shots = (100 + per_shot - 1) / per_shot;
+            assert!(shots <= w.mag.max(1) * 6, "weapon {i} needs {shots} hits");
+            assert!(w.mag >= 1 && w.reload > 0 && w.speed > 0);
+        }
+    }
+
+    /// Two players a few tiles apart in the dark, out of each other's sight: what does the listener hear
+    /// and see when the other fires?
+    fn shot_heard(weapon: u32) -> (bool, bool) {
+        let mut room: Room = bytemuck::Zeroable::zeroed();
+        let mut w: World = bytemuck::Zeroable::zeroed();
+        for s in 0..MAXP {
+            room.is_bot[s] = if s < 2 { 0 } else { 1 };
+            if s < 2 {
+                room.players[s] = anchor_lang::prelude::Pubkey::new_from_array([s as u8 + 1; 32]);
+            }
+        }
+        room.cfg = 2;
+        let mut seed = [3u8; 32];
+        seed[31] = 0; // no night modifier
+        seed_match(&mut room, &mut w, seed);
+        room.status = ST_LIVE;
+        // park everyone else far away, then put the shooter 6 tiles from the listener, facing away
+        for s in 0..MAXP {
+            w.players[s].alive = 0;
+        }
+        let y = (1..MAP_H - 1).find(|&ty| (2..12).all(|tx| !is_wall(YARD, tx, ty) && !is_wall(YARD, tx, ty - 1) && !is_wall(YARD, tx, ty + 1))).unwrap();
+        for (s, tx) in [(0usize, 3u8), (1, 9)] {
+            let p = &mut w.players[s];
+            *p = PlayerState::default();
+            p.alive = 1;
+            p.hp = 100;
+            p.x = tile_center(tx);
+            p.y = tile_center(y as u8);
+            p.weapon = weapon;
+            p.mag = WEAPONS[weapon as usize].mag;
+        }
+        w.players[0].aim = 32768; // listener looks away (sight cone off the shooter)
+        w.players[1].aim = 0; // the shooter fires away from the listener
+        // the instant of the shot, as the sight pass sees it
+        let tick = 100u32;
+        w.tick = tick;
+        w.players[1].last_shot = tick + 1;
+        let sight = compute_sight(&room, &w, true, tick - COUNTDOWN_TICKS.min(tick), tick);
+        let mut view: View = bytemuck::Zeroable::zeroed();
+        write_view(&room, &w, &mut view, 0, &sight, &[], &[], tick);
+        let heard = view.pings.iter().any(|p| p.kind == PING_SHOT);
+        let seen = (0..view.n_players as usize).any(|i| view.players[i].seat == 1);
+        (heard, seen)
+    }
+
+    #[test]
+    fn a_crossbow_is_silent_and_a_rifle_is_not() {
+        // a rifle gives you away: the flash lights you up for anyone in line, or the bang is heard
+        let (heard_rifle, seen_rifle) = shot_heard(W_AR);
+        assert!(heard_rifle || seen_rifle, "a rifle shot nearby should give the shooter away (heard {heard_rifle}, seen {seen_rifle})");
+        let (heard_bow, seen_bow) = shot_heard(W_XBOW);
+        assert!(!heard_bow, "a crossbow shot should make no sound");
+        assert!(!seen_bow, "a crossbow shot should not light the shooter up");
     }
 }

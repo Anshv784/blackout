@@ -23,6 +23,7 @@ pub fn bot_skill(room: &Room) -> Skill {
 /// on the same tick (the first live one), that tick cost ~500k compute units and the crank,
 /// which runs well under its 1.4M limit, failed and stopped.
 pub fn bot_think(w: &mut World, room: &Room, seat: usize, tick: u32, may_pick: &mut bool) {
+    let m = map_of(room);
     let sk = bot_skill(room);
     let style = bot_style(room, seat);
     let zone = (room.zone_x, room.zone_y, room.zone_r);
@@ -105,12 +106,12 @@ pub fn bot_think(w: &mut World, room: &Room, seat: usize, tick: u32, may_pick: &
             let mut best: Option<(i32, i32)> = None;
             for _ in 0..6 {
                 let k = (rng_next(w) as usize) % total;
-                let (tx, ty) = if k < SPAWNS.len() { SPAWNS[k] } else { LOOT_SPOTS[k - SPAWNS.len()] };
+                let (tx, ty) = if k < SPAWNS.len() { m.spawns[k] } else { m.loot[k - SPAWNS.len()] };
                 let (cx, cy) = (tile_center(tx), tile_center(ty));
                 if dist2(cx, cy, next.0, next.1) > (next.2 as i64).pow(2) {
                     continue;
                 }
-                if line_of_sight(p.x, p.y, cx, cy) {
+                if line_of_sight(m, p.x, p.y, cx, cy) {
                     best = Some((cx, cy));
                     break;
                 }

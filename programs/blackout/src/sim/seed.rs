@@ -30,6 +30,7 @@ pub fn tile_center(t: u8) -> i32 {
 pub fn seed_match(room: &mut Room, w: &mut World, seed: [u8; 32]) {
     w.seed = seed;
     // the night's modifier comes straight from the seed (so verify.ts can re-derive it)
+    let map = map_of(room);
     let m = (seed[31] as u32) % NIGHT_MODS;
     room.cfg = (room.cfg & !(7 << 13)) | (m << 13);
     w.rng_lo = u32::from_le_bytes(seed[0..4].try_into().unwrap()) | 1;
@@ -64,7 +65,7 @@ pub fn seed_match(room: &mut Room, w: &mut World, seed: [u8; 32]) {
             if used[k] {
                 continue;
             }
-            let (sx, sy) = (tile_center(SPAWNS[k].0), tile_center(SPAWNS[k].1));
+            let (sx, sy) = (tile_center(map.spawns[k].0), tile_center(map.spawns[k].1));
             let far = placed[..n_placed].iter().all(|&(px, py)| dist2(px, py, sx, sy) >= (7 * UNIT as i64).pow(2));
             if far {
                 pick = Some(k);
@@ -73,7 +74,7 @@ pub fn seed_match(room: &mut Room, w: &mut World, seed: [u8; 32]) {
         }
         let k = pick.unwrap_or_else(|| order.iter().copied().find(|&k| !used[k]).unwrap_or(0));
         used[k] = true;
-        let (sx, sy) = (tile_center(SPAWNS[k].0), tile_center(SPAWNS[k].1));
+        let (sx, sy) = (tile_center(map.spawns[k].0), tile_center(map.spawns[k].1));
         placed[n_placed] = (sx, sy);
         n_placed += 1;
         let p = &mut w.players[seat];
@@ -99,7 +100,7 @@ pub fn seed_match(room: &mut Room, w: &mut World, seed: [u8; 32]) {
         spots.swap(i, j);
     }
     for i in 0..10usize.min(MAXL) {
-        let (lx, ly) = LOOT_SPOTS[spots[i]];
+        let (lx, ly) = map.loot[spots[i]];
         let roll = rng_next(w) % 100;
         let kind = loot_for_roll(roll, m);
         w.loot[i] = Loot { x: tile_center(lx), y: tile_center(ly), kind, active: 1 };

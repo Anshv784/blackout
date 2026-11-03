@@ -3,6 +3,14 @@ use super::*;
 
 pub const UNIT: i32 = 256; // fixed-point units per tile
 pub const PLAYER_R: i32 = 90;
+/// a death crate's footprint (radius): solid on foot, a jump clears it. Mirrored in sim.ts.
+pub const BOX_R: i32 = 48;
+/// aimed throws: the throw byte is tiles x THROW_PER_TILE (so 252 = 9 tiles). Mirrored in sim.ts.
+pub const THROW_PER_TILE: u32 = 28;
+pub const THROW_TTL: u32 = 18;
+/// a thrown thing never moves more than this in one sub-step, so it can't skip through a wall
+pub const FLY_STEP: i32 = 128;
+pub const MAX_BOXES: usize = 8;
 pub const SPEED: i32 = 56; // units per tick (~4.4 tiles/s at 20 tps)
 pub const COUNTDOWN_TICKS: u32 = 60;
 pub const MATCH_TICKS: u32 = 6000; // every night is 5:00
@@ -108,6 +116,11 @@ pub const STYLE_RUSHER: u32 = 3;
 pub const CAMP_TICKS: u32 = 120;
 /// A daily night: everyone plays the same sealed seed (Room.cfg bit 17).
 pub const CFG_DAILY: u32 = 1 << 17;
+/** the host picked the Meadow instead of the Yard */
+pub const CFG_MEADOW: u32 = 1 << 18;
+pub fn map_of(room: &Room) -> M {
+    &MAPS[(room.cfg & CFG_MEADOW != 0) as usize]
+}
 pub fn daily(room: &Room) -> bool {
     room.cfg & CFG_DAILY != 0
 }
@@ -144,13 +157,16 @@ pub fn blind_of(p: &PlayerState) -> u32 {
 /// Loot roll (mirrored in verify.ts): what a 0..99 roll becomes under the night's modifier.
 pub fn loot_for_roll(roll: u32, m: u32) -> u32 {
     let k = match roll {
-        0..=15 => LOOT_MEDKIT,
-        16..=27 => LOOT_ARMOR,
-        28..=37 => LOOT_SMG,
-        38..=45 => LOOT_SHOTGUN,
-        46..=57 => LOOT_AR,
-        58..=63 => LOOT_SNIPER,
-        64..=69 => LOOT_FLARE,
+        0..=13 => LOOT_MEDKIT,
+        14..=24 => LOOT_ARMOR,
+        25..=32 => LOOT_SMG,
+        33..=39 => LOOT_SHOTGUN,
+        40..=49 => LOOT_AR,
+        50..=54 => LOOT_SNIPER,
+        55..=58 => LOOT_DMR,
+        59..=62 => LOOT_LMG,
+        63..=65 => LOOT_XBOW,
+        66..=69 => LOOT_FLARE,
         70..=77 => LOOT_FRAG,
         78..=83 => LOOT_SMOKE,
         84..=88 => LOOT_FLASH,
@@ -159,11 +175,11 @@ pub fn loot_for_roll(roll: u32, m: u32) -> u32 {
         _ => LOOT_NVG,
     };
     match (m, k) {
-        (MOD_SNIPER, LOOT_SMG | LOOT_SHOTGUN | LOOT_AR) => LOOT_SNIPER,
+        (MOD_SNIPER, LOOT_SMG | LOOT_SHOTGUN | LOOT_AR | LOOT_LMG) => LOOT_SNIPER,
         (MOD_GADGETS, LOOT_SMG) => LOOT_FRAG,
-        (MOD_GADGETS, LOOT_SHOTGUN) => LOOT_SMOKE,
-        (MOD_GADGETS, LOOT_AR) => LOOT_DECOY,
-        (MOD_GADGETS, LOOT_SNIPER) => LOOT_FLASH,
+        (MOD_GADGETS, LOOT_SHOTGUN | LOOT_LMG) => LOOT_SMOKE,
+        (MOD_GADGETS, LOOT_AR | LOOT_XBOW) => LOOT_DECOY,
+        (MOD_GADGETS, LOOT_SNIPER | LOOT_DMR) => LOOT_FLASH,
         (MOD_GADGETS, LOOT_FLARE) => LOOT_NVG,
         _ => k,
     }
@@ -191,12 +207,27 @@ pub const LOOT_SHOTGUN: u32 = 4;
 pub const LOOT_FLARE: u32 = 5;
 pub const LOOT_AR: u32 = 6;
 pub const LOOT_SNIPER: u32 = 7;
+// (8-14 are the supply drop and gadgets)
+pub const LOOT_DMR: u32 = 15;
+pub const LOOT_LMG: u32 = 16;
+pub const LOOT_XBOW: u32 = 17;
+/// gadget loot kinds are a block: frag .. night vision
+pub fn is_gadget_loot(kind: u32) -> bool {
+    (LOOT_FRAG..=LOOT_NVG).contains(&kind)
+}
 
 pub const W_PISTOL: u32 = 0;
 pub const W_SMG: u32 = 1;
 pub const W_SHOTGUN: u32 = 2;
 pub const W_AR: u32 = 3;
 pub const W_SNIPER: u32 = 4;
+pub const W_DMR: u32 = 5;
+pub const W_LMG: u32 = 6;
+pub const W_XBOW: u32 = 7;
+/// a crossbow makes no bang and no flash: firing it doesn't give you away
+pub fn loud(weapon: u32) -> bool {
+    weapon != W_XBOW
+}
 
 /// Loot kind for a gun (dropped on death), and the gun a loot kind gives.
 pub fn gun_loot(weapon: u32) -> u32 {
@@ -204,7 +235,23 @@ pub fn gun_loot(weapon: u32) -> u32 {
         W_SMG => LOOT_SMG,
         W_SHOTGUN => LOOT_SHOTGUN,
         W_AR => LOOT_AR,
+        W_DMR => LOOT_DMR,
+        W_LMG => LOOT_LMG,
+        W_XBOW => LOOT_XBOW,
         _ => LOOT_SNIPER,
+    }
+}
+/// The gun a loot kind gives (None: not a gun).
+pub fn loot_gun(kind: u32) -> Option<u32> {
+    match kind {
+        LOOT_SMG => Some(W_SMG),
+        LOOT_SHOTGUN => Some(W_SHOTGUN),
+        LOOT_AR => Some(W_AR),
+        LOOT_SNIPER => Some(W_SNIPER),
+        LOOT_DMR => Some(W_DMR),
+        LOOT_LMG => Some(W_LMG),
+        LOOT_XBOW => Some(W_XBOW),
+        _ => None,
     }
 }
 pub const W_ZONE: u32 = 9;
@@ -220,7 +267,7 @@ pub struct Weapon {
     pub spread: u32,
 }
 
-pub const WEAPONS: [Weapon; 5] = [
+pub const WEAPONS: [Weapon; 8] = [
     // P92 pistol
     Weapon { dmg: 22, cooldown: 7, mag: 10, reload: 28, speed: 280, ttl: 16, pellets: 1, spread: 0 },
     // UMP SMG: fast, short, sprays
@@ -231,4 +278,10 @@ pub const WEAPONS: [Weapon; 5] = [
     Weapon { dmg: 15, cooldown: 3, mag: 30, reload: 42, speed: 340, ttl: 20, pellets: 1, spread: 260 },
     // Kar98k sniper: two body shots, slow bolt, long and loud
     Weapon { dmg: 80, cooldown: 30, mag: 5, reload: 56, speed: 460, ttl: 26, pellets: 1, spread: 0 },
+    // marksman rifle: semi-automatic, hits hard at mid range, a 10-round mag
+    Weapon { dmg: 38, cooldown: 9, mag: 10, reload: 46, speed: 420, ttl: 24, pellets: 1, spread: 60 },
+    // LMG: a 60-round belt that keeps a corner pinned; heavy, so it sprays and reloads slowly
+    Weapon { dmg: 13, cooldown: 2, mag: 60, reload: 80, speed: 340, ttl: 20, pellets: 1, spread: 520 },
+    // crossbow: one silent bolt, slow to fly and to reload, nearly a kill if it lands
+    Weapon { dmg: 70, cooldown: 26, mag: 1, reload: 30, speed: 230, ttl: 26, pellets: 1, spread: 0 },
 ];

@@ -51,6 +51,7 @@ pub fn damage(w: &mut World, killer: &mut [u32; MAXP], victim: usize, mut dmg: u
 
 
 pub fn step_players(room: &Room, w: &mut World, killer: &mut [u32; MAXP], tick: u32) {
+    let m = map_of(room);
     // 1. bots decide from what they saw last tick (one waypoint search per tick, see bot_think)
     let mut may_pick = true;
     for s in 0..MAXP {
@@ -59,6 +60,16 @@ pub fn step_players(room: &Room, w: &mut World, killer: &mut [u32; MAXP], tick: 
         }
     }
     // 2. movement, aim, weapons
+    // death crates: where the fallen lie. Solid to anyone on foot; a jump clears one, and bots step over.
+    let mut boxes = [(0i32, 0i32); MAX_BOXES];
+    let mut n_boxes = 0;
+    for j in 0..MAXP {
+        let seated = room.is_bot[j] == 1 || room.players[j] != anchor_lang::prelude::Pubkey::default();
+        if seated && w.players[j].alive == 0 && n_boxes < MAX_BOXES {
+            boxes[n_boxes] = (w.players[j].x, w.players[j].y);
+            n_boxes += 1;
+        }
+    }
     for s in 0..MAXP {
         let mut p = w.players[s];
         if p.alive == 0 {
@@ -68,7 +79,9 @@ pub fn step_players(room: &Room, w: &mut World, killer: &mut [u32; MAXP], tick: 
         let (speed, sprinting, word) = move_step(p.moved, p.buttons, p.in_dx, p.in_dy, downed);
         let (vx, vy) = input_velocity_at(p.in_dx, p.in_dy, speed);
         let (ox, oy) = (p.x, p.y);
-        move_body(&mut p.x, &mut p.y, vx, vy);
+        let jumping = (word >> 4) & 0xf != 0;
+        let solid: &[(i32, i32)] = if room.is_bot[s] == 1 || jumping { &[] } else { &boxes[..n_boxes] };
+        move_body_boxes(m, &mut p.x, &mut p.y, vx, vy, solid);
         let moved = ox != p.x || oy != p.y;
         p.moved = moved as u32 | if sprinting && moved { word } else { word & !2 };
         let blind = blind_of(&p);
@@ -107,9 +120,10 @@ pub fn step_players(room: &Room, w: &mut World, killer: &mut [u32; MAXP], tick: 
                     let (c, sn) = (cos(p.aim), sin(p.aim));
                     let bx = p.x + c * (PLAYER_R + 40) / 1024;
                     let by = p.y + sn * (PLAYER_R + 40) / 1024;
-                    if !is_wall(bx >> 8, by >> 8) {
+                    if !is_wall(m, bx >> 8, by >> 8) {
                         if let Some(slot) = w.bullets.iter().position(|q| q.ttl == 0) {
-                            w.bullets[slot] = Bullet { x: bx, y: by, vx: c * 120 / 1024, vy: sn * 120 / 1024, owner: s as u32, ttl: 18, dmg: 0, weapon: EFF_FLY + g };
+                            let v0 = throw_speed((p.buttons >> 8) & 0xff);
+                            w.bullets[slot] = Bullet { x: bx, y: by, vx: c * v0 / 1024, vy: sn * v0 / 1024, owner: s as u32, ttl: THROW_TTL, dmg: 0, weapon: EFF_FLY + g };
                         }
                     }
                 }
@@ -145,7 +159,7 @@ pub fn step_players(room: &Room, w: &mut World, killer: &mut [u32; MAXP], tick: 
                 let (c, sn) = (cos(a), sin(a));
                 let bx = p.x + c * (PLAYER_R + 40) / 1024;
                 let by = p.y + sn * (PLAYER_R + 40) / 1024;
-                if is_wall(bx >> 8, by >> 8) {
+                if is_wall(m, bx >> 8, by >> 8) {
                     continue;
                 }
                 if let Some(slot) = w.bullets.iter().position(|b| b.ttl == 0) {
@@ -171,6 +185,7 @@ pub fn step_players(room: &Room, w: &mut World, killer: &mut [u32; MAXP], tick: 
 }
 
 pub fn step_bullets(room: &Room, w: &mut World, killer: &mut [u32; MAXP], booms: &mut [(i32, i32); 4], n_booms: &mut usize, tick: u32) {
+    let m = map_of(room);
     // 3. bullets
     for bi in 0..MAXB {
         let mut b = w.bullets[bi];
@@ -180,12 +195,7 @@ pub fn step_bullets(room: &Room, w: &mut World, killer: &mut [u32; MAXP], booms:
         if b.weapon >= EFF_FLY {
             // a gadget: thrown ones fly, bounce and slow down; placed ones just tick down
             if b.weapon < EFF_SMOKE {
-                let nx = b.x + b.vx;
-                if is_wall(nx >> 8, b.y >> 8) { b.vx = -b.vx / 2; } else { b.x = nx; }
-                let ny = b.y + b.vy;
-                if is_wall(b.x >> 8, ny >> 8) { b.vy = -b.vy / 2; } else { b.y = ny; }
-                b.vx = b.vx * 7 / 8;
-                b.vy = b.vy * 7 / 8;
+                fly_step(m, &mut b.x, &mut b.y, &mut b.vx, &mut b.vy);
             }
             b.ttl -= 1;
             if b.ttl == 0 && b.weapon < EFF_SMOKE {
@@ -197,7 +207,7 @@ pub fn step_bullets(room: &Room, w: &mut World, killer: &mut [u32; MAXP], booms:
                                 continue;
                             }
                             let d2 = dist2(q.x, q.y, b.x, b.y);
-                            if d2 <= (FRAG_R as i64).pow(2) && line_of_sight(b.x, b.y, q.x, q.y) {
+                            if d2 <= (FRAG_R as i64).pow(2) && line_of_sight(m, b.x, b.y, q.x, q.y) {
                                 let d = isqrt(d2 as u64) as u32;
                                 let dmg = 10 + FRAG_DMG * (FRAG_R as u32 - d.min(FRAG_R as u32)) / FRAG_R as u32;
                                 damage(w, killer, s, dmg, b.owner, atan2(q.y - b.y, q.x - b.x).wrapping_add(32768) & 0xffff, tick);
@@ -213,7 +223,7 @@ pub fn step_bullets(room: &Room, w: &mut World, killer: &mut [u32; MAXP], booms:
                             }
                             let d2 = dist2(q.x, q.y, b.x, b.y);
                             // blinds anyone close who's looking anywhere near it
-                            if d2 <= (FLASHBANG_R as i64).pow(2) && line_of_sight(b.x, b.y, q.x, q.y)
+                            if d2 <= (FLASHBANG_R as i64).pow(2) && line_of_sight(m, b.x, b.y, q.x, q.y)
                                 && (d2 <= (2 * UNIT as i64).pow(2) || angle_diff(q.aim, atan2(b.y - q.y, b.x - q.x)) <= 16384) {
                                 w.players[s].hit_angle = (q.hit_angle & 0xffff) | (BLIND_TICKS << 16);
                             }
@@ -232,7 +242,7 @@ pub fn step_bullets(room: &Room, w: &mut World, killer: &mut [u32; MAXP], booms:
         'sub: for _ in 0..4 {
             b.x += b.vx / 4;
             b.y += b.vy / 4;
-            if is_wall(b.x >> 8, b.y >> 8) {
+            if is_wall(m, b.x >> 8, b.y >> 8) {
                 b.ttl = 0;
                 break 'sub;
             }
@@ -273,10 +283,10 @@ pub fn step_pickups(room: &Room, w: &mut World, loot_events: &mut [(i32, i32); 4
                 continue;
             }
             // bots don't carry gadgets
-            if !human && l.kind >= LOOT_FRAG {
+            if !human && is_gadget_loot(l.kind) {
                 continue;
             }
-            if l.kind >= LOOT_FRAG {
+            if is_gadget_loot(l.kind) {
                 let g = l.kind - LOOT_FRAG + 1;
                 let b = &mut w.bots[s];
                 let (sec, sm) = inv_sec(b);
@@ -293,13 +303,8 @@ pub fn step_pickups(room: &Room, w: &mut World, loot_events: &mut [(i32, i32); 4
             match l.kind {
                 LOOT_MEDKIT => p.hp = (p.hp + 50).min(100),
                 LOOT_ARMOR => p.armor = (p.armor + 50).min(100),
-                LOOT_SMG | LOOT_SHOTGUN | LOOT_AR | LOOT_SNIPER => {
-                    let wpn = match l.kind {
-                        LOOT_SMG => W_SMG,
-                        LOOT_SHOTGUN => W_SHOTGUN,
-                        LOOT_AR => W_AR,
-                        _ => W_SNIPER,
-                    };
+                LOOT_SMG | LOOT_SHOTGUN | LOOT_AR | LOOT_SNIPER | LOOT_DMR | LOOT_LMG | LOOT_XBOW => {
+                    let wpn = loot_gun(l.kind).unwrap_or(W_SNIPER);
                     // a second gun goes in the free slot; with both full it replaces the one in hand
                     let full = WEAPONS[wpn as usize].mag;
                     if human && p.weapon != W_PISTOL {
@@ -336,6 +341,7 @@ pub fn step_pickups(room: &Room, w: &mut World, loot_events: &mut [(i32, i32); 4
 }
 
 pub fn step_supply_drops(room: &Room, w: &mut World, t: u32) {
+    let m = map_of(room);
     // 4b. supply drops: a crate lands somewhere inside the next circle
     for &dt in drop_ticks(room).iter() {
         if t == dt {
@@ -345,7 +351,7 @@ pub fn step_supply_drops(room: &Room, w: &mut World, t: u32) {
             let mut nc = 0usize;
             let mut nearest = (i64::MAX, 0usize);
             for k in 0..total {
-                let (tx, ty) = if k < SPAWNS.len() { SPAWNS[k] } else { LOOT_SPOTS[k - SPAWNS.len()] };
+                let (tx, ty) = if k < SPAWNS.len() { m.spawns[k] } else { m.loot[k - SPAWNS.len()] };
                 let d = dist2(tile_center(tx), tile_center(ty), nx, ny);
                 if d < nearest.0 {
                     nearest = (d, k);
@@ -356,7 +362,7 @@ pub fn step_supply_drops(room: &Room, w: &mut World, t: u32) {
                 }
             }
             let k = if nc > 0 { cands[(rng_next(w) as usize) % nc] } else { nearest.1 };
-            let (tx, ty) = if k < SPAWNS.len() { SPAWNS[k] } else { LOOT_SPOTS[k - SPAWNS.len()] };
+            let (tx, ty) = if k < SPAWNS.len() { m.spawns[k] } else { m.loot[k - SPAWNS.len()] };
             let slot = w.loot.iter().position(|l| l.active == 0).unwrap_or((t as usize) % MAXL);
             w.loot[slot] = Loot { x: tile_center(tx), y: tile_center(ty), kind: LOOT_DROP, active: 1 };
         }
@@ -414,6 +420,7 @@ pub fn step_revives(room: &Room, w: &mut World, killer: &[u32; MAXP]) {
 }
 
 pub fn step_deaths(room: &mut Room, w: &mut World, killer: &[u32; MAXP], tick: u32) {
+    let m = map_of(room);
     // 6. deaths
     for s in 0..MAXP {
         if killer[s] == u32::MAX {
@@ -455,11 +462,42 @@ pub fn step_deaths(room: &mut Room, w: &mut World, killer: &[u32; MAXP], tick: u
         let fi = (room.feed_head as usize) % FEED;
         room.feed[fi] = KillEvent { tick, killer: k, victim: s as u32, weapon };
         room.feed_head = room.feed_head.wrapping_add(1);
-        // the dead drop their gun
+        // the dead drop what they carried, spread round the crate so each piece can be picked up:
+        // the gun in hand, the second gun, armor and grenades (bots carry only a gun and armor)
+        let human = room.is_bot[s] == 0;
+        let (sec, gadget, n_gadget) = if human {
+            let (sec, _) = inv_sec(&w.bots[s]);
+            let (g, n) = inv_gadget(&w.bots[s]);
+            (sec, g, n)
+        } else {
+            (0, 0, 0)
+        };
+        let mut drops = [0u32; 4];
+        let mut n_drops = 0;
         if p.weapon != W_PISTOL {
+            drops[n_drops] = gun_loot(p.weapon);
+            n_drops += 1;
+        }
+        if sec > 0 && sec - 1 != W_PISTOL && sec - 1 != p.weapon {
+            drops[n_drops] = gun_loot(sec - 1);
+            n_drops += 1;
+        }
+        // (on the floor, `armor` counts bleed-out ticks, so only a standing death drops armor)
+        if p.alive == 1 && p.armor > 0 {
+            drops[n_drops] = LOOT_ARMOR;
+            n_drops += 1;
+        }
+        if gadget > 0 && n_gadget > 0 {
+            drops[n_drops] = LOOT_FRAG + gadget - 1;
+            n_drops += 1;
+        }
+        const AROUND: [(i32, i32); 4] = [(BOX_R + 40, 0), (0, BOX_R + 40), (-(BOX_R + 40), 0), (0, -(BOX_R + 40))];
+        for (i, &kind) in drops[..n_drops].iter().enumerate() {
+            let (ox, oy) = AROUND[i];
+            // off the crate where there's floor, on it where there's a wall
+            let (lx, ly) = if circle_hits_wall(m, p.x + ox, p.y + oy, 1) { (p.x, p.y) } else { (p.x + ox, p.y + oy) };
             if let Some(slot) = w.loot.iter().position(|l| l.active == 0) {
-                let kind = gun_loot(p.weapon);
-                w.loot[slot] = Loot { x: p.x, y: p.y, kind, active: 1 };
+                w.loot[slot] = Loot { x: lx, y: ly, kind, active: 1 };
             }
         }
     }

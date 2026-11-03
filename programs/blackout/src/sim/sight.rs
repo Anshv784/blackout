@@ -30,6 +30,7 @@ pub fn push_ping(v: &mut View, tick: u32, angle: u32, kind: u32, dist: u32) {
 }
 
 pub fn compute_sight(room: &Room, w: &World, live: bool, t: u32, tick: u32) -> Sight {
+    let m = map_of(room);
     // BLACKOUT: halfway through the night every flashlight dies for 10 s
     let bo = blackout_tick(room);
     let lights_out = live && t >= bo && t < bo + BLACKOUT_TICKS;
@@ -53,7 +54,7 @@ pub fn compute_sight(room: &Room, w: &World, live: bool, t: u32, tick: u32) -> S
     if !lights_out && modifier != MOD_NO_LAMPS {
         for s in 0..MAXP {
             let ps = w.players[s];
-            lit[s] = lit[s] || ps.alive == 1 && LAMPS.iter().any(|&(lx, ly)| dist2(ps.x, ps.y, tile_center(lx), tile_center(ly)) <= (LAMP_R as i64).pow(2));
+            lit[s] = lit[s] || ps.alive == 1 && m.lamps.iter().any(|&(lx, ly)| dist2(ps.x, ps.y, tile_center(lx), tile_center(ly)) <= (LAMP_R as i64).pow(2));
         }
     }
 
@@ -103,7 +104,7 @@ pub fn compute_sight(room: &Room, w: &World, live: bool, t: u32, tick: u32) -> S
             } else if pv.flare > 0 {
                 f = 2;
             } else if d2 <= (AMBIENT_R as i64).pow(2) {
-                if line_of_sight(pv.x, pv.y, pq.x, pq.y) {
+                if line_of_sight(m, pv.x, pv.y, pq.x, pq.y) {
                     f = 8;
                 }
             } else if blind {
@@ -112,21 +113,22 @@ pub fn compute_sight(room: &Room, w: &World, live: bool, t: u32, tick: u32) -> S
                 && (!one_light || v == carrier)
                 && d2 <= (if pq.moved & 8 != 0 { vr * 7 / 10 } else { vr } as i64).pow(2)
                 && angle_diff(pv.aim, atan2(pq.y - pv.y, pq.x - pv.x)) <= cone
-                && line_of_sight(pv.x, pv.y, pq.x, pq.y)
+                && line_of_sight(m, pv.x, pv.y, pq.x, pq.y)
                 && !smoked(smokes, pv.x, pv.y, pq.x, pq.y)
             {
                 f = 8;
             } else if lit[q]
                 && d2 <= (lamp_r as i64).pow(2)
-                && line_of_sight(pv.x, pv.y, pq.x, pq.y)
+                && line_of_sight(m, pv.x, pv.y, pq.x, pq.y)
                 && !smoked(smokes, pv.x, pv.y, pq.x, pq.y)
             {
                 // standing under a street lamp: anyone with a line on you sees you
                 f = 8;
             } else if pq.last_shot != 0
+                && loud(pq.weapon)
                 && pq.last_shot + 2 >= tick + 1
                 && d2 <= (FLASH_R as i64).pow(2)
-                && line_of_sight(pv.x, pv.y, pq.x, pq.y)
+                && line_of_sight(m, pv.x, pv.y, pq.x, pq.y)
             {
                 f = 1;
             }
@@ -177,7 +179,7 @@ pub fn update_bot_memory(room: &Room, w: &mut World, v: usize, vis: &[[u32; MAXP
         if same_team(room, v, q) {
             continue;
         }
-        if (pq.last_shot == tick + 1 && d2 <= (SHOT_R as i64).pow(2)) || (pq.moved & 1 == 1 && pq.moved & 8 == 0 && d2 <= (STEP_R as i64).pow(2) / 2)
+        if (pq.last_shot == tick + 1 && loud(pq.weapon) && d2 <= (SHOT_R as i64).pow(2)) || (pq.moved & 1 == 1 && pq.moved & 8 == 0 && d2 <= (STEP_R as i64).pow(2) / 2)
             || (pq.moved & 2 != 0 && d2 <= (STEP_R as i64 * 3 / 2).pow(2)) {
             b.ping_angle = atan2(pq.y - pv.y, pq.x - pv.x);
             b.ping_tick = tick;
@@ -235,6 +237,7 @@ fn watch_killer(room: &Room, w: &World, view: &mut View, v: usize, vis: &[[u32; 
 /// Fill in one human seat's private view.
 #[allow(clippy::too_many_arguments)]
 pub fn write_view(room: &Room, w: &World, view: &mut View, v: usize, sight: &Sight, booms: &[(i32, i32)], loot_events: &[(i32, i32)], tick: u32) {
+    let m = map_of(room);
     let (vis, lights_out, leader) = (&sight.vis, sight.lights_out, sight.leader);
     let pv = w.players[v];
     let occupied = room.players[v] != anchor_lang::prelude::Pubkey::default();
@@ -277,7 +280,7 @@ pub fn write_view(room: &Room, w: &World, view: &mut View, v: usize, sight: &Sig
         let d2 = dist2(pv.x, pv.y, pq.x, pq.y);
         let dist = (isqrt(d2 as u64) as u32) / UNIT as u32;
         let ang = atan2(pq.y - pv.y, pq.x - pv.x);
-        if pq.last_shot == tick + 1 && d2 <= (SHOT_R as i64).pow(2) {
+        if pq.last_shot == tick + 1 && loud(pq.weapon) && d2 <= (SHOT_R as i64).pow(2) {
             push_ping(view, tick, ang & !0x7ff, PING_SHOT, dist);
         } else if pq.moved & 2 != 0 && d2 <= (STEP_R as i64 * 3 / 2).pow(2) && (tick + q as u32) % 4 == 0 {
             // sprinting is loud: heard further away, twice as often
@@ -351,7 +354,7 @@ pub fn write_view(room: &Room, w: &World, view: &mut View, v: usize, sight: &Sig
     }
     for &(lx, ly) in loot_events.iter() {
         let d2 = dist2(pv.x, pv.y, lx, ly);
-        if d2 > 0 && d2 <= (LOOT_R as i64).pow(2) && !line_of_sight(pv.x, pv.y, lx, ly) {
+        if d2 > 0 && d2 <= (LOOT_R as i64).pow(2) && !line_of_sight(m, pv.x, pv.y, lx, ly) {
             push_ping(view, tick, atan2(ly - pv.y, lx - pv.x) & !0xfff, PING_LOOT, (isqrt(d2 as u64) as u32) / UNIT as u32);
         }
     }
@@ -368,7 +371,7 @@ pub fn write_view(room: &Room, w: &World, view: &mut View, v: usize, sight: &Sig
                 let d2 = dist2(pv.x, pv.y, b.x, b.y);
                 (d2 <= (AMBIENT_R as i64).pow(2)
                     || (!lights_out && d2 <= (VISION_R as i64).pow(2) && angle_diff(pv.aim, atan2(b.y - pv.y, b.x - pv.x)) <= CONE_HALF))
-                    && line_of_sight(pv.x, pv.y, b.x, b.y)
+                    && line_of_sight(m, pv.x, pv.y, b.x, b.y)
             };
         if seen {
             // a thrown gadget rides along as a bullet tagged in the high bits: kind in vx, ticks left in vy
@@ -389,8 +392,8 @@ pub fn write_view(room: &Room, w: &World, view: &mut View, v: usize, sight: &Sig
         }
         let d2 = dist2(pv.x, pv.y, l.x, l.y);
         let seen = d2 <= (AMBIENT_R as i64).pow(2)
-            || (!lights_out && d2 <= (VISION_R as i64).pow(2) && angle_diff(pv.aim, atan2(l.y - pv.y, l.x - pv.x)) <= CONE_HALF + 2000 && line_of_sight(pv.x, pv.y, l.x, l.y))
-            || (l.kind == LOOT_DROP && d2 <= (VISION_R as i64).pow(2) && line_of_sight(pv.x, pv.y, l.x, l.y));
+            || (!lights_out && d2 <= (VISION_R as i64).pow(2) && angle_diff(pv.aim, atan2(l.y - pv.y, l.x - pv.x)) <= CONE_HALF + 2000 && line_of_sight(m, pv.x, pv.y, l.x, l.y))
+            || (l.kind == LOOT_DROP && d2 <= (VISION_R as i64).pow(2) && line_of_sight(m, pv.x, pv.y, l.x, l.y));
         if seen {
             view.loot[nl] = VisLoot { id: li as u32, x: l.x, y: l.y, kind: l.kind };
             nl += 1;

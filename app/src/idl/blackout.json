@@ -957,6 +957,10 @@
         {
           "name": "seq",
           "type": "u32"
+        },
+        {
+          "name": "throw",
+          "type": "u8"
         }
       ]
     },
@@ -1694,8 +1698,8 @@
       ],
       "args": [
         {
-          "name": "duos",
-          "type": "bool"
+          "name": "mode",
+          "type": "u8"
         }
       ]
     },
