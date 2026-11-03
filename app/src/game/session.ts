@@ -803,7 +803,7 @@ export class Session {
     if (r.status === ST_ENDED && this.endedSince && now - this.endedSince > 600 + this.mySeat * 700 && (now | 0) % 1500 < 110) {
       const w = r.winner;
       const payout = w !== NO_SEAT && r.isBot[w] === 0 ? r.payout[w] : null;
-      client.sendEr(client.withBudget(client.finishIx(this.roomId, payout)), { confirm: false }).catch(() => {});
+      client.sendEr(client.withBudget(client.finishIx(this.roomId, payout, r.daily)), { confirm: false }).catch(() => {});
     }
   }
 
@@ -914,6 +914,16 @@ export class Session {
 
   async startMatch(fillTo: number) {
     await client.sendEr([client.startIx(this.roomId, fillTo)]);
+    await this.poll();
+  }
+
+  /** Today's daily: you and three bots on the day's sealed seed. Your wallet signs: one try a day. */
+  async startDaily(wallet: any) {
+    const { PublicKey, ComputeBudgetProgram } = await import("@solana/web3.js");
+    const pk = new PublicKey(wallet.publicKey.toString());
+    await client.sendEr([ComputeBudgetProgram.setComputeUnitLimit({ units: 1_000_000 }), client.startDailyIx(this.roomId, pk)], {
+      cosign: (tx) => wallet.signTransaction(tx),
+    });
     await this.poll();
   }
 

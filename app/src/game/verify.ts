@@ -68,7 +68,7 @@ export function verifyMatch(room: Room, world: World, rec: Recording, occupied: 
   }
   // loot
   // the night's modifier comes from the last seed byte (mirror of the program's sim/)
-  const nightMod = seed[31] % 6;
+  const nightMod = seed[31] % 7;
   const spots = LOOT_SPOTS.map((_, i) => i);
   for (let i = spots.length - 1; i > 0; i--) {
     const j = rng.next() % (i + 1);

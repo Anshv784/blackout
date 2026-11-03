@@ -747,6 +747,23 @@ button {
   font-size: 18px;
   filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.7));
 }
+.ping .sonar {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border-right: 3px solid rgba(255, 255, 255, 0.75);
+  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.6));
+}
+.ping.k2 .sonar {
+  border-right-color: #ff5d5d;
+}
+.ping.near .sonar {
+  animation: sonar-pulse 0.5s ease-out infinite;
+}
+@keyframes sonar-pulse {
+  from { opacity: 1; }
+  to { opacity: 0.25; }
+}
 .ping.k2 span {
   font-size: 24px;
   filter: drop-shadow(0 0 8px #ff5d5d);
@@ -1793,6 +1810,9 @@ button {
 
 /* gadgets, duos, night modifiers */
 .mod-chip{position:absolute;left:50%;transform:translateX(-50%);top:calc(max(12px, env(safe-area-inset-top)) + 104px);font-family:var(--mono);font-size:10px;letter-spacing:.22em;color:#c77dff;background:rgba(0,0,0,.55);border:1px solid rgba(166,77,255,.45);padding:3px 9px;border-radius:5px;pointer-events:none}
+.light-chip,.watch-chip{position:absolute;left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:10px;letter-spacing:.18em;background:rgba(0,0,0,.6);padding:4px 10px;border-radius:5px;pointer-events:none;white-space:nowrap}
+.light-chip{top:calc(max(12px, env(safe-area-inset-top)) + 128px);color:#ffe6a8;border:1px solid rgba(255,214,120,.45)}
+.watch-chip{bottom:calc(max(16px, env(safe-area-inset-bottom)) + 96px);color:#e8e8e8;border:1px solid rgba(255,255,255,.25);font-size:11px}
 .nvg-tint{position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle,rgba(60,255,120,.10),rgba(0,40,10,.45));mix-blend-mode:screen;z-index:3}
 .flash-white{position:absolute;inset:0;pointer-events:none;background:#fff;z-index:31}
 .hud-slots{position:absolute;right:18px;bottom:calc(max(18px, env(safe-area-inset-bottom)) + 118px);display:flex;flex-direction:column;align-items:flex-end;gap:4px;pointer-events:none}
@@ -1929,7 +1949,7 @@ button {
 @media (max-height:500px){
   .game.touch .compass{transform:translateX(-50%) scale(.8);transform-origin:top center}
   .game.touch .hud-clock{transform:translateX(-50%) scale(.8);transform-origin:top center}
-  .game.touch .mod-chip{display:none}
+  .game.touch .mod-chip,.game.touch .light-chip{display:none}
 }
 .night-card{z-index:7;pointer-events:none}
 @media (max-height:500px){.night-card h1{font-size:56px}.night-card{gap:4px}}
@@ -2244,3 +2264,6 @@ button {
   .stage-tag.me b{font-size:11px}
   .stage-tag span{font-size:7px;letter-spacing:.12em}
 }
+
+.daily-board{margin-bottom:42px}
+.daily-board .daily-seed code{font-size:11px;opacity:.8}

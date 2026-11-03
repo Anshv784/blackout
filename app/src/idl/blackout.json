@@ -573,24 +573,7 @@
         },
         {
           "name": "pda",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  114,
-                  111,
-                  111,
-                  109
-                ]
-              },
-              {
-                "kind": "arg",
-                "path": "room_id"
-              }
-            ]
-          }
+          "writable": true
         },
         {
           "name": "payer",
@@ -895,6 +878,24 @@
           }
         },
         {
+          "name": "daily",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  97,
+                  105,
+                  108,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
           "name": "payer",
           "writable": true,
           "signer": true
@@ -904,7 +905,12 @@
           "address": "11111111111111111111111111111111"
         }
       ],
-      "args": []
+      "args": [
+        {
+          "name": "daily_prefund",
+          "type": "u64"
+        }
+      ]
     },
     {
       "name": "input",
@@ -1209,6 +1215,81 @@
       ]
     },
     {
+      "name": "on_daily_seed",
+      "discriminator": [
+        219,
+        38,
+        45,
+        111,
+        179,
+        198,
+        201,
+        228
+      ],
+      "accounts": [
+        {
+          "name": "vrf_program_identity",
+          "docs": [
+            "Scoped VRF identity PDA, bound to this program. Its presence as a signer proves",
+            "the callback was issued by the VRF program for this program."
+          ],
+          "signer": true
+        },
+        {
+          "name": "daily",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  97,
+                  105,
+                  108,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "secret",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  97,
+                  105,
+                  108,
+                  121,
+                  45,
+                  115,
+                  101,
+                  101,
+                  100
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "randomness",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "on_seed",
       "discriminator": [
         146,
@@ -1434,6 +1515,131 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "roll_daily",
+      "discriminator": [
+        56,
+        104,
+        190,
+        167,
+        191,
+        92,
+        196,
+        15
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "daily",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  97,
+                  105,
+                  108,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "secret",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  97,
+                  105,
+                  108,
+                  121,
+                  45,
+                  115,
+                  101,
+                  101,
+                  100
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "oracle_queue",
+          "writable": true,
+          "address": "5hBR571xnXppuCPveTrctfTU7tJLSN94nq7kv7FRK5Tc"
+        },
+        {
+          "name": "secret_permission",
+          "writable": true
+        },
+        {
+          "name": "daily_permission",
+          "writable": true
+        },
+        {
+          "name": "permission_program",
+          "address": "ACLseoPoyC3cBqoUtkbjZ4aDrkurZW86v19pXz2XQnp1"
+        },
+        {
+          "name": "ephemeral_vault",
+          "writable": true,
+          "address": "MagicVau1t999999999999999999999999999999999"
+        },
+        {
+          "name": "magic_program",
+          "address": "Magic11111111111111111111111111111111111111"
+        },
+        {
+          "name": "program_identity",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  105,
+                  100,
+                  101,
+                  110,
+                  116,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "vrf_program",
+          "address": "Vrf1RNUjXmQGjmQrQLvJHs9SNkvDJEsRVFPkfSQUwGz"
+        },
+        {
+          "name": "slot_hashes",
+          "address": "SysvarS1otHashes111111111111111111111111111"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "client_seed",
+          "type": "u8"
+        }
+      ]
     },
     {
       "name": "set_bots",
@@ -1797,6 +2003,122 @@
       ]
     },
     {
+      "name": "start_daily",
+      "discriminator": [
+        34,
+        55,
+        170,
+        38,
+        230,
+        116,
+        136,
+        158
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "wallet",
+          "docs": [
+            "the wallet this try (and its score) belongs to"
+          ],
+          "signer": true
+        },
+        {
+          "name": "room",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  111,
+                  111,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "room"
+              }
+            ]
+          }
+        },
+        {
+          "name": "world",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  111,
+                  114,
+                  108,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "room"
+              }
+            ]
+          }
+        },
+        {
+          "name": "daily",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  97,
+                  105,
+                  108,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "secret",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  97,
+                  105,
+                  108,
+                  121,
+                  45,
+                  115,
+                  101,
+                  101,
+                  100
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "magic_program",
+          "address": "Magic11111111111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "start_match",
       "discriminator": [
         100,
@@ -2070,6 +2392,19 @@
       ]
     },
     {
+      "name": "Daily",
+      "discriminator": [
+        78,
+        20,
+        77,
+        207,
+        99,
+        103,
+        132,
+        148
+      ]
+    },
+    {
       "name": "Room",
       "discriminator": [
         156,
@@ -2199,6 +2534,16 @@
     },
     {
       "code": 6020,
+      "name": "DailyNotReady",
+      "msg": "Today's daily seed isn't rolled yet"
+    },
+    {
+      "code": 6021,
+      "name": "DailyPlayed",
+      "msg": "This wallet already played today's daily"
+    },
+    {
+      "code": 6022,
       "name": "StakesOutstanding",
       "msg": "Tickets for this room still exist: run scripts/sweep_tickets.ts first"
     }
@@ -2327,6 +2672,122 @@
               "lamports won from staked pots"
             ],
             "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Daily",
+      "docs": [
+        "The daily challenge's public board, delegated to the rollup so it costs nothing to update.",
+        "Today's seed lives in a separate sealed account; yesterday's is published here."
+      ],
+      "serialization": "bytemuck",
+      "repr": {
+        "kind": "c"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "day",
+            "type": "u32"
+          },
+          {
+            "name": "count",
+            "type": "u32"
+          },
+          {
+            "name": "pending_day",
+            "type": "u32"
+          },
+          {
+            "name": "ready",
+            "type": "u32"
+          },
+          {
+            "name": "pending_slot",
+            "type": "u64"
+          },
+          {
+            "name": "prev_day",
+            "type": "u32"
+          },
+          {
+            "name": "_pad",
+            "type": "u32"
+          },
+          {
+            "name": "prev_seed",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "tried",
+            "type": {
+              "array": [
+                "u32",
+                128
+              ]
+            }
+          },
+          {
+            "name": "entries",
+            "type": {
+              "array": [
+                {
+                  "defined": {
+                    "name": "DailyEntry"
+                  }
+                },
+                32
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "DailyEntry",
+      "serialization": "bytemuck",
+      "repr": {
+        "kind": "c"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "key",
+            "type": "pubkey"
+          },
+          {
+            "name": "name",
+            "type": {
+              "array": [
+                "u8",
+                16
+              ]
+            }
+          },
+          {
+            "name": "score",
+            "type": "u32"
+          },
+          {
+            "name": "kills",
+            "type": "u32"
+          },
+          {
+            "name": "place",
+            "type": "u32"
+          },
+          {
+            "name": "survived",
+            "type": "u32"
           }
         ]
       }

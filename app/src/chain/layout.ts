@@ -109,6 +109,8 @@ export interface Room {
   /** the night's modifier, rolled from the seed (see NIGHT_MOD) */
   nightMod: number;
   duos: boolean;
+  /** a daily night (cfg bit 17) */
+  daily: boolean;
 }
 
 export const READY_ALL = 1 | (0b11111 << 1) | (0xff << 8);
@@ -162,6 +164,7 @@ export function decodeRoom(data: Uint8Array): Room {
     matchLen: (cfg >>> 11) & 3,
     nightMod: (cfg >>> 13) & 7,
     duos: (cfg & 0x10000) !== 0,
+    daily: (cfg & 0x20000) !== 0,
   };
 }
 
@@ -226,6 +229,10 @@ export interface View {
   pings: Ping[];
   /** your pockets (View._pad): second gun, gadget, night vision, flash blindness */
   inv: Inventory;
+  /** One Light nights: you carry the only flashlight */
+  carriesLight: boolean;
+  /** dead, watching your killer (their entry has VIS_WATCHED) */
+  spectating: boolean;
 }
 
 export interface Inventory {
@@ -237,7 +244,14 @@ export interface Inventory {
   blind: number; // ticks of flash blindness left
 }
 export const GADGET_NAME = ["", "FRAG", "SMOKE", "FLASHBANG", "DECOY", "SENSOR", "NIGHT VISION"];
-export const NIGHT_MOD = ["", "FOG NIGHT", "HUNTER'S MOON", "SNIPER NIGHT", "NO LAMPS", "GADGET NIGHT"];
+export const NIGHT_MOD = ["", "FOG NIGHT", "HUNTER'S MOON", "SNIPER NIGHT", "NO LAMPS", "GADGET NIGHT", "ONE LIGHT"];
+export const MOD_ONE_LIGHT = 6;
+/** VisPlayer flags (mirror of sim/rules.rs) */
+export const VIS_LIGHT = 512;
+export const VIS_WATCHED = 1024;
+/** Bot personalities (mirror of sim/rules.rs bot_style: public room data, never the seed) */
+export const BOT_STYLE = ["", "CAMPER", "STALKER", "RUSHER"];
+export const botStyle = (matchNo: number, seat: number) => BOT_STYLE[(matchNo + seat) % 4];
 export const NIGHT_MOD_SUB = [
   "",
   "vision is cut short tonight",
@@ -245,6 +259,7 @@ export const NIGHT_MOD_SUB = [
   "every gun in the Yard is a Kar98k",
   "the street lamps are dead",
   "the crates are full of tricks",
+  "one flashlight in the Yard: hunt by sound",
 ];
 export const DOWNED = 2;
 
@@ -254,7 +269,10 @@ export function decodeView(data: Uint8Array): View {
   r.u32();
   r.u32();
   const tick = r.u32();
-  const status = r.u32();
+  const rawStatus = r.u32();
+  const status = rawStatus & 0xffff;
+  const carriesLight = (rawStatus & (1 << 16)) !== 0;
+  const spectating = (rawStatus & (1 << 17)) !== 0;
   const seat = r.u32();
   const me = readPlayer(r);
   const kills = r.u32();
@@ -269,7 +287,7 @@ export function decodeView(data: Uint8Array): View {
   const pings = r.arr(12, () => ({ tick: r.u32(), angle: r.u32(), kind: r.u32(), dist: r.u32() }));
   const p = r.u32();
   const inv = { sec: (p & 0xf) - 1, secMag: (p >>> 4) & 0x3f, gadget: (p >>> 10) & 0xf, count: (p >>> 14) & 0xf, nvg: ((p >>> 18) & 0xff) * 4, blind: ((p >>> 26) & 0x3f) * 2 };
-  return { tick, status, seat, me, kills, place, players, bullets, loot, pingHead, pings, inv };
+  return { tick, status, seat, me, kills, place, players, bullets, loot, pingHead, pings, inv, carriesLight, spectating };
 }
 
 export interface World {
@@ -379,4 +397,40 @@ export function decodeBoard(data: Uint8Array): { matches: bigint; entries: Board
   r.u32();
   const entries = r.arr(64, () => ({ key: r.key(), name: decodeName(r.bytes(16)), wins: r.u32(), kills: r.u32(), games: r.u32(), bestPlace: r.u32(), earned: r.u64() })).slice(0, count);
   return { matches, entries };
+}
+
+export interface DailyEntry {
+  key: PublicKey;
+  name: string;
+  score: number;
+  kills: number;
+  place: number;
+  survived: number;
+}
+export interface Daily {
+  day: number;
+  pendingDay: number;
+  ready: number;
+  prevDay: number;
+  prevSeed: Uint8Array;
+  entries: DailyEntry[];
+}
+
+/** The daily board (state.rs Daily): best scores first. */
+export function decodeDaily(data: Uint8Array): Daily {
+  const r = new Reader(dvOf(data), 8);
+  const day = r.u32();
+  const count = r.u32();
+  const pendingDay = r.u32();
+  const ready = r.u32();
+  r.u64(); // pending slot
+  const prevDay = r.u32();
+  r.u32();
+  const prevSeed = r.bytes(32);
+  r.o += 128 * 4; // the one-try filter
+  const entries = r
+    .arr(32, () => ({ key: r.key(), name: decodeName(r.bytes(16)), score: r.u32(), kills: r.u32(), place: r.u32(), survived: r.u32() }))
+    .slice(0, count)
+    .sort((a, b) => b.score - a.score);
+  return { day, pendingDay, ready, prevDay, prevSeed, entries };
 }

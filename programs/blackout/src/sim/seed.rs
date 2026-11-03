@@ -30,7 +30,7 @@ pub fn tile_center(t: u8) -> i32 {
 pub fn seed_match(room: &mut Room, w: &mut World, seed: [u8; 32]) {
     w.seed = seed;
     // the night's modifier comes straight from the seed (so verify.ts can re-derive it)
-    let m = (seed[31] as u32) % 6;
+    let m = (seed[31] as u32) % NIGHT_MODS;
     room.cfg = (room.cfg & !(7 << 13)) | (m << 13);
     w.rng_lo = u32::from_le_bytes(seed[0..4].try_into().unwrap()) | 1;
     w.rng_hi = u32::from_le_bytes(seed[4..8].try_into().unwrap());
@@ -149,4 +149,12 @@ pub fn seed_match(room: &mut Room, w: &mut World, seed: [u8; 32]) {
     room.winner = NO_SEAT;
     room.feed_head = 0;
     room.feed = [KillEvent { tick: 0, killer: 0, victim: 0, weapon: 0 }; FEED];
+
+    // One Light: the night's only flashlight starts with a random fighter
+    w.light = 0;
+    if m == MOD_ONE_LIGHT && alive > 0 {
+        let k = rng_next(w) % alive;
+        let seat = (0..MAXP).filter(|&s| w.players[s].alive == 1).nth(k as usize).unwrap_or(0);
+        w.light = seat as u32 + 1;
+    }
 }

@@ -134,6 +134,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
   const [fill, setFill] = useState(6);
   const [copied, setCopied] = useState(false);
   const quick = useRef(flags().get("quick") === "1");
+  const isDaily = flags().get("daily") === "1";
   const invite = flags().get("invite") === "1";
   const urlCode = textToCode(flags().get("code") ?? "");
   const autoDone = useRef(false);
@@ -461,6 +462,20 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
           {mySeat === null ? (
             <button className="btn primary huge" disabled={!!busy} onClick={() => take()}>
               {busy === "join" ? (staked ? "BUYING TICKET…" : "SITTING DOWN…") : staked ? `STAKE ${(Number(room.stake) / 1e9).toFixed(2)} SOL & SIT` : "TAKE A SEAT"}
+            </button>
+          ) : canStart && isDaily ? (
+            <button className="btn primary huge" disabled={!!busy || humans !== 1} onClick={() => {
+              fullscreenOnTouch();
+              run("start", async () => {
+                const { provider } = await import("../game/wallet");
+                const sol = provider();
+                if (!sol) throw new Error("The daily needs a Solana wallet: it's one try per wallet");
+                await connectWallet();
+                await session.startDaily(sol);
+              });
+            }}>
+              {busy === "start" ? "SIGN WITH YOUR WALLET…" : humans !== 1 ? "THE DAILY IS SOLO" : "START TODAY'S DAILY"}
+              <small>same night for everyone today · you + 3 bots · one try</small>
             </button>
           ) : canStart ? (
             <button className="btn primary huge" disabled={!!busy || (staked ? humans < 2 : size < 2)} onClick={() => {

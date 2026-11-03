@@ -30,7 +30,7 @@ import {
   permissionPdaFromAccount,
 } from "@magicblock-labs/ephemeral-rollups-sdk";
 import idl from "../idl/blackout.json";
-import { MAXP, decodeRoom, decodeView, decodeWorld, decodeRecording, decodeBoard, type Room } from "./layout";
+import { MAXP, decodeRoom, decodeView, decodeWorld, decodeRecording, decodeBoard, decodeDaily, type Room, type Daily } from "./layout";
 
 // CJS (node/tsx) exposes the API on `default`, the browser build as named exports
 const ns: any = anchorNs;
@@ -83,6 +83,12 @@ export const recPdas = (roomId: bigint | number) => Array.from({ length: REC_CHU
 export const viewPda = (roomId: bigint | number, seat: number) => pda([Buffer.from("view"), u64le(roomId), Buffer.from([seat])]);
 export const bankPda = (roomId: bigint | number) => pda([Buffer.from("bank"), u64le(roomId)]);
 export const boardPda = () => pda([Buffer.from("board3")]);
+export const dailyPda = () => pda([Buffer.from("daily")]);
+export const dailySecretPda = () => pda([Buffer.from("daily-seed")]);
+/** `delegate_room` with this id delegates the daily board (mirror of config.rs DAILY_ID). */
+export const DAILY_ID = 0xffff_ffff_ffff_ffffn;
+/** Days since 1970, UTC: the daily board's day. */
+export const todayUtc = () => Math.floor(Date.now() / 86_400_000);
 export const programIdentityPda = () => pda([Buffer.from("identity")]);
 export const ticketPda = (roomId: bigint | number, matchNo: number, player: PublicKey) => {
   const m = Buffer.alloc(4);
@@ -180,12 +186,19 @@ export class BlackoutClient {
     return this.blockhash!.hash;
   }
 
-  async sendEr(ixs: TransactionInstruction[], opts: { confirm?: boolean; commitment?: Commitment } = {}): Promise<string> {
+  /** `cosign`: a second signer (the player's wallet) signs after the session key. */
+  async sendEr(
+    ixs: TransactionInstruction[],
+    opts: { confirm?: boolean; commitment?: Commitment; cosign?: (tx: Transaction) => Promise<Transaction> } = {},
+  ): Promise<string> {
     const conn = await this.teeConn();
-    const tx = new Transaction().add(...ixs);
+    let tx = new Transaction().add(...ixs);
     tx.feePayer = this.publicKey;
     tx.recentBlockhash = await this.freshBlockhash(conn);
-    tx.sign(this.keypair);
+    if (opts.cosign) {
+      tx.partialSign(this.keypair);
+      tx = await opts.cosign(tx);
+    } else tx.sign(this.keypair);
     const sigBytes = tx.signature!;
     let sig: string;
     try {
@@ -196,6 +209,7 @@ export class BlackoutClient {
       // stale blockhash: refresh once and retry
       if (/blockhash not found/i.test(String(e?.message ?? e))) {
         this.blockhash = null;
+        if (opts.cosign) throw e; // the wallet signed this blockhash: ask again rather than re-prompt silently
         return this.sendEr(ixs, opts);
       }
       throw e;
@@ -273,8 +287,68 @@ export class BlackoutClient {
 
   // ---------------------------------------------------------------- admin (base)
 
-  async initBoard() {
-    return this.sendBase([ix("init_board", {}, [w(boardPda()), w(this.publicKey, true), r(SystemProgram.programId)])]);
+  /** Admin: the staked leaderboard and the daily board, together. */
+  async initBoard(dailyPrefund = 2_000_000) {
+    return this.sendBase([ix("init_board", { daily_prefund: new BN(dailyPrefund) }, [w(boardPda()), w(dailyPda()), w(this.publicKey, true), r(SystemProgram.programId)])]);
+  }
+
+  /** Admin: hand the daily board to the TEE validator. */
+  delegateDailyIx() {
+    const daily = dailyPda();
+    return ix("delegate_room", { room_id: new BN(DAILY_ID.toString()) }, [
+      w(delegateBufferPdaFromDelegatedAccountAndOwnerProgram(daily, PROGRAM_ID)),
+      w(delegationRecordPdaFromDelegatedAccount(daily)),
+      w(delegationMetadataPdaFromDelegatedAccount(daily)),
+      w(daily),
+      r(this.publicKey, true),
+      r(TEE_VALIDATOR),
+      r(PROGRAM_ID),
+      r(DELEGATION_PROGRAM_ID),
+      r(SystemProgram.programId),
+    ]);
+  }
+
+  /** Anyone, once a day: roll today's sealed seed (the first ever roll also sets the board up). */
+  rollDailyIx() {
+    const daily = dailyPda();
+    const secret = dailySecretPda();
+    return ix("roll_daily", { client_seed: Math.floor(Math.random() * 256) }, [
+      w(this.publicKey, true),
+      w(daily),
+      w(secret),
+      w(VRF_EPHEMERAL_QUEUE),
+      w(permissionPdaFromAccount(secret)),
+      w(permissionPdaFromAccount(daily)),
+      r(PERMISSION_PROGRAM_ID),
+      w(EPHEMERAL_VAULT_ID),
+      r(MAGIC_PROGRAM_ID),
+      r(programIdentityPda()),
+      r(VRF_PROGRAM_ID),
+      r(SLOT_HASHES),
+      r(SystemProgram.programId),
+    ]);
+  }
+
+  /** Start today's daily in a room you host alone. `wallet` must also sign (sendEr cosign). */
+  startDailyIx(roomId: bigint, wallet: PublicKey) {
+    const keys = [
+      w(this.publicKey, true),
+      r(wallet, true),
+      w(roomPda(roomId)),
+      w(worldPda(roomId)),
+      w(dailyPda()),
+      w(dailySecretPda()),
+      r(MAGIC_PROGRAM_ID),
+    ];
+    for (let s = 0; s < MAXP; s++) keys.push(w(viewPda(roomId, s)));
+    for (const rp of recPdas(roomId)) keys.push(w(rp));
+    return ix("start_daily", {}, keys);
+  }
+
+  async fetchDaily(): Promise<Daily | null> {
+    const conn = await this.teeConn();
+    const info = await conn.getAccountInfo(dailyPda()).catch(() => null);
+    return info ? decodeDaily(info.data) : null;
   }
 
   /** Create + fund + delegate a room to the TEE validator, and fund its action escrow. */
@@ -469,8 +543,9 @@ export class BlackoutClient {
     return recPdas(roomId).flatMap((rp) => [w(rp), w(permissionPdaFromAccount(rp))]);
   }
 
-  /** `winnerPayout` null when a bot (or nobody) won — the bank stands in. */
-  finishIx(roomId: bigint, winnerPayout: PublicKey | null) {
+  /** `winnerPayout` null when a bot (or nobody) won — the bank stands in.
+   *  `daily`: a daily night, whose score goes to the daily board. */
+  finishIx(roomId: bigint, winnerPayout: PublicKey | null, daily = false) {
     const world = worldPda(roomId);
     return ix("finish", {}, [
       w(this.publicKey, true),
@@ -486,6 +561,7 @@ export class BlackoutClient {
       w(MAGIC_CONTEXT_ID),
       w(magicFeeVaultPdaFromValidator(TEE_VALIDATOR)),
       ...this.recPermKeys(roomId),
+      ...(daily ? [w(dailyPda())] : []),
     ]);
   }
 

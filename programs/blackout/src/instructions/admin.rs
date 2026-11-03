@@ -10,8 +10,18 @@ use ephemeral_rollups_sdk::consts::{MAGIC_CONTEXT_ID, MAGIC_PROGRAM_ID};
 use ephemeral_rollups_sdk::cpi::DelegateConfig;
 use ephemeral_rollups_sdk::ephem::{FoldableIntentBuilder, MagicIntentBundleBuilder};
 
-pub fn handle_init_board(ctx: Context<InitBoard>) -> Result<()> {
+/// Admin: create the staked leaderboard and the daily board. `daily_prefund` pays the
+/// daily board's rollup rent (its sealed seed account).
+pub fn handle_init_board(ctx: Context<InitBoard>, daily_prefund: u64) -> Result<()> {
     require_keys_eq!(ctx.accounts.payer.key(), ADMIN, BlackoutError::NotAdmin);
+    transfer(
+        CpiContext::new(
+            ctx.accounts.system_program.key(),
+            Transfer { from: ctx.accounts.payer.to_account_info(), to: ctx.accounts.daily.to_account_info() },
+        ),
+        daily_prefund,
+    )?;
+    ctx.accounts.daily.load_init()?;
     Ok(())
 }
 
@@ -40,16 +50,17 @@ pub fn handle_create_room(ctx: Context<CreateRoom>, room_id: u64, stake: u64, pr
     Ok(())
 }
 
+/// Admin: hand a room, or the daily board (`room_id` = DAILY_ID), to the TEE validator.
 pub fn handle_delegate_room(ctx: Context<DelegateRoom>, room_id: u64) -> Result<()> {
     // A room on any other validator could commit whatever state it likes.
     require_keys_eq!(ctx.accounts.payer.key(), ADMIN, BlackoutError::NotAdmin);
     let validator = ctx.accounts.validator.as_ref().map(|v| v.key());
     require!(validator == Some(TEE_VALIDATOR), BlackoutError::BadAccount);
-    ctx.accounts.delegate_pda(
-        &ctx.accounts.payer,
-        &[ROOM_SEED, &room_id.to_le_bytes()],
-        DelegateConfig { validator, ..Default::default() },
-    )?;
+    let rid = room_id.to_le_bytes();
+    let seeds: &[&[u8]] = if room_id == DAILY_ID { &[DAILY_SEED] } else { &[ROOM_SEED, &rid] };
+    let (pda, _) = Pubkey::find_program_address(seeds, &crate::ID);
+    require_keys_eq!(ctx.accounts.pda.key(), pda, BlackoutError::BadAccount);
+    ctx.accounts.delegate_pda(&ctx.accounts.payer, seeds, DelegateConfig { validator, ..Default::default() })?;
     Ok(())
 }
 
@@ -89,6 +100,8 @@ pub fn handle_undelegate_room(ctx: Context<UndelegateRoom>) -> Result<()> {
 pub struct InitBoard<'info> {
     #[account(init, payer = payer, space = 8 + core::mem::size_of::<Board>(), seeds = [BOARD_SEED], bump)]
     pub board: AccountLoader<'info, Board>,
+    #[account(init, payer = payer, space = 8 + core::mem::size_of::<Daily>(), seeds = [DAILY_SEED], bump)]
+    pub daily: AccountLoader<'info, Daily>,
     #[account(mut)]
     pub payer: Signer<'info>,
     pub system_program: Program<'info, System>,
@@ -108,10 +121,9 @@ pub struct CreateRoom<'info> {
 
 #[delegate]
 #[derive(Accounts)]
-#[instruction(room_id: u64)]
 pub struct DelegateRoom<'info> {
-    /// CHECK: the room PDA
-    #[account(mut, del, seeds = [ROOM_SEED, &room_id.to_le_bytes()], bump)]
+    /// CHECK: the room or daily board PDA, checked in the handler
+    #[account(mut, del)]
     pub pda: UncheckedAccount<'info>,
     pub payer: Signer<'info>,
     /// CHECK: TEE validator identity

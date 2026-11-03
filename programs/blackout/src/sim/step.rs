@@ -435,6 +435,11 @@ pub fn step_deaths(room: &mut Room, w: &mut World, killer: &[u32; MAXP], tick: u
         }
         let k = killer[s];
         w.players[s].alive = 0;
+        if w.light == s as u32 + 1 {
+            // the One Light passes to the killer, or to the next one standing
+            let next = if k < MAXP as u32 && w.players[k as usize].alive == 1 { Some(k as usize) } else { (1..MAXP).map(|i| (s + i) % MAXP).find(|&i| w.players[i].alive == 1) };
+            w.light = next.map_or(0, |i| i as u32 + 1);
+        }
         room.alive[s] = 0;
         room.place[s] = room.alive_count;
         room.alive_count = room.alive_count.saturating_sub(1);

@@ -83,11 +83,41 @@ pub const MOD_HUNTER: u32 = 2;
 pub const MOD_SNIPER: u32 = 3;
 pub const MOD_NO_LAMPS: u32 = 4;
 pub const MOD_GADGETS: u32 = 5;
+/// One flashlight in the whole Yard. Everyone else hunts by sound, and the light gives its
+/// carrier away. It passes to whoever kills them.
+pub const MOD_ONE_LIGHT: u32 = 6;
+pub const NIGHT_MODS: u32 = 7;
+/// View flags: the player carries the One Light / is the one you're watching after death
+pub const VIS_LIGHT: u32 = 512;
+pub const VIS_WATCHED: u32 = 1024;
+/// View.status high bits, for your own seat
+pub const VIEW_I_CARRY_LIGHT: u32 = 1 << 16;
+pub const VIEW_SPECTATING: u32 = 1 << 17;
 /// The night's modifier, rolled from the VRF seed (Room.cfg bits 13-15).
 pub fn night_mod(room: &Room) -> u32 {
     (room.cfg >> 13) & 7
 }
 pub const CFG_DUOS: u32 = 1 << 16;
+
+/// Bot personalities, picked from public room data (never the sealed seed).
+pub const STYLE_BALANCED: u32 = 0;
+pub const STYLE_CAMPER: u32 = 1;
+pub const STYLE_STALKER: u32 = 2;
+pub const STYLE_RUSHER: u32 = 3;
+/// How long a camper holds a spot once it gets there (6 s)
+pub const CAMP_TICKS: u32 = 120;
+/// A daily night: everyone plays the same sealed seed (Room.cfg bit 17).
+pub const CFG_DAILY: u32 = 1 << 17;
+pub fn daily(room: &Room) -> bool {
+    room.cfg & CFG_DAILY != 0
+}
+pub fn bot_style(room: &Room, seat: usize) -> u32 {
+    // the daily is the same three bots for everyone
+    if daily(room) {
+        return seat as u32 % 4;
+    }
+    (room.match_no + seat as u32) % 4
+}
 pub fn duos(room: &Room) -> bool {
     room.cfg & CFG_DUOS != 0
 }

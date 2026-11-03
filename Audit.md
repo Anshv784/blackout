@@ -8,7 +8,8 @@ This is a self-review backed by on-chain tests, not a professional audit. Keep s
 | Check | Result |
 |---|---|
 | `scripts/e2e_money.ts`: every money rule and attack, against a deployed program (devnet `CkSb4kkmhzr8n9awdmrvqhuoWka6nZUXXb8RXnrFBAKU`), incl. a full 8-seat staked night | **29 of 29 pass** |
-| `cargo test` (incl. the byte-exact simulation fingerprint over 48 nights) | 13 passed |
+| `scripts/e2e_daily.ts`: the daily challenge's rules and attacks, on the same program | **14 of 14 pass** |
+| `cargo test` (incl. the byte-exact simulation fingerprint over 48 nights, One Light, death cam, bot styles, daily scoring) | 20 passed |
 | `scripts/mirror.ts` (Rust vs browser movement) | 2,000 steps identical |
 | Crank alone, 7 bots, no client ticks | went live and kept ticking in 2 of 2 rooms (failed at tick 59 before the fix) |
 | Rollup vs Solana clock | 0-1 s apart |
@@ -34,6 +35,19 @@ This is a self-review backed by on-chain tests, not a professional audit. Keep s
 | Low | Dead code and stale comments (`set_length`, `link_wallet`, `board_remove`, `fix_host`, unused constants), input accepted outside a match. | Removed. |
 
 Checked and found safe: a loser calling `reset` right after `finish` can't cancel the payout. Settle reads the room as it was committed at `finish` (tested on-chain). The VRF callback only accepts the program's scoped VRF identity. The undelegation callback only accepts the delegation program's signed buffer.
+
+## Daily challenge
+
+Once a day anyone can roll a VRF seed into a sealed rollup account nobody can read. Every daily night that day is played on it: you in seat 0, three bots, 4 seats, medium bots, solo. The board lives in the rollup (no Solana fees).
+
+| Rule | How it's enforced | Tested |
+|---|---|---|
+| Nobody sees today's seed | private permission with no members; the daily World stays sealed after the night (only the replay opens); yesterday's seed is published at the next roll | yes |
+| One try per wallet per day | the wallet must sign `start_daily` (not the session key); a 4096-bit filter in the board marks it | yes |
+| No early or idle "wins" | `end_now` refused; a night that ended because you went idle ranks you last among the survivors | yes |
+| A night past midnight | scores only count on the board of the day they were played | unit test |
+
+Known limits: anyone with several wallets gets several tries (a program can't tell people apart). The filter wrongly says "already played" for about 1 in 400 players at 200 players a day. The VRF oracle sees each seed it produces, as with every VRF night. Players can still tell friends what they saw.
 
 ## House fee
 

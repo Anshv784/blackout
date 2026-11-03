@@ -34,3 +34,5 @@ pub const MIN_STAKE: u64 = 2_000_000;
 /// VRF wait before a free room may self-seed (~5 s) or a staked start is called off (~30 s).
 pub const FALLBACK_SLOTS: u64 = 500;
 pub const ABORT_SLOTS: u64 = 3000;
+/// `delegate_room` with this id delegates the daily board instead of a room.
+pub const DAILY_ID: u64 = u64::MAX;

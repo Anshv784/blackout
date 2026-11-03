@@ -213,6 +213,211 @@ mod stats {
 }
 
 #[cfg(test)]
+mod features {
+    use super::*;
+    use anchor_lang::prelude::Pubkey;
+
+    fn room_with(humans: &[usize]) -> (Room, World) {
+        let mut room: Room = bytemuck::Zeroable::zeroed();
+        let w: World = bytemuck::Zeroable::zeroed();
+        for s in 0..MAXP {
+            if humans.contains(&s) {
+                room.players[s] = Pubkey::new_from_array([s as u8 + 1; 32]);
+            } else {
+                room.is_bot[s] = 1;
+            }
+        }
+        (room, w)
+    }
+
+    /// Two players in the open, 5 tiles apart, the viewer looking straight at the other.
+    fn face_off(room: &mut Room, w: &mut World) {
+        room.status = ST_LIVE;
+        for s in 0..MAXP {
+            w.players[s] = PlayerState::default();
+        }
+        for (s, tx) in [(0usize, 3u8), (1, 8)] {
+            let p = &mut w.players[s];
+            p.alive = 1;
+            p.hp = 100;
+            p.x = tile_center(tx);
+            p.y = tile_center(2);
+        }
+        w.players[0].aim = 0;
+    }
+
+    #[test]
+    fn one_light_only_the_carrier_sees_by_flashlight() {
+        let (mut room, mut w) = room_with(&[0, 1]);
+        room.cfg = MOD_ONE_LIGHT << 13;
+        face_off(&mut room, &mut w);
+        w.light = 2; // seat 1 carries it
+        let s = compute_sight(&room, &w, true, 500, 600);
+        assert_eq!(s.vis[0][1] & 8, 8, "the light gives its carrier away");
+        assert_ne!(s.vis[0][1] & VIS_LIGHT, 0);
+        w.light = 0;
+        let s = compute_sight(&room, &w, true, 500, 600);
+        assert_eq!(s.vis[0][1], 0, "no flashlight: can't see 5 tiles into the dark");
+        w.light = 1; // now the viewer carries it
+        let s = compute_sight(&room, &w, true, 500, 600);
+        assert_eq!(s.vis[0][1] & 8, 8, "the carrier sees with it");
+        room.cfg = 0;
+        w.light = 0;
+        let s = compute_sight(&room, &w, true, 500, 600);
+        assert_eq!(s.vis[0][1] & 8, 8, "a normal night: everyone has a flashlight");
+    }
+
+    #[test]
+    fn one_light_starts_with_someone_and_passes_to_the_killer() {
+        let mut found = false;
+        for sd in 0..60u8 {
+            let (mut room, mut w) = room_with(&[0]);
+            let mut seed = [sd; 32];
+            seed[31] = 6 + 7 * (sd % 30);
+            seed_match(&mut room, &mut w, seed);
+            if night_mod(&room) != MOD_ONE_LIGHT {
+                continue;
+            }
+            found = true;
+            assert!(w.light >= 1 && w.players[(w.light - 1) as usize].alive == 1);
+            let carrier = (w.light - 1) as usize;
+            let killer = (carrier + 1) % MAXP;
+            room.status = ST_LIVE;
+            let mut k = [u32::MAX; MAXP];
+            k[carrier] = killer as u32;
+            step_deaths(&mut room, &mut w, &k, 700);
+            assert_eq!(w.light, killer as u32 + 1, "seed {sd}: the light passes to the killer");
+        }
+        assert!(found, "no One Light night in the sample");
+    }
+
+    #[test]
+    fn the_dead_watch_their_killer_but_not_for_a_living_partner() {
+        let (mut room, mut w) = room_with(&[0]);
+        face_off(&mut room, &mut w);
+        w.players[0].alive = 0;
+        room.feed[0] = KillEvent { tick: 600, killer: 1, victim: 0, weapon: 0 };
+        room.feed_head = 1;
+        let sight = compute_sight(&room, &w, true, 500, 600);
+        let mut view: View = bytemuck::Zeroable::zeroed();
+        write_view(&room, &w, &mut view, 0, &sight, &[], &[], 600);
+        assert_ne!(view.status & VIEW_SPECTATING, 0);
+        assert_eq!(view.players[0].seat, 1);
+        assert_ne!(view.players[0].flags & VIS_WATCHED, 0);
+        // duos with the partner (seat 1) still alive: no death cam
+        room.cfg |= CFG_DUOS;
+        let mut view: View = bytemuck::Zeroable::zeroed();
+        write_view(&room, &w, &mut view, 0, &sight, &[], &[], 600);
+        assert_eq!(view.status & VIEW_SPECTATING, 0);
+        assert_eq!(view.n_players, 0);
+    }
+
+    #[test]
+    fn campers_hold_their_spot() {
+        let (mut room, mut w) = room_with(&[]);
+        let seat = (0..MAXP).find(|&s| bot_style(&room, s) == STYLE_CAMPER).unwrap();
+        room.status = ST_LIVE;
+        room.zone_r = 40 * UNIT;
+        room.zone_x = 24 * UNIT;
+        room.zone_y = 24 * UNIT;
+        let p = &mut w.players[seat];
+        p.alive = 1;
+        p.x = 24 * UNIT;
+        p.y = 24 * UNIT;
+        w.bots[seat].target = NO_SEAT;
+        w.bots[seat].wx = p.x;
+        w.bots[seat].wy = p.y;
+        w.bots[seat].has_wp = 1;
+        let mut may_pick = true;
+        bot_think(&mut w, &room, seat, 700, &mut may_pick);
+        assert_eq!((w.players[seat].in_dx, w.players[seat].in_dy), (0, 0));
+        assert_eq!(w.bots[seat].has_wp, 2, "holding");
+        assert_ne!(w.players[seat].buttons & BTN_CROUCH, 0, "crouched while camping");
+    }
+}
+
+/// Playtest numbers from the simulation (bots stand in for people): run with
+/// `cargo test night_report -- --nocapture --ignored`.
+#[cfg(test)]
+mod report {
+    use super::*;
+
+    fn nights(seats: usize, n: u32) -> String {
+        let (mut len, mut first, mut dark, mut alive_ticks) = (0u64, 0u64, 0u64, 0u64);
+        let (mut gun, mut zone, mut gadget, mut nights_with_contact) = (0u64, 0u64, 0u64, 0u64);
+        for sd in 0..n {
+            let mut room: Room = bytemuck::Zeroable::zeroed();
+            let mut w: World = bytemuck::Zeroable::zeroed();
+            let mut views: Vec<View> = (0..MAXP).map(|_| bytemuck::Zeroable::zeroed()).collect();
+            let mut recs: Vec<Vec<u8>> = (0..REC_CHUNKS).map(|_| vec![0u8; REC_LEN]).collect();
+            for s in 0..seats {
+                room.is_bot[s] = 1;
+            }
+            room.cfg = seats as u32;
+            room.match_no = sd;
+            let mut seed = [(sd as u8).wrapping_mul(53).wrapping_add(7); 32];
+            seed[0] = sd as u8;
+            seed[31] = (sd % 7) as u8;
+            seed_match(&mut room, &mut w, seed);
+            let mut contact = None;
+            for _ in 0..(COUNTDOWN_TICKS + MATCH_TICKS + 20) {
+                let mut refs: Vec<&mut View> = views.iter_mut().collect();
+                let mut rr: Vec<&mut [u8]> = recs.iter_mut().map(|b| &mut b[..]).collect();
+                let out = tick(&mut room, &mut w, &mut refs[..], &mut rr[..]);
+                if room.status == ST_LIVE || out.ended {
+                    let sight = compute_sight(&room, &w, true, room.tick.saturating_sub(COUNTDOWN_TICKS), room.tick);
+                    for v in 0..seats {
+                        if w.players[v].alive == 0 {
+                            continue;
+                        }
+                        alive_ticks += 1;
+                        let sees = (0..seats).any(|q| q != v && sight.vis[v][q] & 8 != 0);
+                        if !sees {
+                            dark += 1;
+                        } else if contact.is_none() {
+                            contact = Some(room.tick - COUNTDOWN_TICKS);
+                        }
+                    }
+                }
+                if out.ended {
+                    break;
+                }
+            }
+            len += (room.tick - COUNTDOWN_TICKS) as u64;
+            if let Some(c) = contact {
+                first += c as u64;
+                nights_with_contact += 1;
+            }
+            for i in 0..(room.feed_head as usize).min(FEED) {
+                match room.feed[i].weapon {
+                    W_ZONE => zone += 1,
+                    w if w >= EFF_FLY => gadget += 1,
+                    _ => gun += 1,
+                }
+            }
+        }
+        let kills = (gun + zone + gadget).max(1);
+        format!(
+            "{seats} seats, {n} nights: night lasts {:.0} s on average; first enemy seen after {:.1} s; \
+             {:.0}% of a fighter's time alive sees nobody; kills: {:.0}% guns, {:.0}% zone, {:.0}% gadgets",
+            len as f64 / n as f64 / 20.0,
+            first as f64 / nights_with_contact.max(1) as f64 / 20.0,
+            100.0 * dark as f64 / alive_ticks.max(1) as f64,
+            100.0 * gun as f64 / kills as f64,
+            100.0 * zone as f64 / kills as f64,
+            100.0 * gadget as f64 / kills as f64,
+        )
+    }
+
+    #[test]
+    #[ignore]
+    fn night_report() {
+        println!("REPORT {}", nights(4, 100));
+        println!("REPORT {}", nights(8, 100));
+    }
+}
+
+#[cfg(test)]
 mod sizes {
     use super::*;
     #[test]
@@ -259,7 +464,7 @@ mod golden {
     use super::*;
     use anchor_lang::prelude::Pubkey;
 
-    const EXPECTED: u64 = 0xfed285b9bc0dcc08;
+    const EXPECTED: u64 = 0x42806429e588d5e8;
 
     fn fnv(h: &mut u64, bytes: &[u8]) {
         for b in bytes {

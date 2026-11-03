@@ -45,36 +45,14 @@ pub fn handle_start_match<'info>(ctx: Context<'info, StartMatch<'info>>, fill_to
         }
         require!(room.host == player && room.host_present(slot), BlackoutError::NotHost);
         // bots fill free seats (free rooms only)
-        let humans = (0..MAXP).filter(|&i| room.players[i] != Pubkey::default() && room.is_bot[i] == 0).count();
-        let mut total = humans;
-        if room.stake == 0 {
+        let total = if room.stake == 0 {
             let want = if room.cfg & 0xff != 0 { room.max_players() } else { (fill_to as usize).min(MAXP) };
-            for i in 0..want {
-                if total >= want {
-                    break;
-                }
-                if room.players[i] == Pubkey::default() && room.is_bot[i] == 0 {
-                    room.is_bot[i] = 1;
-                    let mut nm = [0u8; 16];
-                    let label = BOT_NAMES[i % BOT_NAMES.len()].as_bytes();
-                    nm[..label.len()].copy_from_slice(label);
-                    room.names[i] = nm;
-                    room.payout[i] = Pubkey::default();
-                    total += 1;
-                }
-            }
-        }
+            fill_bots(&mut room, want)
+        } else {
+            (0..MAXP).filter(|&i| room.players[i] != Pubkey::default() && room.is_bot[i] == 0).count()
+        };
         require!(total >= 2, BlackoutError::NotEnoughPlayers);
-        room.n_bots = (0..MAXP).filter(|&i| room.is_bot[i] == 1).count() as u32;
-        room.match_no += 1;
-        room.status = ST_STARTING;
-        room.start_slot = slot;
-        room.last_tick_slot = 0;
-        room.seed_revealed = 0;
-        room.sync_pot();
-        // slot, not match number: a called-off start reuses its match number
-        room.task_id = (room.room_id % 1_000_000) * 10_000 + slot % 10_000;
-        room.task_id
+        begin_match(&mut room, slot, ST_STARTING)
     };
 
     // 1. VRF: every random roll of the match comes from this seed
@@ -93,37 +71,71 @@ pub fn handle_start_match<'info>(ctx: Context<'info, StartMatch<'info>>, fill_to
     ctx.accounts.invoke_signed_vrf(&ctx.accounts.payer.to_account_info(), &ix)?;
 
     // 2. crank: tick every 50 ms inside the TEE, no server anywhere
-    let mut metas = vec![
-        AccountMeta::new(ctx.accounts.room.key(), false),
-        AccountMeta::new(ctx.accounts.world.key(), false),
-    ];
-    require!(ctx.remaining_accounts.len() >= MAXP + REC_CHUNKS, BlackoutError::BadAccount);
-    for v in ctx.remaining_accounts.iter().take(MAXP + REC_CHUNKS) {
+    schedule_ticks(&ctx.accounts.payer, &ctx.accounts.magic_program, &ctx.accounts.room.to_account_info(), &ctx.accounts.world.to_account_info(), ctx.remaining_accounts, task_id)
+}
+
+/// Bots take free seats up to `want`. Returns how many seats are filled.
+pub fn fill_bots(room: &mut Room, want: usize) -> usize {
+    let mut total = (0..MAXP).filter(|&i| room.players[i] != Pubkey::default() && room.is_bot[i] == 0).count();
+    for i in 0..want.min(MAXP) {
+        if total >= want {
+            break;
+        }
+        if room.players[i] == Pubkey::default() && room.is_bot[i] == 0 {
+            room.is_bot[i] = 1;
+            let mut nm = [0u8; 16];
+            let label = BOT_NAMES[i % BOT_NAMES.len()].as_bytes();
+            nm[..label.len()].copy_from_slice(label);
+            room.names[i] = nm;
+            room.payout[i] = Pubkey::default();
+            total += 1;
+        }
+    }
+    room.n_bots = (0..MAXP).filter(|&i| room.is_bot[i] == 1).count() as u32;
+    total
+}
+
+/// Move the room into a new match. Returns the crank's task id.
+pub fn begin_match(room: &mut Room, slot: u64, status: u32) -> u64 {
+    room.match_no += 1;
+    room.status = status;
+    room.start_slot = slot;
+    room.last_tick_slot = 0;
+    room.seed_revealed = 0;
+    room.sync_pot();
+    // slot, not match number: a called-off start reuses its match number
+    room.task_id = (room.room_id % 1_000_000) * 10_000 + slot % 10_000;
+    room.task_id
+}
+
+/// Schedule the 20 Hz crank that ticks the night. `rest` = view0..view7, rec0..rec4.
+pub fn schedule_ticks<'info>(
+    payer: &'info AccountInfo<'info>,
+    magic_program: &'info AccountInfo<'info>,
+    room: &AccountInfo<'info>,
+    world: &AccountInfo<'info>,
+    rest: &[AccountInfo<'info>],
+    task_id: u64,
+) -> Result<()> {
+    require!(rest.len() >= MAXP + REC_CHUNKS, BlackoutError::BadAccount);
+    let mut metas = vec![AccountMeta::new(room.key(), false), AccountMeta::new(world.key(), false)];
+    for v in rest.iter().take(MAXP + REC_CHUNKS) {
         metas.push(AccountMeta::new(v.key(), false));
     }
     // ComputeBudget::SetComputeUnitLimit(1.4M)
     let mut cu = vec![2u8];
     cu.extend_from_slice(&1_400_000u32.to_le_bytes());
     let budget_ix = Instruction { program_id: COMPUTE_BUDGET_PROGRAM, accounts: vec![], data: cu };
-    let tick_ix = Instruction {
-        program_id: crate::ID,
-        accounts: metas,
-        data: anchor_lang::InstructionData::data(&crate::instruction::Tick {}),
-    };
-    let mut accs = vec![ctx.accounts.room.to_account_info(), ctx.accounts.world.to_account_info()];
-    for v in ctx.remaining_accounts.iter().take(MAXP + REC_CHUNKS) {
+    let tick_ix = Instruction { program_id: crate::ID, accounts: metas, data: anchor_lang::InstructionData::data(&crate::instruction::Tick {}) };
+    let mut accs = vec![room.clone(), world.clone()];
+    for v in rest.iter().take(MAXP + REC_CHUNKS) {
         accs.push(v.clone());
     }
     ScheduleCrankCpi {
-        payer: &ctx.accounts.payer,
-        magic_program: &ctx.accounts.magic_program,
+        payer,
+        magic_program,
         instruction_accounts: &accs,
-        args: ScheduleTaskArgs {
-            task_id: task_id as i64,
-            execution_interval_millis: TICK_MS,
-            iterations: TICK_ITERATIONS,
-            instructions: vec![budget_ix, tick_ix],
-        },
+        args: ScheduleTaskArgs { task_id: task_id as i64, execution_interval_millis: TICK_MS, iterations: TICK_ITERATIONS, instructions: vec![budget_ix, tick_ix] },
     }
     .invoke()?;
     Ok(())
@@ -271,7 +283,8 @@ pub fn handle_end_now(ctx: Context<Heartbeat>) -> Result<()> {
     require!(room.host == ctx.accounts.player.key(), BlackoutError::NotHost);
     // Ending early ranks the living by health then seat: at a staked table
     // that would let the host hand themselves the pot during the countdown.
-    require!(room.stake == 0, BlackoutError::NotReady);
+    // ...and on a daily night it would rank you first while everyone is still at full health
+    require!(room.stake == 0 && !sim::daily(&room), BlackoutError::NotReady);
     room.end_tick = sim::END_REQUEST;
     Ok(())
 }
@@ -279,13 +292,13 @@ pub fn handle_end_now(ctx: Context<Heartbeat>) -> Result<()> {
 /// Lights on: flip World + Recorder to public. A staked night also commits the room to
 /// Solana with a Magic Action that pays the pot; a free night never touches Solana.
 pub fn handle_finish<'info>(ctx: Context<'info, Finish<'info>>) -> Result<()> {
-    let (rid_bytes, room_id, match_no, staked, winner_key, players, is_bot) = {
+    let (rid_bytes, room_id, match_no, staked, winner_key, players, is_bot, is_daily) = {
         let mut room = ctx.accounts.room.load_mut()?;
         require!(room.status == ST_ENDED, BlackoutError::NotEnded);
         room.status = ST_REVEALED;
         room.seed_revealed = if room.seed_revealed == 2 { 2 } else { 1 };
         let wk = if room.winner != NO_SEAT { room.payout[room.winner as usize] } else { Pubkey::default() };
-        (room.room_id.to_le_bytes(), room.room_id, room.match_no, room.stake > 0, wk, room.players, room.is_bot)
+        (room.room_id.to_le_bytes(), room.room_id, room.match_no, room.stake > 0, wk, room.players, room.is_bot, sim::daily(&room))
     };
     set_sealed(
         &ctx.accounts.room.to_account_info(),
@@ -299,7 +312,14 @@ pub fn handle_finish<'info>(ctx: Context<'info, Finish<'info>>) -> Result<()> {
         &ctx.accounts.magic_program.to_account_info(),
         &ctx.accounts.permission_program.to_account_info(),
         false,
+        !is_daily,
     )?;
+    if is_daily {
+        // the daily board is the account after the recorder pairs
+        let daily = ctx.remaining_accounts.get(REC_CHUNKS * 2).ok_or(BlackoutError::BadAccount)?;
+        let room = ctx.accounts.room.load()?;
+        super::daily::post_score(daily, &room)?;
+    }
     if !staked {
         return Ok(());
     }
@@ -361,6 +381,7 @@ pub fn handle_reset<'info>(ctx: Context<'info, Reset<'info>>) -> Result<()> {
             room.alive[i] = 0;
         }
         room.n_bots = 0;
+        room.cfg &= !sim::CFG_DAILY;
         if room.stake > 0 {
             // staked seats must buy a new ticket for the next match
             room.clear_humans();
@@ -378,6 +399,7 @@ pub fn handle_reset<'info>(ctx: Context<'info, Reset<'info>>) -> Result<()> {
         &ctx.accounts.ephemeral_vault.to_account_info(),
         &ctx.accounts.magic_program.to_account_info(),
         &ctx.accounts.permission_program.to_account_info(),
+        true,
         true,
     )?;
     let rid = u64::from_le_bytes(rid_bytes);
@@ -568,7 +590,8 @@ pub struct Reset<'info> {
     pub magic_program: UncheckedAccount<'info>,
 }
 
-/// Flip World + all recorder chunks between sealed (private, no members) and public.
+/// Flip World (unless `include_world` is false) + all recorder chunks between sealed
+/// (private, no members) and public.
 /// `rest` = [rec0, perm0, rec1, perm1, ... rec4, perm4].
 #[allow(clippy::too_many_arguments)]
 pub fn set_sealed<'info>(
@@ -583,6 +606,7 @@ pub fn set_sealed<'info>(
     magic: &AccountInfo<'info>,
     perm_program: &AccountInfo<'info>,
     private: bool,
+    include_world: bool,
 ) -> Result<()> {
     require!(rest.len() >= REC_CHUNKS * 2, BlackoutError::BadAccount);
     let room_seeds: &[&[u8]] = &[ROOM_SEED, rid, &[room_bump]];
@@ -601,7 +625,9 @@ pub fn set_sealed<'info>(
         .invoke_signed(&[room_seeds, seeds])?;
         Ok(())
     };
-    flip(world, world_perm, &[WORLD_SEED, rid, &[world_bump]])?;
+    if include_world {
+        flip(world, world_perm, &[WORLD_SEED, rid, &[world_bump]])?;
+    }
     for c in 0..REC_CHUNKS {
         let acc = &rest[c * 2];
         let perm = &rest[c * 2 + 1];

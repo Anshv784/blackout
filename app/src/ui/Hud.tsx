@@ -3,7 +3,7 @@ import { useStore } from "../game/store";
 import { KeyGuide, ActionHints } from "./KeyGuide";
 import { useTouch } from "./TouchControls";
 import type { Session } from "../game/session";
-import { ST_COUNTDOWN, ST_ENDED, ST_LIVE, ST_STARTING, WEAPON_NAME, GADGET_NAME, NIGHT_MOD, DOWNED } from "../chain/layout";
+import { ST_COUNTDOWN, ST_ENDED, ST_LIVE, ST_STARTING, WEAPON_NAME, GADGET_NAME, NIGHT_MOD, DOWNED, VIS_WATCHED, MOD_ONE_LIGHT } from "../chain/layout";
 import { angleToRad } from "../game/sim";
 import { SEAT_COLORS } from "../game/colors";
 import { GameMenu, MatchClock } from "./GameMenu";
@@ -19,7 +19,7 @@ export function Hud({ session }: { session: Session }) {
   const room = useStore((s) => s.room);
   const view = useStore((s) => s.view);
   const touch = useTouch();
-  const [pings, setPings] = useState<{ id: number; angle: number; kind: number; at: number }[]>([]);
+  const [pings, setPings] = useState<{ id: number; angle: number; kind: number; at: number; dist: number }[]>([]);
   const [hit, setHit] = useState<{ angle: number; at: number } | null>(null);
   const seen = useRef(0);
 
@@ -28,7 +28,7 @@ export function Hud({ session }: { session: Session }) {
       const now = performance.now();
       const fx = session.fx.filter((f) => f.id > seen.current);
       if (fx.length) seen.current = fx[fx.length - 1].id;
-      const newP = fx.filter((f) => f.kind === "ping").map((f) => ({ id: f.id, angle: f.angle ?? 0, kind: f.sub ?? 1, at: f.at }));
+      const newP = fx.filter((f) => f.kind === "ping").map((f) => ({ id: f.id, angle: f.angle ?? 0, kind: f.sub ?? 1, at: f.at, dist: f.dist ?? 8 }));
       const newH = fx.filter((f) => f.kind === "hit").pop();
       if (newH) setHit({ angle: newH.angle ?? 0, at: newH.at });
       setPings((p) => [...p.filter((x) => now - x.at < 1600), ...newP].slice(-10));
@@ -50,6 +50,11 @@ export function Hud({ session }: { session: Session }) {
   const death = room.feed.slice(0, Math.min(16, room.feedHead)).find((f) => f.victim === session.mySeat) ?? null;
   const survived = Math.max(0, ((death ? death.tick : room.tick) - 60) / 20);
   const humansAlive = room.alive.filter((a, i) => a === 1 && room.isBot[i] === 0 && i !== session.mySeat).length;
+  // death cam: the full "you died" card shows for 2.5 s, then the view is your killer's
+  const watching = view.spectating ? view.players.find((p) => (p.flags & VIS_WATCHED) !== 0) ?? null : null;
+  const watchingFor = death ? (room.tick - death.tick) * 50 : 0;
+  // a world direction on screen: over the shoulder, ahead of you is up; from above, north stays up
+  const toScreen = (rad: number) => (controls.view === "chase" ? rad - controls.camYaw - Math.PI / 2 : rad);
   const outside = myPos && Math.hypot(myPos.x - room.zone.x, myPos.y - room.zone.y) > room.zone.r;
 
   return (
@@ -68,6 +73,14 @@ export function Hud({ session }: { session: Session }) {
       {/* the night card owns the top of the screen during the countdown */}
       {!countdown && <MatchClock room={room} />}
       {!countdown && room.nightMod > 0 && <div className="mod-chip">{NIGHT_MOD[room.nightMod]}</div>}
+      {!countdown && room.nightMod === MOD_ONE_LIGHT && me.alive === 1 && (
+        <div className="light-chip">{view.carriesLight ? "YOU CARRY THE LIGHT · everyone sees it" : "NO LIGHT · hunt by sound"}</div>
+      )}
+      {watching && (
+        <div className="watch-chip">
+          WATCHING <b style={{ color: SEAT_COLORS[watching.seat] }}>{room.names[watching.seat]}</b> · the one who got you
+        </div>
+      )}
       {view.inv.nvg > 0 && me.alive === 1 && <div className="nvg-tint" />}
       {view.inv.blind > 0 && <div className="flash-white" style={{ opacity: Math.min(1, view.inv.blind / 40) }} />}
       {room.duos && <Partner view={view} room={room} mySeat={session.mySeat} />}
@@ -127,7 +140,7 @@ export function Hud({ session }: { session: Session }) {
               <b style={{ color: SEAT_COLORS[death.killer] }}>{room.names[death.killer]}</b> · {WEAPON_NAME[death.weapon] ?? "?"}
             </>) : null}
         >
-        <div className="dead">
+        <div className="dead" style={watching && watchingFor > 2500 ? { display: "none" } : undefined}>
           <div className="dead-kicker">THE DARK TOOK YOU</div>
           <h2>#{view.place || "?"}</h2>
           <p className="killer">
@@ -151,7 +164,9 @@ export function Hud({ session }: { session: Session }) {
           </div>
           <small>
             {humansAlive > 0
-              ? `${humansAlive} other player${humansAlive > 1 ? "s" : ""} still in the dark. No ghosting — the dead see nothing. The lights come on when they fall.`
+              ? watching
+                ? "Your killer is still out there: you'll watch through their eyes. The lights come on when the last one falls."
+                : `${humansAlive} other player${humansAlive > 1 ? "s" : ""} still in the dark. The lights come on when they fall.`
               : "Turning the lights on…"}
           </small>
           <a className="btn ghost" style={{ pointerEvents: "auto", marginTop: 16 }} href="#/">
@@ -165,21 +180,24 @@ export function Hud({ session }: { session: Session }) {
       {/* sound pings around the screen edge */}
       <div className="ping-ring">
         {pings.map((p) => {
-          const rel = angleToRad(p.angle);
+          const rel = toScreen(angleToRad(p.angle));
           const age = (performance.now() - p.at) / 1600;
+          // closer sounds are bigger and pulse: you can tell a step next to you from one across the yard
+          const near = Math.max(0, Math.min(1, 1 - p.dist / 10));
           return (
             <div
               key={p.id}
-              className={`ping k${p.kind}`}
+              className={`ping k${p.kind}${near > 0.6 ? " near" : ""}`}
               style={{ transform: `rotate(${(rel * 180) / Math.PI}deg) translateX(min(38vw, 38vh))`, opacity: 1 - age }}
             >
-              <span style={{ transform: `rotate(${(-rel * 180) / Math.PI}deg)` }}>{PING_GLYPH[p.kind]}</span>
+              <i className="sonar" style={{ transform: `scale(${0.6 + near})` }} />
+              <span style={{ transform: `rotate(${(-rel * 180) / Math.PI}deg) scale(${0.8 + near * 0.6})` }}>{PING_GLYPH[p.kind]}</span>
             </div>
           );
         })}
       </div>
       {hit && hitAge < 1 && (
-        <div className="hit-arc" style={{ transform: `rotate(${(angleToRad(hit.angle) * 180) / Math.PI}deg)`, opacity: 1 - hitAge }} />
+        <div className="hit-arc" style={{ transform: `rotate(${(toScreen(angleToRad(hit.angle)) * 180) / Math.PI}deg)`, opacity: 1 - hitAge }} />
       )}
       {hit && hitAge < 0.4 && <div className="hit-flash" style={{ opacity: 0.4 - hitAge }} />}
       {lost && room.status === ST_LIVE && me.alive ? <div className="lost-hint">{lost} slipped into the dark</div> : null}

@@ -68,6 +68,12 @@ pub fn compute_sight(room: &Room, w: &World, live: bool, t: u32, tick: u32) -> S
     }
     let smokes = &smokes[..n_smokes];
     let fog = modifier == MOD_FOG;
+    // One Light: only the carrier has a flashlight, and its glow gives them away
+    let one_light = modifier == MOD_ONE_LIGHT;
+    let carrier = if one_light && w.light > 0 { (w.light - 1) as usize } else { MAXP };
+    if carrier < MAXP && !lights_out && w.players[carrier].alive == 1 {
+        lit[carrier] = true;
+    }
 
     // ---- vision: who sees whom (computed inside the TEE, never published)
     let mut vis = [[0u32; MAXP]; MAXP]; // flags, 0 = not visible
@@ -103,6 +109,7 @@ pub fn compute_sight(room: &Room, w: &World, live: bool, t: u32, tick: u32) -> S
             } else if blind {
                 // a flashbang took your eyes: only what's right next to you
             } else if !lights_out
+                && (!one_light || v == carrier)
                 && d2 <= (if pq.moved & 8 != 0 { vr * 7 / 10 } else { vr } as i64).pow(2)
                 && angle_diff(pv.aim, atan2(pq.y - pv.y, pq.x - pv.x)) <= cone
                 && line_of_sight(pv.x, pv.y, pq.x, pq.y)
@@ -134,6 +141,9 @@ pub fn compute_sight(room: &Room, w: &World, live: bool, t: u32, tick: u32) -> S
             }
             if f != 0 && pq.moved & 8 != 0 {
                 f |= 256; // crouched
+            }
+            if f != 0 && q == carrier {
+                f |= VIS_LIGHT;
             }
             vis[v][q] = f;
         }
@@ -183,6 +193,45 @@ pub fn update_bot_memory(room: &Room, w: &mut World, v: usize, vis: &[[u32; MAXP
     w.bots[v] = b;
 }
 
+/// Who a dead player watches: their killer, or whoever got the killer, and so on. None if
+/// the zone got them, or in duos while their partner still plays (no scouting for them).
+pub fn spectate_target(room: &Room, w: &World, v: usize) -> Option<usize> {
+    if duos(room) && w.players[v ^ 1].alive != 0 {
+        return None;
+    }
+    let mut cur = v as u32;
+    for _ in 0..MAXP {
+        let n = (room.feed_head as usize).min(FEED);
+        let killer = (1..=n).map(|i| room.feed[(room.feed_head as usize - i) % FEED]).find(|e| e.victim == cur)?.killer;
+        if killer >= MAXP as u32 || killer == v as u32 {
+            return None;
+        }
+        if w.players[killer as usize].alive != 0 {
+            return Some(killer as usize);
+        }
+        cur = killer;
+    }
+    None
+}
+
+/// Death cam: fill a dead player's view with what their killer sees.
+fn watch_killer(room: &Room, w: &World, view: &mut View, v: usize, vis: &[[u32; MAXP]; MAXP]) {
+    let Some(k) = spectate_target(room, w, v) else { return };
+    view.status |= VIEW_SPECTATING;
+    let pk = w.players[k];
+    view.players[0] = VisPlayer { seat: k as u32, x: pk.x, y: pk.y, aim: pk.aim, hp: pk.hp, weapon: pk.weapon, flags: 8 | VIS_WATCHED };
+    let mut n = 1usize;
+    for q in 0..MAXP {
+        if vis[k][q] == 0 || q == v || n >= VIS_P {
+            continue;
+        }
+        let pq = w.players[q];
+        view.players[n] = VisPlayer { seat: q as u32, x: pq.x, y: pq.y, aim: pq.aim, hp: pq.hp, weapon: pq.weapon, flags: vis[k][q] };
+        n += 1;
+    }
+    view.n_players = n as u32;
+}
+
 /// Fill in one human seat's private view.
 #[allow(clippy::too_many_arguments)]
 pub fn write_view(room: &Room, w: &World, view: &mut View, v: usize, sight: &Sight, booms: &[(i32, i32)], loot_events: &[(i32, i32)], tick: u32) {
@@ -198,6 +247,13 @@ pub fn write_view(room: &Room, w: &World, view: &mut View, v: usize, sight: &Sig
     view.n_players = 0;
     view.n_bullets = 0;
     view.n_loot = 0;
+    if w.light == v as u32 + 1 {
+        view.status |= VIEW_I_CARRY_LIGHT;
+    }
+    if occupied && pv.alive == 0 && room.status == ST_LIVE {
+        watch_killer(room, w, view, v, vis);
+        return;
+    }
     if !occupied || pv.alive == 0 || room.status == ST_LOBBY {
         return;
     }

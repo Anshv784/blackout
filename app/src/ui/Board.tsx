@@ -3,7 +3,8 @@ import { RankCrest } from "./RankCrest";
 import { TopBar } from "./TopBar";
 import { client } from "../game/identity";
 import { useStore } from "../game/store";
-import type { BoardEntry, Room } from "../chain/layout";
+import type { BoardEntry, Daily, Room } from "../chain/layout";
+import { todayUtc } from "../chain/client";
 import { STATUS_NAME } from "../chain/layout";
 import { boardPda } from "../chain/client";
 import { explorerAddr, STAKED_ROOMS } from "../config";
@@ -22,6 +23,74 @@ export function aliasFor(key: string) {
 }
 const short = (k: string) => `${k.slice(0, 4)}…${k.slice(-4)}`;
 const MEDAL = ["#ffd166", "#cfd8e6", "#d98c5f"];
+
+/** Today's daily: the same sealed night for everyone, one try per wallet. */
+function DailyBoard({ mine }: { mine: Set<string> }) {
+  const [d, setD] = useState<Daily | null>(null);
+  useEffect(() => {
+    const load = () => client.fetchDaily().then(setD).catch(() => {});
+    load();
+    const t = setInterval(load, 10_000);
+    return () => clearInterval(t);
+  }, []);
+  if (!d) return null;
+  const live = d.day === todayUtc();
+  const left = 86_400_000 - (Date.now() % 86_400_000);
+  const hex = Array.from(d.prevSeed, (b) => b.toString(16).padStart(2, "0")).join("");
+  return (
+    <section className="daily-board">
+      <div className="board-head">
+        <div className="kicker">
+          <span className="dot" /> DAILY CHALLENGE · SAME NIGHT FOR EVERYONE · ONE TRY PER WALLET · RESETS IN {Math.floor(left / 3_600_000)}H{" "}
+          {Math.floor((left % 3_600_000) / 60_000)}M
+        </div>
+        <h1>Today's Night</h1>
+      </div>
+      {live && d.entries.length > 0 ? (
+        <div className="board-table">
+          <div className="bt-row head">
+            <span>#</span>
+            <span>survivor</span>
+            <span>score</span>
+            <span>place</span>
+            <span>kills</span>
+            <span>survived</span>
+            <span />
+          </div>
+          {d.entries.slice(0, 15).map((e, i) => {
+            const k = e.key.toBase58();
+            return (
+              <div key={k} className={`bt-row ${mine.has(k) ? "me" : ""}`}>
+                <span className="bt-rank" style={i < 3 ? { color: MEDAL[i] } : undefined}>
+                  {i + 1}
+                </span>
+                <span className="bt-name">
+                  <b>{e.name || aliasFor(k)}</b>
+                  <code>{short(k)}</code>
+                  {mine.has(k) && <em>YOU</em>}
+                </span>
+                <span>{e.score}</span>
+                <span>#{e.place}</span>
+                <span>{e.kills}</span>
+                <span>
+                  {Math.floor(e.survived / 60)}:{String(e.survived % 60).padStart(2, "0")}
+                </span>
+                <span />
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="sub">{live ? "Nobody has played today's night yet. Be the first." : "Today's night hasn't been rolled yet: the first player rolls it."}</p>
+      )}
+      {d.prevDay > 0 && (
+        <p className="sub daily-seed">
+          Yesterday's sealed seed, now public so anyone can re-derive its map, loot and zone: <code>{hex.slice(0, 16)}…</code>
+        </p>
+      )}
+    </section>
+  );
+}
 
 export function Board() {
   const [data, setData] = useState<{ matches: bigint; entries: BoardEntry[] } | null>(null);
@@ -53,6 +122,7 @@ export function Board() {
       <div className="gate-shade dense" />
       <TopBar active="board" />
       <main className="board-main">
+        <DailyBoard mine={mine} />
         <div className="board-head">
           <div className="kicker">
             <span className="dot" /> STAKED NIGHTS ONLY · HUMANS ONLY · SETTLED ON SOLANA BY A MAGIC ACTION

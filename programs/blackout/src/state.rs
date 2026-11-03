@@ -21,6 +21,14 @@ pub const REC_SEED: &[u8] = b"rec";
 pub const BANK_SEED: &[u8] = b"bank";
 pub const TICKET_SEED: &[u8] = b"ticket";
 pub const BOARD_SEED: &[u8] = b"board3"; // staked nights only
+pub const DAILY_SEED: &[u8] = b"daily";
+pub const DAILY_SECRET_SEED: &[u8] = b"daily-seed";
+pub const DAILY_SLOTS: usize = 32;
+/// One-try-per-wallet filter: 4096 bits, 3 hashes. Wrongly says "already played" for about
+/// 1 in 400 players at 200 players a day.
+pub const DAILY_BLOOM_WORDS: usize = 128;
+/// Daily nights are 4 seats: you and three bots.
+pub const DAILY_SEATS: usize = 4;
 pub const BOARD_SLOTS: usize = 64;
 
 pub const BOT_EASY: u32 = 1;
@@ -189,6 +197,46 @@ pub struct BoardEntry {
     pub earned: u64,
 }
 
+/// The daily challenge's public board, delegated to the rollup so it costs nothing to update.
+/// Today's seed lives in a separate sealed account; yesterday's is published here.
+#[account(zero_copy)]
+#[repr(C)]
+pub struct Daily {
+    pub day: u32, // days since 1970 (UTC) this board is for
+    pub count: u32,
+    pub pending_day: u32, // a seed roll in flight for this day
+    pub ready: u32,       // setup done: bit 0 secret, bit 1 permission
+    pub pending_slot: u64,
+    pub prev_day: u32,
+    pub _pad: u32,
+    pub prev_seed: [u8; 32], // yesterday's seed, so anyone can re-derive yesterday's nights
+    pub tried: [u32; DAILY_BLOOM_WORDS],
+    pub entries: [DailyEntry; DAILY_SLOTS],
+}
+
+#[zero_copy]
+#[repr(C)]
+pub struct DailyEntry {
+    pub key: Pubkey, // the wallet that signed the attempt
+    pub name: [u8; 16],
+    pub score: u32,
+    pub kills: u32,
+    pub place: u32,
+    pub survived: u32, // seconds
+}
+
+pub const DAILY_SECRET_MAGIC: u32 = 0xB1AC_0004;
+
+/// Today's seed. Ephemeral, private permission with no members: nobody can read it.
+#[derive(Clone, Copy, Pod, Zeroable)]
+#[repr(C)]
+pub struct DailySecret {
+    pub magic: u32,
+    pub day: u32,
+    pub seed: [u8; 32],
+}
+pub const DAILY_SECRET_LEN: usize = core::mem::size_of::<DailySecret>();
+
 /// Base-layer escrow for staked rooms. Program-owned so it can pay out directly.
 #[account]
 pub struct Bank {
@@ -324,7 +372,9 @@ pub struct World {
     pub start_x: i32,
     pub start_y: i32,
     pub start_r: i32,
-    pub _pad: [u32; 3],
+    /// One Light nights: seat + 1 of whoever carries the only flashlight (0 = nobody)
+    pub light: u32,
+    pub _pad: [u32; 2],
 }
 
 #[derive(Clone, Copy, Pod, Zeroable, Default)]

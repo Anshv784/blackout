@@ -9,7 +9,7 @@ import { Arena, occlusion } from "./Arena";
 import { Avatar, Gun, SEAT_COLORS, aimToRotY } from "./Avatar";
 import { stillMotion, SOLDIER_URL, type Motion } from "./Soldier";
 import type { Session } from "../game/session";
-import { ST_COUNTDOWN, ST_LIVE, ST_ENDED } from "../chain/layout";
+import { ST_COUNTDOWN, ST_LIVE, ST_ENDED, MOD_ONE_LIGHT, VIS_LIGHT, VIS_WATCHED } from "../chain/layout";
 import { controls, wheelInput, gadgetCancel } from "../game/controls";
 import { prefs, usePrefs, gfx, setPref } from "../game/prefs";
 import { feel } from "../game/feel";
@@ -147,7 +147,9 @@ function MyPlayer({ session }: { session: Session }) {
     const flare = v.me.flare > 0;
     const r0 = session.room;
     const dark = !!r0 && r0.status === ST_LIVE && lightsOut(r0.matchLen, Math.max(0, r0.tick - 60));
-    mo.torch = alive && !dark; // the lens on your gun glows while your light is on
+    // One Light nights: only the carrier has a flashlight
+    const noLight = session.room?.nightMod === MOD_ONE_LIGHT && !v.carriesLight;
+    mo.torch = alive && !dark && !noLight; // the lens on your gun glows while your light is on
     (globalThis as any).__boLightsOut = dark; // street lamps and the searchlight die too
     const now0 = performance.now();
     if (spot.current && killed) {
@@ -164,7 +166,7 @@ function MyPlayer({ session }: { session: Session }) {
     } else if (spot.current) {
       spot.current.position.set(0, 1.75, 0);
       const nvg = (v.inv?.nvg ?? 0) > 0;
-      spot.current.intensity = alive && !dark ? (flare ? 0 : nvg ? 70 : 55) : 0;
+      spot.current.intensity = alive && !dark && !noLight ? (flare ? 0 : nvg ? 70 : 55) : 0;
       spot.current.angle = nvg ? CONE_RAD * 1.5 : CONE_RAD;
       spot.current.distance = nvg ? VISION_TILES + 5 : VISION_TILES + 1;
       spot.current.color.set(nvg ? "#b6ffc8" : "#fff1d0");
@@ -307,7 +309,8 @@ function Others({ session }: { session: Session }) {
       if (!g || !gh) continue;
       const tr = session.tracks.get(s);
       const lab = labels.current[s];
-      if (!tr || s === session.mySeat || !session.view?.me.alive || !tr.samples.length) {
+      // the dead see nobody, unless the death cam is showing them their killer's view
+      if (!tr || s === session.mySeat || (!session.view?.me.alive && !session.view?.spectating) || !tr.samples.length) {
         g.visible = false;
         gh.visible = false;
         if (lab) lab.style.display = "none";
@@ -336,6 +339,8 @@ function Others({ session }: { session: Session }) {
         if (mo.firing && now - (mo.shotAt ?? 0) > (COOLDOWN_MS[smp.weapon] ?? 300)) mo.shotAt = now;
         mo.downed = (smp.flags & 16) !== 0;
         mo.crouch = (smp.flags & 256) !== 0;
+        // One Light nights: only the carrier's torch burns, and it's how you find them
+        mo.torch = session.room?.nightMod !== MOD_ONE_LIGHT || (smp.flags & VIS_LIGHT) !== 0;
         const inAir = (smp.flags & 128) !== 0;
         if (inAir && !airs.current[s]) mo.jumpAt = now;
         airs.current[s] = inAir;
@@ -772,7 +777,18 @@ function CameraRig({ session }: { session: Session }) {
       diedPos.current = { x: p!.x, y: p!.y };
     }
     if (!killed) diedAt.current = 0;
-    if (killed) {
+    // death cam: over the shoulder of whoever killed you
+    const watched = killed ? session.view?.players.find((q) => (q.flags & VIS_WATCHED) !== 0) : undefined;
+    if (watched && performance.now() - diedAt.current > 2500) {
+      const a = angleToRad(watched.aim);
+      const wx = watched.x / 256;
+      const wz = watched.y / 256;
+      wantPos.set(wx - Math.cos(a) * 3.4, 2.4, wz - Math.sin(a) * 3.4);
+      wantLook.set(wx + Math.cos(a) * 3, 0.8, wz + Math.sin(a) * 3);
+      const k = 1 - Math.pow(0.05, dt);
+      pos.current.lerp(wantPos, k);
+      look.current.lerp(wantLook, k);
+    } else if (killed) {
       const t = (performance.now() - diedAt.current) / 1000;
       const rise = 1 - Math.exp(-t / 1.6);
       const yaw = diedYaw.current + t * 0.18;

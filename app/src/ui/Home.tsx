@@ -7,7 +7,7 @@ import { useStore } from "../game/store";
 import { audio } from "../game/audio";
 import { TopBar } from "./TopBar";
 import { requireRealWallet, requireWallet } from "../game/wallet";
-import { codeToText, createRoom, findByCode, myRoom, sweepRooms } from "../game/rooms";
+import { codeToText, createRoom, ensureDaily, findByCode, myRoom, playedToday, sweepRooms } from "../game/rooms";
 import { AlreadyInRoom } from "./AlreadyInRoom";
 
 const Backdrop = lazy(() => import("../scene/Backdrop").then((m) => ({ default: m.Backdrop })));
@@ -86,11 +86,41 @@ export function Home() {
       }
     });
 
+  /** Today's daily: roll the seed if needed, open a private 4-seat room, start from there. */
+  const playDaily = async () => {
+    audio.unlock();
+    setBusy("daily");
+    try {
+      const d = await ensureDaily();
+      const w = useStore.getState().wallet;
+      if (w && playedToday(d, w)) {
+        toast("You've played today's daily. A new one opens at midnight UTC.");
+        go("/board");
+        return;
+      }
+      const { id, code } = await createRoom(4, true);
+      go(`/r/${id}?daily=1&code=${codeToText(code).replace("-", "")}`);
+    } catch (e: any) {
+      toast(String(e?.message ?? e).replace(/\(.*\)$/, "").slice(0, 140));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  /** Play now: sit in the open room with the most people, so players meet; open one if none. */
+  const playNow = () => {
+    audio.unlock();
+    const best = [...openRooms].sort(([, a], [, b]) => liveHumans(b, slot) - liveHumans(a, slot))[0];
+    if (best) go(`/r/${best[0]}?quick=1`);
+    else create(false);
+  };
+
   const create = async (unlisted: boolean) => {
     audio.unlock();
     setBusy(unlisted ? "friends" : "create");
     try {
-      const { id, code } = await createRoom(6, unlisted);
+      // 4 seats by default: rooms fill with people instead of bots (the host can change it)
+      const { id, code } = await createRoom(4, unlisted);
       go(`/r/${id}${code ? `?code=${codeToText(code).replace("-", "")}` : ""}`);
     } catch (e: any) {
       toast(String(e?.message ?? e).replace(/\(.*\)$/, "").slice(0, 140));
@@ -137,12 +167,18 @@ export function Home() {
                 <small>you can only host one room at a time</small>
               </button>
             ) : (
-              <button className="btn primary huge" onClick={() => guard(null, () => requireWallet(() => create(false)))} disabled={!!busy}>
-                {busy === "create" ? "OPENING A ROOM…" : "CREATE A ROOM"}
-                <small>you're the host · pick your seats · bots fill the rest</small>
+              <button className="btn primary huge" onClick={() => guard(null, () => requireWallet(playNow))} disabled={!!busy}>
+                {busy === "create" ? "OPENING A ROOM…" : "PLAY NOW"}
+                <small>{openRooms.length ? "joins the busiest open room" : "opens a room · bots fill the empty seats"}</small>
               </button>
             )}
             <div className="gate-alt">
+              <button className="btn gold-outline" onClick={() => guard(null, () => requireRealWallet(playDaily))} disabled={!!busy}>
+                {busy === "daily" ? "OPENING TODAY'S NIGHT…" : "DAILY CHALLENGE"}
+              </button>
+              <button className="btn" onClick={() => guard(null, () => requireWallet(() => create(false)))} disabled={!!busy}>
+                CREATE A ROOM
+              </button>
               <button className="btn" onClick={() => guard(null, () => requireWallet(() => create(true)))} disabled={!!busy}>
                 {busy === "friends" ? "OPENING…" : "PRIVATE ROOM FOR FRIENDS"}
               </button>

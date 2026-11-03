@@ -24,6 +24,7 @@ pub fn bot_skill(room: &Room) -> Skill {
 /// which runs well under its 1.4M limit, failed and stopped.
 pub fn bot_think(w: &mut World, room: &Room, seat: usize, tick: u32, may_pick: &mut bool) {
     let sk = bot_skill(room);
+    let style = bot_style(room, seat);
     let zone = (room.zone_x, room.zone_y, room.zone_r);
     let next = (room.next_x, room.next_y, room.next_r);
     let p = w.players[seat];
@@ -51,7 +52,13 @@ pub fn bot_think(w: &mut World, room: &Room, seat: usize, tick: u32, may_pick: &
         let j = rng_range(w, -jitter, jitter);
         aim = (ang as i32 + j) as u32 & 0xffff;
         let d = isqrt(dist2(p.x, p.y, t.x, t.y) as u64) as i32;
-        if tick >= b.react_at && d < sk.range && (tick / 6) % 4 < sk.fire {
+        // stalkers hold fire until they're close; rushers open up from further out
+        let range = match style {
+            STYLE_STALKER => sk.range * 3 / 4,
+            STYLE_RUSHER => sk.range * 5 / 4,
+            _ => sk.range,
+        };
+        if tick >= b.react_at && d < range && (tick / 6) % 4 < sk.fire {
             buttons |= 1;
         }
         if tick % 25 == (seat as u32 * 3) % 25 {
@@ -60,10 +67,11 @@ pub fn bot_think(w: &mut World, room: &Room, seat: usize, tick: u32, may_pick: &
         let side = ang.wrapping_add(if b.strafe > 0 { 16384 } else { 49152 });
         dx = cos(side) * sk.strafe / 1024;
         dy = sin(side) * sk.strafe / 1024;
-        if d > 7 * UNIT {
-            dx += cos(ang) * 90 / 1024;
-            dy += sin(ang) * 90 / 1024;
-        } else if d < 3 * UNIT {
+        if d > 7 * UNIT || (style == STYLE_RUSHER && d > 2 * UNIT) {
+            let push = if style == STYLE_RUSHER { 120 } else { 90 };
+            dx += cos(ang) * push / 1024;
+            dy += sin(ang) * push / 1024;
+        } else if d < 3 * UNIT && style != STYLE_RUSHER {
             dx -= cos(ang) * 90 / 1024;
             dy -= sin(ang) * 90 / 1024;
         }
@@ -71,9 +79,17 @@ pub fn bot_think(w: &mut World, room: &Room, seat: usize, tick: u32, may_pick: &
         if p.mag < WEAPONS[p.weapon as usize].mag / 2 && p.reload == 0 {
             buttons |= 2;
         }
-        let heard = b.ping_tick != 0 && tick.saturating_sub(b.ping_tick) < 40;
+        // stalkers remember a sound for longer and follow it
+        let memory = if style == STYLE_STALKER { 100 } else { 40 };
+        let heard = b.ping_tick != 0 && tick.saturating_sub(b.ping_tick) < memory;
         let outside = dist2(p.x, p.y, zone.0, zone.1) > ((zone.2 as i64) * 9 / 10).pow(2);
-        let pick_new = b.has_wp == 0 || b.stuck > 12 || dist2(p.x, p.y, b.wx, b.wy) < (UNIT as i64 * 3 / 4).pow(2);
+        let arrived = b.has_wp >= 1 && dist2(p.x, p.y, b.wx, b.wy) < (UNIT as i64 * 3 / 4).pow(2);
+        // campers hold a spot for a while once they reach it (has_wp counts up while holding)
+        let holding = style == STYLE_CAMPER && arrived && b.has_wp < 1 + CAMP_TICKS;
+        if holding {
+            b.has_wp += 1;
+        }
+        let pick_new = !holding && (b.has_wp == 0 || b.stuck > 12 || arrived);
         if outside {
             b.wx = zone.0;
             b.wy = zone.1;
@@ -111,10 +127,16 @@ pub fn bot_think(w: &mut World, room: &Room, seat: usize, tick: u32, may_pick: &
         let ang = atan2(b.wy - p.y, b.wx - p.x);
         dx = cos(ang) * 110 / 1024;
         dy = sin(ang) * 110 / 1024;
-        if b.has_wp == 0 {
-            // still waiting for its turn to pick a first waypoint: stand still
+        if b.has_wp == 0 || holding {
+            // waiting for its turn to pick a first waypoint, or camping: stand still
             dx = 0;
             dy = 0;
+        }
+        match style {
+            STYLE_CAMPER if holding => buttons |= BTN_CROUCH,
+            STYLE_STALKER if heard => buttons |= BTN_CROUCH, // creep up on it, silently
+            STYLE_RUSHER if !outside => buttons |= BTN_SPRINT,
+            _ => {}
         }
         b.sweep += if (tick / 30) % 2 == 0 { 500 } else { -500 };
         b.sweep = b.sweep.clamp(-9000, 9000);

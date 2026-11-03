@@ -44,8 +44,8 @@ pub mod blackout {
 
     // ---- Solana: admin
 
-    pub fn init_board(ctx: Context<InitBoard>) -> Result<()> {
-        instructions::admin::handle_init_board(ctx)
+    pub fn init_board(ctx: Context<InitBoard>, daily_prefund: u64) -> Result<()> {
+        instructions::admin::handle_init_board(ctx, daily_prefund)
     }
 
     pub fn create_room(ctx: Context<CreateRoom>, room_id: u64, stake: u64, private_code: u32, prefund: u64) -> Result<()> {
@@ -133,6 +133,20 @@ pub mod blackout {
 
     pub fn kick<'info>(ctx: Context<'info, RoomAccount<'info>>, seat: u8, new_code: u32) -> Result<()> {
         instructions::lobby::handle_kick(ctx, seat, new_code)
+    }
+
+    // ---- The daily challenge
+
+    pub fn roll_daily(ctx: Context<RollDaily>, client_seed: u8) -> Result<()> {
+        instructions::daily::handle_roll_daily(ctx, client_seed)
+    }
+
+    pub fn on_daily_seed(ctx: Context<OnDailySeed>, randomness: [u8; 32]) -> Result<()> {
+        instructions::daily::handle_on_daily_seed(ctx, randomness)
+    }
+
+    pub fn start_daily<'info>(ctx: Context<'info, StartDaily<'info>>) -> Result<()> {
+        instructions::daily::handle_start_daily(ctx)
     }
 
     // ---- Rollup: the night

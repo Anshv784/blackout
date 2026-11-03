@@ -42,6 +42,10 @@ pub enum BlackoutError {
     NotAdmin,
     #[msg("This ticket can't be refunded yet")]
     TicketLocked,
+    #[msg("Today's daily seed isn't rolled yet")]
+    DailyNotReady,
+    #[msg("This wallet already played today's daily")]
+    DailyPlayed,
     #[msg("Tickets for this room still exist: run scripts/sweep_tickets.ts first")]
     StakesOutstanding,
 }

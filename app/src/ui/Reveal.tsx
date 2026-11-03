@@ -1,3 +1,4 @@
+import { botStyle } from "../chain/layout";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../game/store";
 import type { Session } from "../game/session";
@@ -154,11 +155,23 @@ export function Reveal({ session }: { session: Session }) {
       cancelAnimationFrame(raf);
       setRecording(null);
       const blob = new Blob(chunks, { type: "video/webm" });
+      const name = `blackout-room${room.roomId}-match${room.matchNo}.webm`;
+      const won = mySeat !== null && room.winner === mySeat;
+      const text = `${won ? "Won a night" : "Lost a night"} in BLACKOUT, the battle royale where nobody can see you, not even the chain. Lights on 🔦 @magicblock`;
+      const url = location.origin;
+      const file = new File([blob], name, { type: "video/webm" });
+      // phones: straight into the share sheet with the clip attached
+      if (navigator.canShare?.({ files: [file] })) {
+        navigator.share({ files: [file], text: `${text} ${url}` }).catch(() => {});
+        return;
+      }
+      // desktop: save the clip and open a ready post on X to attach it to
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = `blackout-room${room.roomId}-match${room.matchNo}.webm`;
+      a.download = name;
       a.click();
-      toast("Clip saved — post it on X 🔦", true);
+      window.open(`https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, "_blank", "noopener");
+      toast("Clip saved: drop it into the post that just opened 🔦", true);
     };
     mr.start(250);
     paint();
@@ -418,7 +431,7 @@ export function Reveal({ session }: { session: Session }) {
               <span className="pl">#{room.place[s]}</span>
               <span className="nm">
                 {room.names[s]}
-                {room.isBot[s] ? <em> bot</em> : null}
+                {room.isBot[s] ? <em> bot{botStyle(room.matchNo, s) ? ` · ${botStyle(room.matchNo, s).toLowerCase()}` : ""}</em> : null}
               </span>
               <span className="kl">{room.kills[s]} ☠</span>
             </div>

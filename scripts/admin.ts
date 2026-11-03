@@ -4,11 +4,12 @@
 //   npx tsx scripts/admin.ts room <id> <stakeSOL> <code>
 //   npx tsx scripts/admin.ts close 1 2 3        (get the rooms' SOL back)
 //   npx tsx scripts/admin.ts close-board
+//   npx tsx scripts/admin.ts daily              (create + delegate the daily board)
 // Mainnet: ADMIN_KEY=~/.config/solana/blackout-mainnet.json VITE_CLUSTER=mainnet VITE_BASE_RPC=... VITE_PROGRAM_ID=...
 import { Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import fs from "fs";
 import os from "os";
-import { BlackoutClient, roomPda, worldPda, recPda, viewPda, boardPda } from "../app/src/chain/client.ts";
+import { BlackoutClient, roomPda, worldPda, recPda, viewPda, boardPda, dailyPda, DELEGATION_PROGRAM_ID } from "../app/src/chain/client.ts";
 
 const keyFile = process.env.ADMIN_KEY ?? `${os.homedir()}/.config/solana/blackout-devnet.json`;
 const admin = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(keyFile, "utf8"))));
@@ -60,6 +61,17 @@ if (cmd === "board") {
       }
     }
   }
+} else if (cmd === "daily") {
+  // the daily board is created with the staked board: an older board has to be closed first
+  if (!(await c.base.getAccountInfo(dailyPda()))) {
+    if (await c.base.getAccountInfo(boardPda())) console.log("close old board", await c.sendBase([c.closeBoardIx()]));
+    console.log("boards", await c.initBoard());
+  }
+  const owner = (await c.base.getAccountInfo(dailyPda()))!.owner.toBase58();
+  if (owner !== DELEGATION_PROGRAM_ID.toBase58()) console.log("delegate daily", await c.sendBase([c.delegateDailyIx()]));
+  const tee = await c.teeConn();
+  for (let i = 0; i < 60 && !(await tee.getAccountInfo(dailyPda())); i++) await sleep(500);
+  console.log("daily board on the TEE:", dailyPda().toBase58(), "ready", (await c.fetchDaily())?.ready);
 } else if (cmd === "close-board") {
   console.log("board closed", await c.sendBase([c.closeBoardIx()]));
 } else console.log("usage: board | rooms <ids...> | room <id> <stakeSol> <code> | close <ids...> | close-board");

@@ -3,7 +3,8 @@ import { ComputeBudgetProgram, PublicKey } from "@solana/web3.js";
 import { client } from "./identity";
 import { useStore } from "./store";
 import { ROOM_POOL, STAKED_ROOMS } from "../config";
-import { ST_LOBBY, ST_ENDED, ST_REVEALED, ST_LIVE, ST_COUNTDOWN, READY_ALL, NO_SEAT, type Room } from "../chain/layout";
+import { ST_LOBBY, ST_ENDED, ST_REVEALED, ST_LIVE, ST_COUNTDOWN, READY_ALL, NO_SEAT, type Room, type Daily } from "../chain/layout";
+import { todayUtc } from "../chain/client";
 
 const EMPTY = "11111111111111111111111111111111";
 
@@ -52,7 +53,7 @@ export function sweepRooms(rooms: Record<number, Room | null>, slot: number) {
       nudged.set(id, now);
       const w = r.winner;
       const payout = w !== NO_SEAT && r.isBot[w] === 0 ? r.payout[w] : null;
-      client.sendEr([client.finishIx(BigInt(id), payout)], { confirm: false }).catch(() => {});
+      client.sendEr(client.withBudget(client.finishIx(BigInt(id), payout, r.daily)), { confirm: false }).catch(() => {});
     } else if (r.status === ST_REVEALED && liveHumansAt(r, slot) === 0) {
       // nobody is watching the replay: reset after it has looked abandoned for a while
       const since = abandonedSince.get(id) ?? now;
@@ -60,7 +61,7 @@ export function sweepRooms(rooms: Record<number, Room | null>, slot: number) {
       if (now - since > 20000) {
         nudged.set(id, now);
         abandonedSince.delete(id);
-        client.sendEr([client.resetIx(BigInt(id))], { confirm: false }).catch(() => {});
+        client.sendEr(client.withBudget(client.resetIx(BigInt(id))), { confirm: false }).catch(() => {});
       }
     } else if ((r.status === ST_LIVE || r.status === ST_COUNTDOWN) && liveHumansAt(r, slot) === 0) {
       // a night nobody is in any more (its ticker died): one budgeted tick lets it end itself
@@ -94,6 +95,24 @@ export function myRoom(rooms: (readonly [number, Room | null])[]): number | null
   const hit = rooms.find(([, r]) => r && r.players.some((p, i) => r.isBot[i] === 0 && p.toBase58() === me));
   return hit ? hit[0] : null;
 }
+
+/** Today's daily board, rolling today's sealed seed first if nobody has yet. */
+export async function ensureDaily(): Promise<Daily> {
+  let d = await client.fetchDaily();
+  if (!d) throw new Error("The daily challenge isn't open yet");
+  if (d.day === todayUtc()) return d;
+  // anyone can roll the day's seed; if someone else already is, this one just fails
+  await client.sendEr([ComputeBudgetProgram.setComputeUnitLimit({ units: 600_000 }), client.rollDailyIx()]).catch(() => {});
+  for (let i = 0; i < 30; i++) {
+    await new Promise((r) => setTimeout(r, 1000));
+    d = await client.fetchDaily();
+    if (d && d.day === todayUtc()) return d;
+  }
+  throw new Error("Today's seed is still on its way from the VRF oracle: try again in a moment");
+}
+
+/** Has this wallet already played today's daily? (Best effort: the program has the final say.) */
+export const playedToday = (d: Daily, wallet: string) => d.entries.some((e) => e.key.toBase58() === wallet);
 
 export async function createRoom(maxPlayers: number, unlisted: boolean): Promise<{ id: number; code: number }> {
   const rooms = await Promise.all(ROOM_POOL.map(async (id) => [id, await client.fetchRoom(id).catch(() => null)] as const));
