@@ -9,7 +9,8 @@ crate-type = ["cdylib", "lib"]
 name = "blackout"
 
 [features]
-default = []
+default = ["custom-panic", "no-log-ix-name"]
+mainnet = []
 cpi = ["no-entrypoint"]
 no-entrypoint = []
 no-idl = []
@@ -20,7 +21,7 @@ custom-heap = []
 custom-panic = []
 
 [dependencies]
-anchor-lang = { version = "1.0.2", features = ["init-if-needed"] }
+anchor-lang = "1.0.2"
 ephemeral-rollups-sdk = { version = "0.17.3", features = ["anchor", "access-control", "crank", "vrf"] }
 bytemuck = { version = "1.16", features = ["derive", "min_const_generics"] }
 

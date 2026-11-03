@@ -1,64 +1,70 @@
-# BLACKOUT · Project audit
+# BLACKOUT · Program audit
 
-A short, plain audit of the program, the client and the deployment, done on 2026-10-11 against `main`.
-It lists what was checked, what passed, and what is still a known risk. Nothing here is hidden from judges.
+Done 2026-11-03 before the first mainnet deploy: two passes over the program, the app and the scripts.
+This is a self-review backed by on-chain tests, not a professional audit. Keep stakes small.
 
-## 1. Checks that were run
+## Results
 
-| Check | Command | Result |
+| Check | Result |
+|---|---|
+| `scripts/e2e_money.ts`: every money rule and attack, against a deployed program (devnet `CkSb4kkmhzr8n9awdmrvqhuoWka6nZUXXb8RXnrFBAKU`), incl. a full 8-seat staked night | **29 of 29 pass** |
+| `cargo test` (incl. the byte-exact simulation fingerprint over 48 nights) | 13 passed |
+| `scripts/mirror.ts` (Rust vs browser movement) | 2,000 steps identical |
+| Crank alone, 7 bots, no client ticks | went live and kept ticking in 2 of 2 rooms (failed at tick 59 before the fix) |
+| Rollup vs Solana clock | 0-1 s apart |
+| `npx tsc --noEmit`, `vite build` (app) | clean |
+
+## Fixed
+
+| Severity | Finding | Fix |
 |---|---|---|
-| Program unit tests | `cargo test` (programs/blackout) | ✅ 10 passed, 0 failed |
-| Program build warnings | `cargo build` | ✅ 0 warnings |
-| Client type check | `npx tsc --noEmit` (app) | ✅ clean |
-| Rust ↔ TypeScript movement mirror | `npx tsx scripts/mirror.ts` | ✅ 2,000 steps identical |
-| Secrets in git | search for keypairs, `.env`, raw secret-key arrays | ✅ none tracked (`*keypair*.json`, `.env*` are gitignored) |
-| Browser console | `scripts/ui/console_audit.ts` | ✅ no app errors (only headless GPU notices) |
-| Dependency advisories | `npm audit --omit=dev` (app) | ⚠️ 10 (2 high, 6 moderate, 2 low), all in third-party libraries, see §4 |
-| Movement under a slow network | headless test: walk a square with 200 ms latency, 1 Mbps | ✅ 0 position snaps (was 2 before the latest fix) |
+| Critical | **The host could steal the pot.** `end_now` during the countdown ended the night with everyone tied, and ties go to the lowest seat. | `end_now` refused at staked tables. |
+| Critical | **The pot could be inflated and the bank drained.** A ticket stayed valid after `leave`, so join/leave repeated added its stake to the pot each time. | Settle pays exactly the tickets it uses up. The shown pot is recounted from seats. |
+| High | **Stakes could be stuck forever** after a lost seat race, a vanished host, a failed settle or a dead rollup. | `close_ticket`: anyone can send it, and the money only goes to the ticket's wallet. `scripts/sweep_tickets.ts` refunds everything refundable. |
+| High | **Anyone could create a room on their own validator** and write made-up results to the global leaderboard. | Room creation and delegation are admin-only, and only to the TEE validator. |
+| High | **Predictable seed at staked tables** after a VRF timeout. | Staked rooms never self-seed. The start is called off and seats and tickets stand. |
+| High | **Nights with bots froze at tick 59.** Every bot searched for its first waypoint on the first live tick, which cost 400k-600k compute units. The crank failed there and stopped. | One waypoint search per tick. Bots fight the same (180 vs 183 gun kills over 30 test nights). |
+| Medium | **1 lamport sent to a bank blocked `close_room` forever**, because outstanding stakes were read from the balance. | The bank counts outstanding stakes and open tickets. |
+| Medium | **Closing a room stranded players' ticket rent**, because closing a ticket needs its bank. | A room can only close once every ticket is closed. |
+| Medium | **The app's refund lookup never found anything** (wrong ticket size). | Fixed and covered by the test suite. |
+| Medium | `finish` sat right at the default 200k compute limit and sometimes failed. | The app gives `finish` and `reset` 800k (rollup transactions are free). |
+| Medium | A vanished host blocked a staked start in the app (the program allowed it). The host leaving unseated every staker. | Any seated staker can start. The others stay seated. |
+| Medium | `join` took the payout wallet from its arguments, not the ticket. | Staked seats are paid to the ticket's wallet. |
+| Medium | Room, bank and leaderboard rent could never be recovered. Every free night sent a commit to Solana. | `undelegate_room`, `close_room`, `close_board` (admin). Free nights never touch Solana. |
+| Low | Dead code and stale comments (`set_length`, `link_wallet`, `board_remove`, `fix_host`, unused constants), input accepted outside a match. | Removed. |
 
-## 2. What the program protects, and how
+Checked and found safe: a loser calling `reset` right after `finish` can't cancel the payout. Settle reads the room as it was committed at `finish` (tested on-chain). The VRF callback only accepts the program's scoped VRF identity. The undelegation callback only accepts the delegation program's signed buffer.
 
-| Risk | Protection | Where |
-|---|---|---|
-| Reading other players' positions | World has a permission with **no members**; each View has exactly **one** member (that seat's key). The TEE refuses other reads. | `setup_core`, `join`, `set_sealed` in `lib.rs` |
-| Paying yourself the pot | `settle` only accepts a call signed by the Magic Action's escrow PDA, which only the delegation program can sign. Each match can be paid once (`bank.paid_match`). | `settle` in `lib.rs` |
-| Paying the wrong winner | `finish` requires the `winner` account to equal the winner's recorded payout address. | `finish` in `lib.rs` |
-| Sending inputs for someone else | `input` looks up the seat from the signer's key; no seat → rejected. | `input` in `lib.rs` |
-| Speeding up the game by spamming `tick` | `tick` is slot-gated (`MIN_TICK_SLOTS`), so extra calls are ignored. | `tick` in `lib.rs` |
-| Rigging the map | Spawns, loot and zones come from a MagicBlock VRF seed; the VERIFY tab re-derives the night from it after lights-on. | `start_match`, `on_seed`, `app/src/game/verify.ts` |
-| Joining a staked table without paying | `join` checks a ticket account owned by the program, for this room, this match and this player. | `join` in `lib.rs` |
-| Host abuse | Only the host can change seats, bot level, mode, kick, or end the night early. | `set_*`, `kick`, `end_now` |
-| Rooms stuck forever | A night with no living human sending input for 200 ticks (10 s) ends itself. | `sim.rs` end-of-match check |
+## House fee
 
-## 3. Known risks and limits (honest list)
+Settle sends 5% of each paid pot (`FEE_BPS`) to the fixed `TREASURY` wallet and the rest to the winner. Both values are compiled into the program, so changing them takes an upgrade. Refunded tickets pay nothing. If the treasury is too empty to stay rent-exempt, the fee is skipped, so it can't block a payout. The room page shows the fee before anyone stakes.
 
-| # | Severity | Finding | Notes / suggestion |
-|---|---|---|---|
-| 1 | Design | **Privacy depends on the TEE.** The program cannot prove privacy by itself; it relies on MagicBlock's Intel TDX validator enforcing permissions. | Stated in the README limits. Inherent to the approach. |
-| 2 | Medium | **`input` doesn't reject older inputs.** An input transaction that arrives late can overwrite a newer one for one tick. | Add `require!(seq > p.in_seq)` in `input`. Low impact in practice (inputs are sent ~20/s). |
-| 3 | Medium | **VRF fallback seed is weaker.** If the oracle doesn't answer in time, a seated player can seed from rollup state (`fallback_seed`). It is not VRF-grade. | The room is flagged and the UI says so. Could be limited to non-staked rooms. |
-| 4 | Medium | **Client-chosen aim.** The program trusts the aim angle each client sends, so a modified client could aim perfectly at players it can already see (an aimbot). It still cannot see hidden players. | Inherent to client-side aiming; vision limits the damage. |
-| 5 | Low | **Session key stored in browser localStorage, unencrypted.** It holds 0 SOL and can only play, and the wallet is separate. | Acceptable for a guest key. |
-| 6 | Fixed | **Debug handles on `window`** (`__session`, `__controls`, `__store`, `__gl`, `__scene`) were exposed for testing. | Now only set on the dev server (`import.meta.env.DEV`); absent from the live build. |
-| 7 | Low | **Dependency advisories** (§4) are in libraries pulled in by Solana/MagicBlock packages, not in our code. | Re-check on each dependency upgrade; don't run `npm audit fix --force` blindly (breaking changes). |
-| 8 | Info | **Leaderboard data on devnet** comes from staked nights played by six devnet test wallets to exercise ticket → play → Magic Action settle. Every row was written on-chain by `settle`. | Disclosed in the judge docs. |
-| 9 | Info | **Devnet only, fixed room pool** (13 pre-created rooms; room 5 is the staked table). | Mainnet would need real stakes review and more rooms. |
-| 10 | Info | **First download is large** (main bundle ~1.7 MB, 3D chunk ~0.97 MB, soldier model 1.7 MB). Cached after the first visit. | Further code-splitting would help phones on slow data. |
+## How refunds stay safe
 
-## 4. Dependency advisories (from `npm audit --omit=dev`)
+A ticket can't be refunded and also ride in a match:
 
-| Package | Severity | Pulled in by | Exposure in BLACKOUT |
-|---|---|---|---|
-| `toml` | high | build tooling under Solana/Anchor packages | Not used on user input at runtime |
-| `elliptic` | high | `@phala/dcap-qvl` (MagicBlock TEE attestation library) | Not used by our code to sign anything; our keys use `tweetnacl` / web3.js ed25519 |
-| `stream-json`, `uuid` | moderate | transitive | Not fed untrusted input by our code |
-| 2 others | low | transitive | — |
+- `finish` derives the seated tickets itself, so a loser can't leave theirs out of settle and reclaim it.
+- Settle marks those tickets used. An unused ticket at or below `bank.paid_match` was therefore never in that match.
+- A match only starts with 20+ minutes left on every seated ticket, and tickets last an hour.
 
-## 5. How to re-run this audit
+## Known risks that remain
+
+| Severity | Risk |
+|---|---|
+| Design | **MagicBlock is trusted.** The TEE validator runs the game and commits the result, so a compromised validator could name any winner. Privacy also depends on the TEE. |
+| High (ops) | **One hot key does everything.** `blackout-mainnet.json` is the upgrade authority, the admin and the fee wallet, and it's an unencrypted file. Whoever holds it can upgrade the program and take every stake. Back it up offline, and move it to a hardware wallet or multisig once the game has users. |
+| Medium | **Collusion.** Two wallets at one table can team up; a program can't detect this. |
+| Medium | **Aimbots.** Clients choose their aim, so a modified client can aim perfectly at players it can already see. |
+| Medium | **Paid RPC key in the browser.** `VITE_BASE_RPC` ships in the app bundle. Use a key restricted to the site's domain. |
+| Low | 10 npm advisories (2 high), all in third-party Solana/MagicBlock dependencies, none fed untrusted input by our code. |
+| Low | Private room codes are readable in the public Room account, so "private" means unlisted. |
+| Low | A settle that fails leaves the winner unpaid. Everyone gets refunds instead; nobody loses a stake. |
+| Legal | Real-money play may be illegal where players or the operator are. India's Online Gaming Act 2025 bans online money games, and the house fee makes the operator part of it. Get legal advice before enabling stakes. |
+
+## Re-running
 
 ```bash
-cd programs/blackout && cargo test && cargo build && cd ../..
-cd app && npx tsc --noEmit && npm audit --omit=dev && cd ..
+cargo test --manifest-path programs/blackout/Cargo.toml
 npx tsx scripts/mirror.ts
-npx tsx scripts/ui/console_audit.ts   # needs `npm run dev` running in app/
+npx tsx scripts/e2e_money.ts <unused room id; it uses 3 ids>
 ```

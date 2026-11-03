@@ -3,9 +3,11 @@ members = ["programs/*"]
 resolver = "2"
 
 [profile.release]
-opt-level = "s"
+# Smallest binary = smallest rent. Overflow panics stay off: money maths is checked by hand,
+# and a stray panic mid-tick would freeze a live room.
+opt-level = "z"
 strip = true
-overflow-checks = true
+overflow-checks = false
 lto = "fat"
 codegen-units = 1
 

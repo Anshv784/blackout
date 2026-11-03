@@ -206,8 +206,12 @@ First-time visitors get a 50-second trailer, played live in the real Yard with t
 
 ```
 programs/blackout/       Anchor program
-  src/lib.rs             28 instructions: rooms, lobby, match, settle (Magic Action)
-  src/sim.rs             deterministic integer simulation + vision + bots + recorder, with tests
+  src/lib.rs             the list of instructions (thin: each calls its handler)
+  src/config.rs          addresses, fee, timings
+  src/state.rs           account layouts
+  src/error.rs           error codes
+  src/instructions/      admin, stake (money), setup, lobby, night, room_account
+  src/sim/               deterministic simulation: rules, math, seed, step, sight, bots, recorder, tests
   src/state.rs           Room, World, View, Recorder, Board layouts
   src/gen.rs             map and trig tables (generated)
 app/                     Vite + React + react-three-fiber client

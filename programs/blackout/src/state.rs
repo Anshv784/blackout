@@ -20,12 +20,11 @@ pub const VIEW_SEED: &[u8] = b"view";
 pub const REC_SEED: &[u8] = b"rec";
 pub const BANK_SEED: &[u8] = b"bank";
 pub const TICKET_SEED: &[u8] = b"ticket";
-/// v2: entries carry the callsign, so a wallet's profile lives on Solana
-pub const BOT_MEDIUM: u32 = 0;
-pub const BOT_EASY: u32 = 1;
-pub const BOT_HARD: u32 = 2;
 pub const BOARD_SEED: &[u8] = b"board3"; // staked nights only
 pub const BOARD_SLOTS: usize = 64;
+
+pub const BOT_EASY: u32 = 1;
+pub const BOT_HARD: u32 = 2;
 
 // Room status
 pub const ST_LOBBY: u32 = 0;
@@ -78,10 +77,11 @@ pub struct Room {
     pub zone_phase: u32,
     pub private_code: u32, // 0 = public room
     pub seed_revealed: u32,
-    /// room config set by its creator: bits 0-7 = seats (2..8, 0 = 8), bit 8 = unlisted, bits 9-10 = bot level, bits 11-12 = match length
+    /// room config set by its creator: bits 0-7 = seats (2..8, 0 = 8), bit 8 = unlisted, bits 9-10 = bot level, bits 13-15 = night modifier, bit 16 = duos
     pub cfg: u32,
     pub ready_mask: u32,
     pub last_seen: [u32; MAXP], // ER slot (truncated) of each seat's last lobby heartbeat
+    pub stake_deadline: i64,    // earliest ticket expiry among those seated (staked rooms)
 }
 
 impl Room {
@@ -116,15 +116,33 @@ impl Room {
         self.n_players = self.n_players.saturating_sub(1);
     }
 
-    /// The host is whoever created the room. No hand-offs: if they're gone, the room is closed.
-    pub fn fix_host(&mut self, _slot: u64) {}
-
-    /// cfg bits 11-12: legacy match length, ignored (every night is 5:00)
-    pub fn match_ticks(&self) -> u32 {
-        6000 // one length for every night: 5:00 (cfg bits 11-12 are ignored)
+    /// Unseat every human and drop the host. Bots are handled separately by `reset`.
+    pub fn clear_humans(&mut self) {
+        for i in 0..MAXP {
+            if self.players[i] != Pubkey::default() && self.is_bot[i] == 0 {
+                self.clear_seat(i);
+            }
+        }
+        self.host = Pubkey::default();
+        self.sync_pot();
     }
 
-    /// Recorder stride: 10 Hz when it fits, slower for long nights (the buffer is fixed).
+    /// The pot on show: one stake per seated human, recounted rather than added up,
+    /// so sitting down and standing up repeatedly can't inflate it.
+    pub fn sync_pot(&mut self) {
+        let seated = (0..MAXP).filter(|&i| self.players[i] != Pubkey::default() && self.is_bot[i] == 0).count();
+        self.pot = self.stake.saturating_mul(seated as u64);
+        if seated == 0 {
+            self.stake_deadline = 0;
+        }
+    }
+
+    /// Every night is 5:00.
+    pub fn match_ticks(&self) -> u32 {
+        6000
+    }
+
+    /// Recorder stride: as often as the fixed buffer allows for a full night.
     pub fn rec_every(&self) -> u32 {
         ((self.match_ticks() + 40) / REC_FRAMES as u32 + 1).max(2)
     }
@@ -177,6 +195,12 @@ pub struct Bank {
     pub room_id: u64,
     pub paid_match: u32,
     pub bump: u8,
+    /// Stakes held for tickets not yet used or refunded. Counted, not read from the balance,
+    /// because anyone can send SOL to any account.
+    pub outstanding: u64,
+    /// Ticket accounts that still exist. A room can only close once all are gone, or the
+    /// used ones could never hand their rent back (closing a ticket needs its bank).
+    pub tickets: u32,
 }
 
 /// Base-layer proof that a seat paid the stake for a given match.
@@ -187,7 +211,14 @@ pub struct Ticket {
     pub player: Pubkey,
     pub payout: Pubkey,
     pub amount: u64,
+    /// After this the stake can be refunded even if the room never settled.
+    pub expires_at: i64,
+    /// Set by settle: this stake went into a pot. Must stay the last field (see `use_ticket`).
+    pub consumed: bool,
 }
+
+pub const BANK_LEN: usize = 8 + 8 + 4 + 1 + 8 + 4;
+pub const TICKET_LEN: usize = 8 + 8 + 4 + 32 + 32 + 8 + 8 + 1;
 
 // ---------------------------------------------------------------------------
 // Ephemeral accounts (live only inside the Private ER). Raw bytemuck layouts,
