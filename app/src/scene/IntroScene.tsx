@@ -9,6 +9,7 @@ import * as THREE from "three";
 import { Arena } from "./Arena";
 import { Meadow } from "./Meadow";
 import { setActiveMap } from "../game/maps";
+import { clipAt, storyTime, type Clip } from "../game/trailer";
 import { Avatar, SEAT_COLORS } from "./Avatar";
 import { TORCH_X } from "./Gun";
 import { stillMotion, SOLDIER_URL, type Motion } from "./Soldier";
@@ -18,7 +19,7 @@ export { INTRO_LENGTH };
 
 // ------------------------------------------------------------------ script
 //
-// THE LAST LIGHT, in two nights.
+// One night across both maps, choreographed once and then cut like a launch trailer (game/trailer.ts).
 // Act I, the Yard: 03:12 the grid fails. DUSK wakes among the containers and learns the one rule
 // hiding from NYX's searching torch; WRAITH forgets it and dies. The Warden watches and tells no
 // one. Act II, the Meadow: no walls, only grass. VEX kills GLOOM with a crossbow nobody hears.
@@ -513,8 +514,10 @@ function Director({ t, onTime }: { t: React.MutableRefObject<number>; onTime: (s
   const start = useRef<number | null>(null);
   const cues = useRef(new Set<string>());
   const lastStep = useRef(-1);
-  const cue = (key: string, at: number, f: () => void) => {
-    if (t.current >= at && !cues.current.has(key)) {
+  const lastClip = useRef<Clip | null>(null);
+  // a cue only fires if its moment is actually shown (the cut skips most of the night)
+  const cue = (key: string, at: number, f: () => void, clockNow = t.current) => {
+    if (clockNow >= at && clockNow < at + 0.6 && !cues.current.has(key)) {
       cues.current.add(key);
       f();
     }
@@ -522,7 +525,14 @@ function Director({ t, onTime }: { t: React.MutableRefObject<number>; onTime: (s
   useFrame(({ clock }) => {
     if (start.current === null) start.current = clock.elapsedTime;
     const frozen = (globalThis as any).__introT;
-    t.current = typeof frozen === "number" ? frozen : clock.elapsedTime - start.current;
+    const adT = typeof frozen === "number" ? frozen : clock.elapsedTime - start.current;
+    t.current = storyTime(adT);
+    const clip = clipAt(adT);
+    if (clip !== lastClip.current) {
+      lastClip.current = clip;
+      if (clip.heart !== undefined) audio.setHeartbeat(clip.heart);
+      if (clip.zone !== undefined) audio.setZoneDanger(clip.zone);
+    }
     const now = t.current;
     // camera: hard cuts, each with a small move
     const s = CAMS.find((c) => now < c.to) ?? CAMS[CAMS.length - 1];
@@ -546,12 +556,12 @@ function Director({ t, onTime }: { t: React.MutableRefObject<number>; onTime: (s
     }
     // the city's lights die early; lightning when the Warden wakes; light floods in for the title
     // the city's lights die at 03:12 and only come back for the title
-    (globalThis as any).__boLightsOut = now > 3.1 && now < TITLE_AT;
+    (globalThis as any).__boLightsOut = now > 3.1 && adT < TITLE_AT;
     const strikes = [2.9, 3.05, 29.6, MAP_SWITCH - 0.25, MAP_SWITCH - 0.08, 51.7];
     let li = 0;
     for (const st of strikes) if (now >= st && now < st + 0.16) li = 5 * (1 - (now - st) / 0.16);
     if (lightning.current) lightning.current.intensity = li;
-    const on = now > TITLE_AT ? Math.min(1, (now - TITLE_AT) / 0.6) : 0;
+    const on = adT > TITLE_AT ? Math.min(1, (adT - TITLE_AT) / 0.6) : 0;
     if (amb.current) amb.current.intensity = 0.04 + on * 0.55;
     // NYX's boots on the far side of the container, passing left to right of DUSK's ear
     for (const [w0, w1, cx] of [[13.4, 20.6, 15], [55.2, 58.6, 30]]) {
@@ -610,11 +620,15 @@ function Director({ t, onTime }: { t: React.MutableRefObject<number>; onTime: (s
     cue("fall3", 60.75, () => audio.bodyFall(-0.2, 1));
     cue("walksout", 62.0, () => audio.horror("high", 0.75));
     cue("wolves2", 63.5, () => audio.howl(0.7, 0.4));
+    // the ad's own beats: a hit on each feature card, the lights come on for the end card
+    for (const at of [4.6, 7.6, 12.1, 14.6, 16.6, 18.9, 21.7, 23.5, 28.6]) cue(`hit${at}`, at, () => audio.boom(), adT);
     cue("lights", TITLE_AT, () => {
+      audio.setHeartbeat(0);
+      audio.setZoneDanger(0);
       audio.lightsOn();
       audio.boom();
-    });
-    onTime(now);
+    }, adT);
+    onTime(adT);
   });
   return (
     <>

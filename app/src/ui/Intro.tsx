@@ -2,40 +2,28 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { audio } from "../game/audio";
 import { fullscreenOnTouch } from "./Fullscreen";
 import { INTRO_LENGTH } from "../game/colors";
+import { CLIPS } from "../game/trailer";
 
 const loadScene = () => import("../scene/IntroScene");
 const IntroScene = lazy(() => loadScene().then((m) => ({ default: m.IntroScene })));
 
 // the story, told underneath the picture: narration (bottom), a few cards (centre), name tags
-type Line = { at: number; to: number; text: string; kind: "say" | "card" | "name"; sub?: string };
+type Line = { at: number; to: number; text: string; kind: "say" | "card" | "name" | "tag"; sub?: string; n?: string };
 const LINES: Line[] = [
-  // ---- Act I · the Yard
-  { at: 0.6, to: 2.9, kind: "card", text: "03:12", sub: "THE GRID FAILS" },
-  { at: 3.4, to: 5.8, kind: "say", text: "Every light in the district dies at once." },
-  { at: 6.6, to: 9.4, kind: "say", text: "Eight strangers wake inside the Yard." },
-  { at: 7.2, to: 12.6, kind: "name", text: "DUSK", sub: "woke up first" },
-  { at: 9.8, to: 12.8, kind: "say", text: "No map. No allies. One way out." },
-  { at: 13.6, to: 17.0, kind: "say", text: "A torch shows you the way…" },
-  { at: 14.4, to: 19.5, kind: "name", text: "NYX", sub: "hunter · light on" },
-  { at: 17.3, to: 21.6, kind: "say", text: "…and shows everyone else exactly where you are." },
-  { at: 22.4, to: 25.0, kind: "say", text: "WRAITH heard something in the dark." },
-  { at: 22.6, to: 25.0, kind: "name", text: "WRAITH", sub: "kept his light on" },
-  { at: 26.9, to: 28.9, kind: "card", text: "EVERY SHOT", sub: "IS A FLARE" },
-  { at: 29.3, to: 31.2, kind: "say", text: "Above the Yard, the Warden sees every move…" },
-  { at: 31.2, to: 32.8, kind: "card", text: "IT TELLS NO ONE" },
-  // ---- Act II · the Meadow
-  { at: 33.4, to: 36.4, kind: "card", text: "NIGHT TWO", sub: "THE MEADOW" },
-  { at: 37.6, to: 40.8, kind: "say", text: "Two walked out of the Yard. Out here there are no walls. Only grass." },
-  { at: 41.8, to: 44.4, kind: "name", text: "VEX", sub: "crossbow · never makes a sound" },
-  { at: 42.0, to: 44.4, kind: "say", text: "GLOOM thought the dark was empty." },
-  { at: 44.6, to: 46.8, kind: "card", text: "NOT EVERY KILL", sub: "MAKES A SOUND" },
-  { at: 45.6, to: 48.0, kind: "say", text: "Aim where they'll be. Not where they are." },
-  { at: 48.9, to: 51.3, kind: "say", text: "Take what the dark leaves behind." },
-  { at: 51.8, to: 54.8, kind: "say", text: "The Warden draws the last circle round the bridge." },
-  { at: 55.4, to: 58.6, kind: "say", text: "NYX made it out too. He still trusts his light." },
-  { at: 56.0, to: 59.6, kind: "name", text: "NYX", sub: "under the lantern" },
-  { at: 59.8, to: 61.8, kind: "card", text: "STAY DARK", sub: "STAY SILENT" },
-  { at: 62.6, to: 65.6, kind: "card", text: "ONE WALKS OUT" },
+  { at: 0.4, to: 2.4, kind: "card", text: "03:12", sub: "THE GRID FAILS" },
+  { at: 2.7, to: 4.4, kind: "say", text: "Eight players. No lights. One way out." },
+  { at: 4.6, to: 7.4, kind: "tag", n: "01", text: "STAY DARK", sub: "a light shows everyone where you are" },
+  { at: 7.6, to: 9.9, kind: "tag", n: "02", text: "EVERY SHOT IS A FLARE", sub: "fire, and the whole map knows" },
+  { at: 10.2, to: 11.9, kind: "say", text: "The Warden sees everything. It tells no one." },
+  { at: 12.1, to: 14.4, kind: "card", text: "TWO MAPS", sub: "THE YARD · THE MEADOW" },
+  { at: 14.6, to: 16.4, kind: "tag", n: "03", text: "HIDE IN THE GRASS", sub: "crouch and you vanish" },
+  { at: 16.6, to: 18.7, kind: "tag", n: "04", text: "SILENT KILLS", sub: "the crossbow makes no sound, no flash" },
+  { at: 18.9, to: 21.5, kind: "tag", n: "05", text: "AIM EVERY THROW", sub: "frags, smokes, flashbangs" },
+  { at: 21.7, to: 23.3, kind: "tag", n: "06", text: "LOOT THE FALLEN", sub: "guns, armor, grenades" },
+  { at: 23.5, to: 25.5, kind: "tag", n: "07", text: "THE CIRCLE CLOSES", sub: "the Warden picks where it ends" },
+  { at: 26.0, to: 28.4, kind: "say", text: "He still trusts his light." },
+  { at: 28.6, to: 29.9, kind: "card", text: "ONE BOLT", sub: "NO FLASH · NO SOUND" },
+  { at: 30.4, to: 33.6, kind: "card", text: "ONE WALKS OUT" },
 ];
 const TITLE_AT = INTRO_LENGTH;
 
@@ -62,9 +50,11 @@ export function Intro({ onDone }: { onDone: () => void }) {
   };
 
   const live = t >= TITLE_AT ? [] : LINES.filter((x) => t >= x.at && t < x.to);
+  // a hard flash on every cut, like a trailer edit
+  const cutFlash = t < TITLE_AT && CLIPS.some((c) => c.from > 0 && t >= c.from && t < c.from + 0.09);
 
   useEffect(() => {
-    if (started && t >= INTRO_LENGTH + 3) finish();
+    if (started && t >= INTRO_LENGTH + 8) finish();
   }, [t, started]);
 
   if (!started)
@@ -121,6 +111,14 @@ export function Intro({ onDone }: { onDone: () => void }) {
             <b>{l.text}</b>
             {l.sub && <span>{l.sub}</span>}
           </div>
+        ) : l.kind === "tag" ? (
+          <div className="ad-tag" key={l.at}>
+            <i>{l.n}</i>
+            <div>
+              <b>{l.text}</b>
+              {l.sub && <span>{l.sub}</span>}
+            </div>
+          </div>
         ) : l.kind === "name" ? (
           <div className="story-name" key={l.at}>
             <b>{l.text}</b>
@@ -132,15 +130,23 @@ export function Intro({ onDone }: { onDone: () => void }) {
           </p>
         ),
       )}
+      {cutFlash && <div className="cut-flash" />}
       {t >= TITLE_AT && (
-        <div className="intro-title">
+        <div className="intro-title ad-end">
           <h1>BLACKOUT</h1>
-          <p>stay dark. nobody sees you, not even the chain.</p>
-          {t > TITLE_AT + 1.2 && (
+          <p>The battle royale nobody can see. Not even the chain.</p>
+          <div className="ad-facts">
+            <span><b>8</b> players</span>
+            <span><b>2</b> maps</span>
+            <span><b>8</b> guns</span>
+            <span><b>0</b> servers</span>
+          </div>
+          {t > TITLE_AT + 1.0 && (
             <button className="btn primary big" onClick={finish}>
-              ENTER
+              PLAY FREE NOW
             </button>
           )}
+          <small className="ad-small">in your browser · sealed in a MagicBlock TEE · on Solana</small>
         </div>
       )}
       {/* the story is shot wide: on a phone held upright, ask for sideways */}
