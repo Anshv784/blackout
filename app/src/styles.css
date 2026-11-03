@@ -2298,7 +2298,7 @@ button {
 
 /* home as a game menu, one screen on desktop: the way in (left), you (centre), the world (right rail) */
 @media (min-width:981px){
-  .gate{overflow:hidden}
+  .gate:not(.board-page){overflow:hidden}
   .gate-main{height:100%;max-width:1680px;grid-template-columns:minmax(0,1.05fr) minmax(240px,.85fr) minmax(300px,340px);grid-template-rows:1fr;align-items:center;gap:24px;padding:84px 40px 28px}
   .gate-hero{grid-column:1;grid-row:1;min-width:0}
   .gate-hero .kicker{font-size:10px}
