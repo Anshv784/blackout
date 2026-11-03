@@ -1,5 +1,6 @@
 // One live room: subscriptions, input sending, client prediction, interpolation,
 // and the "anyone can push the room forward" duties (tick/seed/finish fallbacks).
+import { setActiveMap } from "./maps";
 import { TOUCH } from "./device";
 import { ComputeBudgetProgram, PublicKey } from "@solana/web3.js";
 import { client } from "./identity";
@@ -88,7 +89,7 @@ export class Session {
   snaps = 0;
   private hudAt = 0;
   /** the move we predicted for each tick, to replay on top of each server state */
-  private hist = new Map<number, [number, number]>();
+  private hist = new Map<number, [number, number, number]>();
   /** predicted stamina word (see sim.ts sprintStep) and whether you're sprinting right now */
   predMoved = 0;
   predSpeed = SPEED;
@@ -98,6 +99,8 @@ export class Session {
   smokes = new Map<string, { x: number; y: number; at: number }>();
   /** crates that were emptied: drawn open on the ground for a while */
   looted: { x: number; y: number; kind: number; at: number }[] = [];
+  /** death crates this night: solid on foot (a jump clears them), mirrored from the program */
+  crates: { x: number; y: number }[] = [];
   /** explosions to draw */
   booms: { x: number; y: number; at: number }[] = [];
   private announcedMod = -1;
@@ -241,6 +244,7 @@ export class Session {
     const prev = this.room;
     if (!prev || r.tick !== prev.tick || r.status !== prev.status) this.lastRoomAt = performance.now();
     this.room = r;
+    setActiveMap(r.map);
     const me = client.publicKey;
     const seat = r.players.findIndex((p, i) => r.isBot[i] === 0 && p.equals(me));
     this.mySeat = seat >= 0 ? seat : null;
@@ -263,7 +267,10 @@ export class Session {
         // a death you were watching: burst where they fell
         const tr = this.tracks.get(e.victim);
         const last = tr?.samples[tr.samples.length - 1];
-        if (tr && last && performance.now() - tr.lastSeen < 800) this.addFx({ kind: "death", x: last.x, y: last.y, sub: e.victim });
+        if (tr && last && performance.now() - tr.lastSeen < 800) {
+          this.addFx({ kind: "death", x: last.x, y: last.y, sub: e.victim });
+          this.crates.push({ x: last.x, y: last.y });
+        }
         if (h === 0 && e.killer !== NO_SEAT) banner("FIRST BLOOD", "kill", `${killer} ✕ ${victim}`);
         if (e.killer === this.mySeat && e.victim !== this.mySeat) {
           const now = performance.now();
@@ -321,6 +328,7 @@ export class Session {
     }
     if (prev && prev.status !== r.status) {
       if (r.status === ST_STARTING || r.status === ST_COUNTDOWN) {
+        this.crates = [];
         // new match: forget the previous one's view, hits and pings
         if (r.status === ST_STARTING) {
           this.view = null;
@@ -486,7 +494,7 @@ export class Session {
         if (v.status === ST_LIVE)
           for (let t = v.tick + 1; t <= v.tick + lagTicks; t++) {
             const h = this.hist.get(t);
-            if (h) moveBody(base, h[0], h[1]);
+            if (h) moveBody(base, h[0], h[1], h[2] ? [] : this.crates);
           }
         for (const t of this.hist.keys()) if (t <= v.tick) this.hist.delete(t);
         const tx = base.x;
@@ -704,11 +712,12 @@ export class Session {
         const down = v?.me.alive === DOWNED;
         const [speed, sp, word] = moveStep(this.predMoved, this.input.buttons, this.input.dx, this.input.dy, down);
         const [vx, vy] = inputVelocity(this.input.dx, this.input.dy, speed);
-        this.hist.set(this.predTick, [vx, vy]);
+        const jumping = ((word >> 4) & 0xf) !== 0;
+        this.hist.set(this.predTick, [vx, vy, jumping ? 1 : 0]);
         if (this.hist.size > 64) this.hist.delete(this.hist.keys().next().value!);
         const ox = this.pred.x;
         const oy = this.pred.y;
-        moveBody(this.pred, vx, vy);
+        moveBody(this.pred, vx, vy, jumping ? [] : this.crates);
         const m = ox !== this.pred.x || oy !== this.pred.y;
         this.predMoved = (m ? 1 : 0) | (sp && m ? word : word & ~2);
         this.predSpeed = speed;
@@ -897,8 +906,8 @@ export class Session {
     if (seat !== null) await this.closeFromReveal(seat, true);
   }
 
-  async setMode(duos: boolean) {
-    await client.sendEr([client.setModeIx(this.roomId, duos)]);
+  async setMode(duos: boolean, map = this.room?.map ?? 0) {
+    await client.sendEr([client.setModeIx(this.roomId, duos, map)]);
     await this.poll();
   }
 

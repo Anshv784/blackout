@@ -1,6 +1,7 @@
 // Re-derive a match from its revealed VRF seed (mirror of sim::seed_match) and
 // check it against the unsealed World: spawns, loot rolls and the zone plan.
-import { SPAWNS, LOOT_SPOTS, MAP_W } from "./gen";
+import { MAP_W } from "./gen";
+import { activeMap } from "./maps";
 import type { Room, World, Recording } from "../chain/layout";
 
 const MASK64 = (1n << 64n) - 1n;
@@ -40,6 +41,7 @@ export function verifyMatch(room: Room, world: World, rec: Recording, occupied: 
   const rng = new Rng(dv.getUint32(0, true) | 1, dv.getUint32(4, true));
 
   // spawns
+  const SPAWNS = activeMap().spawns;
   const order = SPAWNS.map((_, i) => i);
   for (let i = order.length - 1; i > 0; i--) {
     const j = rng.next() % (i + 1);
@@ -69,6 +71,7 @@ export function verifyMatch(room: Room, world: World, rec: Recording, occupied: 
   // loot
   // the night's modifier comes from the last seed byte (mirror of the program's sim/)
   const nightMod = seed[31] % 7;
+  const LOOT_SPOTS = activeMap().loot;
   const spots = LOOT_SPOTS.map((_, i) => i);
   for (let i = spots.length - 1; i > 0; i--) {
     const j = rng.next() % (i + 1);
@@ -114,8 +117,8 @@ export function verifyMatch(room: Room, world: World, rec: Recording, occupied: 
 /** mirror of the program's sim/ loot_for_roll */
 export function lootForRoll(roll: number, m: number): number {
   const k =
-    roll <= 15 ? 1 : roll <= 27 ? 2 : roll <= 37 ? 3 : roll <= 45 ? 4 : roll <= 57 ? 6 : roll <= 63 ? 7 : roll <= 69 ? 5 : roll <= 77 ? 9 : roll <= 83 ? 10 : roll <= 88 ? 11 : roll <= 92 ? 12 : roll <= 95 ? 13 : 14;
-  if (m === 3 && (k === 3 || k === 4 || k === 6)) return 7;
-  if (m === 5) return ({ 3: 9, 4: 10, 6: 12, 7: 11, 5: 14 } as Record<number, number>)[k] ?? k;
+    roll <= 13 ? 1 : roll <= 24 ? 2 : roll <= 32 ? 3 : roll <= 39 ? 4 : roll <= 49 ? 6 : roll <= 54 ? 7 : roll <= 58 ? 15 : roll <= 62 ? 16 : roll <= 65 ? 17 : roll <= 69 ? 5 : roll <= 77 ? 9 : roll <= 83 ? 10 : roll <= 88 ? 11 : roll <= 92 ? 12 : roll <= 95 ? 13 : 14;
+  if (m === 3 && (k === 3 || k === 4 || k === 6 || k === 16)) return 7;
+  if (m === 5) return ({ 3: 9, 4: 10, 16: 10, 6: 12, 17: 12, 7: 11, 15: 11, 5: 14 } as Record<number, number>)[k] ?? k;
   return k;
 }

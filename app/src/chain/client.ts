@@ -460,8 +460,9 @@ export class BlackoutClient {
     return ix("make_host", { seat }, [r(this.publicKey, true), w(roomPda(roomId))]);
   }
 
-  setModeIx(roomId: bigint, duos: boolean) {
-    return ix("set_mode", { duos }, [r(this.publicKey, true), w(roomPda(roomId))]);
+  /** the night's setup: teams of two or not, and which map */
+  setModeIx(roomId: bigint, duos: boolean, map = 0) {
+    return ix("set_mode", { mode: (duos ? 1 : 0) | (map ? 2 : 0) }, [r(this.publicKey, true), w(roomPda(roomId))]);
   }
 
   /** Host only: end the running night now (the next tick wraps it up normally). */
@@ -518,13 +519,15 @@ export class BlackoutClient {
 
   /** Hot path: hand-encoded, never confirmed. */
   inputIx(roomId: bigint, dx: number, dy: number, aim: number, buttons: number, seq: number) {
-    const data = Buffer.alloc(8 + 1 + 1 + 2 + 1 + 4);
+    const data = Buffer.alloc(8 + 1 + 1 + 2 + 1 + 4 + 1);
     IX_INPUT.copy(data, 0);
     data.writeInt8(Math.max(-127, Math.min(127, Math.round(dx))), 8);
     data.writeInt8(Math.max(-127, Math.min(127, Math.round(dy))), 9);
     data.writeUInt16LE(aim & 0xffff, 10);
     data.writeUInt8(buttons & 0xff, 12);
     data.writeUInt32LE(seq >>> 0, 13);
+    // bits 8-15 of `buttons`: how far a grenade thrown now should fly (0 = the default lob)
+    data.writeUInt8((buttons >>> 8) & 0xff, 17);
     return new TransactionInstruction({
       programId: PROGRAM_ID,
       keys: [r(this.publicKey, true), r(roomPda(roomId)), w(worldPda(roomId))],

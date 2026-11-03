@@ -12,6 +12,7 @@ export const controls = {
   touchCrouch: false,
   touchJump: false,
   fireUntil: 0, // a click always fires for >= 3 server ticks
+  throwTiles: 0, // ground distance from you to the crosshair / cursor, in tiles (aimed throws)
   gadgetHeld: 0, // performance.now() G (or the touch button) went down: aiming the throw; 0 = not held
   gadgetUntil: 0, // released: the throw goes out for a few ticks
   reloadUntil: 0,

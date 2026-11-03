@@ -1,9 +1,12 @@
 // Bit-exact mirror of the movement/collision math in programs/blackout/src/sim/,
 // used for client-side prediction of your own body.
-import { MAP_ROWS, WALL_CHARS, MAP_W, MAP_H, SIN_TABLE } from "./gen";
+import { WALL_CHARS, MAP_W, MAP_H, SIN_TABLE } from "./gen";
+import { activeMap, onMapChange } from "./maps";
 
 export const UNIT = 256;
 export const PLAYER_R = 90;
+/** a death crate's footprint (radius): solid on foot, a jump clears it. Mirror of sim/rules.rs */
+export const BOX_R = 48;
 export const SPEED = 56;
 export const TPS = 20;
 export const COUNTDOWN_TICKS = 60;
@@ -36,9 +39,13 @@ const tdiv = (a: number, b: number) => Math.trunc(a / b);
 
 // rows are 48 wide: past JS's 32-bit bit ops, so keep a byte grid instead of masks
 const GRID = new Uint8Array(MAP_W * MAP_H);
-MAP_ROWS.forEach((row, y) => {
-  for (let x = 0; x < MAP_W; x++) GRID[y * MAP_W + x] = WALL_CHARS.includes(row[x]) ? 1 : 0;
-});
+function buildGrid(rows: string[]) {
+  rows.forEach((row, y) => {
+    for (let x = 0; x < MAP_W; x++) GRID[y * MAP_W + x] = WALL_CHARS.includes(row[x]) ? 1 : 0;
+  });
+}
+buildGrid(activeMap().rows);
+onMapChange((m) => buildGrid(m.rows));
 
 export function isWall(tx: number, ty: number) {
   if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) return true;
@@ -130,21 +137,25 @@ export function moveStep(moved: number, buttons: number, dx: number, dy: number,
   return [speed, sprinting, word];
 }
 
-export function moveBody(p: { x: number; y: number }, vx: number, vy: number) {
+export function moveBody(p: { x: number; y: number }, vx: number, vy: number, boxes: readonly { x: number; y: number }[] = []) {
+  const r2 = (PLAYER_R + BOX_R) ** 2;
+  const d2 = (ax: number, ay: number, b: { x: number; y: number }) => (ax - b.x) ** 2 + (ay - b.y) ** 2;
+  // a crate only blocks a step that goes further into it, so nobody is ever stuck inside one
+  const hits = (nx: number, ny: number) => circleHitsWall(nx, ny, PLAYER_R) || boxes.some((b) => d2(nx, ny, b) < r2 && d2(nx, ny, b) < d2(p.x, p.y, b));
   if (vx !== 0) {
     const nx = p.x + vx;
-    if (!circleHitsWall(nx, p.y, PLAYER_R)) p.x = nx;
+    if (!hits(nx, p.y)) p.x = nx;
     else {
       const hx = p.x + tdiv(vx, 2);
-      if (!circleHitsWall(hx, p.y, PLAYER_R)) p.x = hx;
+      if (!hits(hx, p.y)) p.x = hx;
     }
   }
   if (vy !== 0) {
     const ny = p.y + vy;
-    if (!circleHitsWall(p.x, ny, PLAYER_R)) p.y = ny;
+    if (!hits(p.x, ny)) p.y = ny;
     else {
       const hy = p.y + tdiv(vy, 2);
-      if (!circleHitsWall(p.x, hy, PLAYER_R)) p.y = hy;
+      if (!hits(p.x, hy)) p.y = hy;
     }
   }
 }
@@ -170,4 +181,55 @@ export function sinFx(a: number) {
   const s0 = SIN_TABLE[idx];
   const s1 = SIN_TABLE[idx + 1];
   return s0 + tdiv((s1 - s0) * frac, 256);
+}
+
+/** Aimed throws (mirror of sim/rules.rs + math.rs): the throw byte is tiles x THROW_PER_TILE. */
+export const THROW_PER_TILE = 28;
+export const THROW_TTL = 18;
+export const THROW_MAX_TILES = 9;
+const FLY_STEP = 128;
+
+export function throwSpeed(t: number) {
+  if (t === 0) return 120;
+  const dist = tdiv(Math.min(255, t) * UNIT, THROW_PER_TILE);
+  return Math.max(30, tdiv(dist * 1000, 7270));
+}
+
+/** One tick of a thrown thing, exactly as the program moves it. */
+export function flyStep(b: { x: number; y: number; vx: number; vy: number }) {
+  const n = Math.max(1, tdiv(Math.max(Math.abs(b.vx), Math.abs(b.vy)) + FLY_STEP - 1, FLY_STEP));
+  const sx = b.vx;
+  const sy = b.vy;
+  for (let i = 0; i < n; i++) {
+    let ddx = tdiv(sx * (i + 1), n) - tdiv(sx * i, n);
+    let ddy = tdiv(sy * (i + 1), n) - tdiv(sy * i, n);
+    if (b.vx !== sx) ddx = tdiv(-ddx, 2);
+    if (b.vy !== sy) ddy = tdiv(-ddy, 2);
+    const nx = b.x + ddx;
+    if (isWall(nx >> 8, b.y >> 8)) {
+      if (b.vx === sx) b.vx = tdiv(-sx, 2);
+    } else b.x = nx;
+    const ny = b.y + ddy;
+    if (isWall(b.x >> 8, ny >> 8)) {
+      if (b.vy === sy) b.vy = tdiv(-sy, 2);
+    } else b.y = ny;
+  }
+  b.vx = tdiv(b.vx * 7, 8);
+  b.vy = tdiv(b.vy * 7, 8);
+}
+
+/** Where a throw from (x, y) at `aim` with throw byte `t` goes: every tick's position, landing last. */
+export function predictThrow(x: number, y: number, aim: number, t: number) {
+  const c = sinFx((aim + 16384) & 0xffff);
+  const s = sinFx(aim & 0xffff);
+  const b = { x: x + tdiv(c * (90 + 40), 1024), y: y + tdiv(s * (90 + 40), 1024), vx: 0, vy: 0 };
+  const v0 = throwSpeed(t);
+  b.vx = tdiv(c * v0, 1024);
+  b.vy = tdiv(s * v0, 1024);
+  const path = [{ x: b.x, y: b.y }];
+  for (let i = 0; i < THROW_TTL; i++) {
+    flyStep(b);
+    path.push({ x: b.x, y: b.y });
+  }
+  return path;
 }

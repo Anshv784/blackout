@@ -17,9 +17,9 @@ export const ST_REVEALED = 5;
 export const NO_SEAT = 255;
 
 export const STATUS_NAME = ["LOBBY", "SEEDING", "COUNTDOWN", "LIVE", "ENDED", "REVEALED"];
-export const WEAPON_NAME = ["P92", "UMP", "S12K", "M416", "KAR98K"];
+export const WEAPON_NAME = ["P92", "UMP", "S12K", "M416", "KAR98K", "MARKSMAN", "LMG", "CROSSBOW"];
 /** how each gun fires (HUD tag) */
-export const FIRE_MODE = ["SINGLE", "AUTO", "PUMP", "AUTO", "BOLT"];
+export const FIRE_MODE = ["SINGLE", "AUTO", "PUMP", "AUTO", "BOLT", "SEMI", "AUTO", "SILENT"];
 export const LOOT_NAME = ["", "MEDKIT", "ARMOR", "SMG", "SHOTGUN", "FLARE"];
 
 class Reader {
@@ -109,6 +109,8 @@ export interface Room {
   /** the night's modifier, rolled from the seed (see NIGHT_MOD) */
   nightMod: number;
   duos: boolean;
+  /** 0 the Yard, 1 the Meadow */
+  map: number;
   /** a daily night (cfg bit 17) */
   daily: boolean;
 }
@@ -164,6 +166,7 @@ export function decodeRoom(data: Uint8Array): Room {
     matchLen: (cfg >>> 11) & 3,
     nightMod: (cfg >>> 13) & 7,
     duos: (cfg & 0x10000) !== 0,
+    map: (cfg >>> 18) & 1,
     daily: (cfg & 0x20000) !== 0,
   };
 }
