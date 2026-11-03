@@ -2,8 +2,9 @@
 # so both run bit-identical integer math.
 import math, os
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-# Yard: border, container, building, tower, fence, crates. Meadow: hedge, rock, tree, water.
-WALL_CHARS = "#CBTFKHRW"
+# Yard: border, container, building, tower, fence, crates. Meadow: hedge, rock, tree.
+# (Meadow water "W" is a shallow creek: you wade through it, so it is not a wall.)
+WALL_CHARS = "#CBTFKHR"
 def load(name):
     rows = open(f"{root}/shared/{name}").read().split()
     assert len(rows[0]) <= 64 and all(len(r) == len(rows[0]) for r in rows)
