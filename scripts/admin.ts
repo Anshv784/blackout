@@ -2,19 +2,23 @@
 //   npx tsx scripts/admin.ts board
 //   npx tsx scripts/admin.ts rooms 1 2 3        (free public rooms)
 //   npx tsx scripts/admin.ts room <id> <stakeSOL> <code>
+//   npx tsx scripts/admin.ts close 1 2 3        (get the rooms' SOL back)
+//   npx tsx scripts/admin.ts close-board
+// Mainnet: ADMIN_KEY=~/.config/solana/blackout-mainnet.json VITE_CLUSTER=mainnet VITE_BASE_RPC=... VITE_PROGRAM_ID=...
 import { Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import fs from "fs";
 import os from "os";
 import { BlackoutClient, roomPda, worldPda, recPda, viewPda, boardPda } from "../app/src/chain/client.ts";
 
-const admin = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(`${os.homedir()}/.config/solana/blackout-devnet.json`, "utf8"))));
+const keyFile = process.env.ADMIN_KEY ?? `${os.homedir()}/.config/solana/blackout-devnet.json`;
+const admin = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(keyFile, "utf8"))));
 const c = new BlackoutClient(admin);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function setupRoom(id: bigint, stakeSol = 0, code = 0) {
   const exists = await c.base.getAccountInfo(roomPda(id));
   if (!exists) {
-    const sig = await c.sendBase(c.createRoomIxs(id, BigInt(Math.round(stakeSol * LAMPORTS_PER_SOL)), code, (id >= 10n ? 0.04 : 0.06) * LAMPORTS_PER_SOL));
+    const sig = await c.sendBase(c.createRoomIxs(id, BigInt(Math.round(stakeSol * LAMPORTS_PER_SOL)), code, 0.005 * LAMPORTS_PER_SOL));
     console.log(`room ${id} created+delegated`, sig);
   } else console.log(`room ${id} exists (owner ${exists.owner.toBase58().slice(0, 8)})`);
   const tee = await c.teeConn();
@@ -42,4 +46,20 @@ if (cmd === "board") {
   for (const a of args) await setupRoom(BigInt(a));
 } else if (cmd === "room") {
   await setupRoom(BigInt(args[0]), Number(args[1] ?? 0), Number(args[2] ?? 0));
-} else console.log("usage: board | rooms <ids...> | room <id> <stakeSol> <code>");
+} else if (cmd === "close") {
+  // get a room's SOL back: hand it to Solana, wait for that, then close it
+  for (const a of args) {
+    const id = BigInt(a);
+    console.log("undelegate", await c.sendEr([c.undelegateRoomIx(id)]));
+    for (let i = 0; i < 30; i++) {
+      await sleep(2000);
+      const sig = await c.sendBase([c.closeRoomIx(id)]).catch(() => null);
+      if (sig) {
+        console.log(`room ${id} closed`, sig);
+        break;
+      }
+    }
+  }
+} else if (cmd === "close-board") {
+  console.log("board closed", await c.sendBase([c.closeBoardIx()]));
+} else console.log("usage: board | rooms <ids...> | room <id> <stakeSol> <code> | close <ids...> | close-board");

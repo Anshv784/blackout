@@ -29,11 +29,11 @@ while (true) {
 }
 console.log("ended winner", r.winner, r.names[r.winner], "pot", r.pot);
 const w = r.winner;
-console.log("finish", await A.sendEr([A.finishIx(id, w !== NO_SEAT ? r.payout[w] : null)]));
+console.log("finish", await A.sendEr(A.withBudget(A.finishIx(id, w !== NO_SEAT ? r.payout[w] : null))));
 for (let i = 0; i < 20; i++) {
   await sleep(2000);
   const a = await A.base.getBalance(A.publicKey), b = await A.base.getBalance(B.publicKey);
   if (a !== before.a || b !== before.b) { console.log("PAID: A Δ", (a - before.a) / 1e9, "B Δ", (b - before.b) / 1e9); break; }
 }
-console.log("reset", await A.sendEr([A.resetIx(id)]).catch((e) => e.message));
+console.log("reset", await A.sendEr(A.withBudget(A.resetIx(id))).catch((e) => e.message));
 process.exit(0);

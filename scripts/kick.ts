@@ -8,11 +8,11 @@ for (const a of process.argv.slice(2)) {
   let r = await c.fetchRoom(id);
   if (r?.status === ST_ENDED) {
     const w = r.winner;
-    console.log(a, "finish", await c.sendEr([c.finishIx(id, w !== NO_SEAT && r.isBot[w] === 0 ? r.payout[w] : null)]).catch((e) => e.message));
+    console.log(a, "finish", await c.sendEr(c.withBudget(c.finishIx(id, w !== NO_SEAT && r.isBot[w] === 0 ? r.payout[w] : null))).catch((e) => e.message));
     await new Promise((res) => setTimeout(res, 1500));
     r = await c.fetchRoom(id);
   }
-  if (r?.status === ST_REVEALED) console.log(a, "reset", await c.sendEr([c.resetIx(id)]).catch((e) => e.message));
+  if (r?.status === ST_REVEALED) console.log(a, "reset", await c.sendEr(c.withBudget(c.resetIx(id))).catch((e) => e.message));
   r = await c.fetchRoom(id);
   console.log(a, STATUS_NAME[r!.status], "seated", r!.nPlayers);
 }

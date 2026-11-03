@@ -145,7 +145,8 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
   const hostIdx = room.players.findIndex((p, i) => room.isBot[i] === 0 && room.host.toBase58() !== EMPTY && p.equals(room.host));
   const hostPresent = hostIdx >= 0 && fresh(hostIdx);
   const effectiveHost = hostPresent ? hostIdx : -1;
-  const canStart = mySeat !== null && hostIdx === mySeat;
+  // a staked table whose host is gone: anyone seated can start, so nobody's stake is held up
+  const canStart = mySeat !== null && (hostIdx === mySeat || (room.stake > 0n && !hostPresent));
   const closed = !hostPresent && room.stake === 0n && !canStart && !busy;
   // only people still here count (stale seats are cleared on-chain when the night starts)
   const humans = [0, 1, 2, 3, 4, 5, 6, 7].filter(fresh).length;
@@ -230,6 +231,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
         const sol = provider();
         if (!sol) throw new Error("Staked rooms need a Solana wallet (Phantom) on devnet");
         const pk = await connectWallet();
+        await session.reclaimTickets();
         await session.buyTicket(sol);
         await session.join(name || "GHOST", new PublicKey(pk), 0, seat);
       } else {
@@ -280,7 +282,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
               ? "Your room. Pick the seats, then start the night."
               : `Waiting for ${room.names[effectiveHost] || "the host"} to start…`}
         </h2>
-        {staked && <p className="sub">Pot {(Number(room.pot) / 1e9).toFixed(2)} SOL · humans only, no bots. The winner is paid on Solana by a Magic Action the moment the match commits, and staked wins are what the leaderboard ranks.</p>}
+        {staked && <p className="sub">Pot {(Number(room.pot) / 1e9).toFixed(2)} SOL · 5% house fee · humans only, no bots. The winner is paid on Solana by a Magic Action the moment the match commits, and staked wins are what the leaderboard ranks.</p>}
         {quick.current && <p className="sub">Opening the gate for you…</p>}
       </div>
 
@@ -529,7 +531,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
               <label>THE POT</label>
               <b className="pot">{(Number(room.pot) / 1e9).toFixed(2)} SOL</b>
               <small>
-                {humans} staker{humans === 1 ? "" : "s"} · {(Number(room.stake) / 1e9).toFixed(2)} SOL each · no bots · winner takes all
+                {humans} staker{humans === 1 ? "" : "s"} · {(Number(room.stake) / 1e9).toFixed(2)} SOL each · no bots · winner gets {(Number(room.pot) * 0.95 / 1e9).toFixed(3)} SOL after the 5% fee
               </small>
             </>
           )}

@@ -67,7 +67,7 @@ export function verifyMatch(room: Room, world: World, rec: Recording, occupied: 
     rng.next(); // bot strafe
   }
   // loot
-  // the night's modifier comes from the last seed byte (mirror of sim.rs)
+  // the night's modifier comes from the last seed byte (mirror of the program's sim/)
   const nightMod = seed[31] % 6;
   const spots = LOOT_SPOTS.map((_, i) => i);
   for (let i = spots.length - 1; i > 0; i--) {
@@ -82,7 +82,7 @@ export function verifyMatch(room: Room, world: World, rec: Recording, occupied: 
     loot.push({ x: tc(lx), y: tc(ly), kind });
   }
   // zone
-  // mirror of sim.rs seed_match (48x48 map)
+  // mirror of the program's sim/ seed_match (48x48 map)
   const c = (MAP_W / 2) * 256;
   const lo = 9 * 256;
   const hi = (MAP_W - 9) * 256;
@@ -111,7 +111,7 @@ export function verifyMatch(room: Room, world: World, rec: Recording, occupied: 
   return { spawns: spawnsOk, loot: lootOk, zone: zoneOk };
 }
 
-/** mirror of sim.rs loot_for_roll */
+/** mirror of the program's sim/ loot_for_roll */
 export function lootForRoll(roll: number, m: number): number {
   const k =
     roll <= 15 ? 1 : roll <= 27 ? 2 : roll <= 37 ? 3 : roll <= 45 ? 4 : roll <= 57 ? 6 : roll <= 63 ? 7 : roll <= 69 ? 5 : roll <= 77 ? 9 : roll <= 83 ? 10 : roll <= 88 ? 11 : roll <= 92 ? 12 : roll <= 95 ? 13 : 14;

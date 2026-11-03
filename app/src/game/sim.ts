@@ -1,4 +1,4 @@
-// Bit-exact mirror of the movement/collision math in programs/blackout/src/sim.rs,
+// Bit-exact mirror of the movement/collision math in programs/blackout/src/sim/,
 // used for client-side prediction of your own body.
 import { MAP_ROWS, WALL_CHARS, MAP_W, MAP_H, SIN_TABLE } from "./gen";
 
@@ -16,7 +16,7 @@ export const FLARE_TICKS = 100;
 export const BASE_MATCH_TICKS = 2700;
 export const MATCH_LENGTHS = [6000, 6000, 6000]; // every night is 5:00
 export const matchTicks = (len: number) => MATCH_LENGTHS[len] ?? 6000;
-// night events (mirror of sim.rs drop_ticks / blackout_tick)
+// night events (mirror of the program's sim/ drop_ticks / blackout_tick)
 export const BLACKOUT_TICKS = 200;
 export const dropTicks = (len: number) => [Math.floor((matchTicks(len) * 3) / 10), Math.floor((matchTicks(len) * 62) / 100)];
 export const blackoutTick = (len: number) => Math.floor(matchTicks(len) / 2);
@@ -83,7 +83,7 @@ export function inputVelocity(dx: number, dy: number, speed = SPEED): [number, n
   return [tdiv(dx * speed, m), tdiv(dy * speed, m)];
 }
 
-// sprint (mirror of sim.rs): `moved` packs bit 0 moved, bit 1 sprinting, bit 2 winded, bits 8.. fatigue
+// sprint (mirror of the program's sim/): `moved` packs bit 0 moved, bit 1 sprinting, bit 2 winded, bits 8.. fatigue
 export const SPRINT_SPEED = 84;
 export const FATIGUE_MAX = 100;
 export const FATIGUE_RECOVERED = 30;
@@ -106,7 +106,7 @@ export function sprintStep(moved: number, buttons: number, dx: number, dy: numbe
 export const packMoved = (moved: boolean, sprinting: boolean, winded: boolean, fatigue: number) =>
   (moved ? 1 : 0) | (sprinting && moved ? 2 : 0) | (winded ? 4 : 0) | (fatigue << 8);
 
-// crouch + jump (mirror of sim.rs move_step)
+// crouch + jump (mirror of the program's sim/ move_step)
 export const BTN_CROUCH = 32;
 export const BTN_JUMP = 64;
 export const SNEAK_SPEED = 28;

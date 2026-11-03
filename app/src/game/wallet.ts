@@ -131,20 +131,3 @@ export function requireRealWallet(then: () => void) {
   else st.set({ walletGate: { then, walletOnly: true } });
 }
 
-/** Move this browser key's leaderboard stats to the wallet (wallet pays the fee). */
-export async function linkStats(): Promise<void> {
-  const sol = provider();
-  const pk = new PublicKey(await connectWallet());
-  for (let i = 0; i < 12; i++) {
-    const b = await client.fetchBoard().catch(() => null);
-    if (b?.entries.some((e) => e.key.equals(client.publicKey))) break;
-    await new Promise((r) => setTimeout(r, 1500));
-  }
-  const tx = new Transaction().add(client.linkWalletIx(pk));
-  tx.feePayer = pk;
-  tx.recentBlockhash = (await client.base.getLatestBlockhash()).blockhash;
-  tx.partialSign(client.keypair);
-  const signed = await sol.signTransaction(tx);
-  const sig = await client.base.sendRawTransaction(signed.serialize());
-  await client.base.confirmTransaction(sig, "confirmed");
-}

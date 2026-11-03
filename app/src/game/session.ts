@@ -803,7 +803,7 @@ export class Session {
     if (r.status === ST_ENDED && this.endedSince && now - this.endedSince > 600 + this.mySeat * 700 && (now | 0) % 1500 < 110) {
       const w = r.winner;
       const payout = w !== NO_SEAT && r.isBot[w] === 0 ? r.payout[w] : null;
-      client.sendEr([client.finishIx(this.roomId, payout)], { confirm: false }).catch(() => {});
+      client.sendEr(client.withBudget(client.finishIx(this.roomId, payout)), { confirm: false }).catch(() => {});
     }
   }
 
@@ -812,12 +812,17 @@ export class Session {
   /** Staked rooms: the wallet funds the session key and buys a ticket in one base-layer tx. */
   async buyTicket(wallet: any): Promise<void> {
     const r = this.room ?? (await client.fetchRoom(this.roomId));
-    const base = await client.fetchRoomBase(this.roomId);
-    if (!r || !base) throw new Error("Room not found");
-    const matchNo = base.matchNo + 1;
+    if (!r) throw new Error("Room not found");
+    const matchNo = r.matchNo + 1;
+    // this match's ticket may already exist (you stood up, or a start was called off)
+    const paid = await client.base.getAccountInfo(ticketPda(this.roomId, matchNo, client.publicKey));
+    if (paid) {
+      this.ticketMatch = matchNo;
+      return;
+    }
     const { Transaction, SystemProgram } = await import("@solana/web3.js");
     const tx = new Transaction().add(
-      SystemProgram.transfer({ fromPubkey: wallet.publicKey, toPubkey: client.publicKey, lamports: Number(r.stake) + 3_000_000 }),
+      SystemProgram.transfer({ fromPubkey: wallet.publicKey, toPubkey: client.publicKey, lamports: Number(r.stake) + 2_000_000 }),
       client.buyTicketIx(this.roomId, matchNo, wallet.publicKey),
     );
     tx.feePayer = wallet.publicKey;
@@ -829,6 +834,14 @@ export class Session {
     this.ticketMatch = matchNo;
   }
   ticketMatch = 0;
+
+  /** Send back any refunds waiting on this browser's old tickets. Tickets still locked just fail. */
+  async reclaimTickets(): Promise<void> {
+    for (const t of await client.myTickets().catch(() => [])) {
+      if (t.pubkey.equals(ticketPda(this.roomId, this.ticketMatch, client.publicKey))) continue;
+      await client.sendBase([client.closeTicketIx(t.roomId, t.pubkey, t.payout)]).catch(() => {});
+    }
+  }
 
   async join(name: string, wallet: PublicKey | null, code = 0, preferSeat?: number) {
     const r = this.room ?? (await client.fetchRoom(this.roomId));
@@ -889,11 +902,6 @@ export class Session {
     await this.poll();
   }
 
-  async setLength(level: number) {
-    await client.sendEr([client.setLengthIx(this.roomId, level)]);
-    await this.poll();
-  }
-
   async setBots(level: number) {
     await client.sendEr([client.setBotsIx(this.roomId, level)]);
     await this.poll();
@@ -915,7 +923,7 @@ export class Session {
     if (this.room?.status === ST_REVEALED) {
       // a guest leaving doesn't end everyone else's replay: their seat just goes stale and is cleared at the next start
       if (!host) return;
-      await client.sendEr([client.resetIx(this.roomId)]).catch(() => {});
+      await client.sendEr(client.withBudget(client.resetIx(this.roomId))).catch(() => {});
     }
     useStore.getState().set({ reveal: null });
     for (let i = 0; i < 4; i++) {
@@ -929,7 +937,7 @@ export class Session {
   }
 
   async reset() {
-    await client.sendEr([client.resetIx(this.roomId)]);
+    await client.sendEr(client.withBudget(client.resetIx(this.roomId)));
     useStore.getState().set({ reveal: null });
     this.revealLoaded = false;
     await this.poll();

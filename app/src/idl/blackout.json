@@ -1,5 +1,5 @@
 {
-  "address": "VWHcbCSH4kATcuPJgjZ6QC56W3NBQ53U6fxJNtGknh3",
+  "address": "CkSb4kkmhzr8n9awdmrvqhuoWka6nZUXXb8RXnrFBAKU",
   "metadata": {
     "name": "blackout",
     "version": "0.1.0",
@@ -8,58 +8,7 @@
   },
   "instructions": [
     {
-      "name": "board_remove",
-      "docs": [
-        "Admin: remove an entry (test accounts)."
-      ],
-      "discriminator": [
-        118,
-        120,
-        201,
-        243,
-        175,
-        12,
-        181,
-        208
-      ],
-      "accounts": [
-        {
-          "name": "board",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  98,
-                  111,
-                  97,
-                  114,
-                  100,
-                  51
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "admin",
-          "signer": true
-        }
-      ],
-      "args": [
-        {
-          "name": "key",
-          "type": "pubkey"
-        }
-      ]
-    },
-    {
       "name": "buy_ticket",
-      "docs": [
-        "Staked rooms: pay the stake into the room bank and get a ticket the ER",
-        "can verify when you take a seat."
-      ],
       "discriminator": [
         11,
         24,
@@ -170,10 +119,6 @@
     },
     {
       "name": "claim_room",
-      "docs": [
-        "\"Create a room\": claim a free room (no live humans), become its host and",
-        "choose how many seats it has. Bots fill whatever seats humans don't."
-      ],
       "discriminator": [
         62,
         51,
@@ -210,11 +155,196 @@
       ]
     },
     {
-      "name": "create_room",
+      "name": "close_board",
       "docs": [
-        "Create a room and pre-fund it: the room PDA sponsors its ephemeral",
-        "accounts, their permissions, and its own commits once delegated."
+        "The leaderboard's rent back, when the game is shutting down."
       ],
+      "discriminator": [
+        117,
+        4,
+        35,
+        166,
+        80,
+        233,
+        153,
+        42
+      ],
+      "accounts": [
+        {
+          "name": "board",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  111,
+                  97,
+                  114,
+                  100,
+                  51
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "address": "9Sg12k15Ann4SKSxcA85bq5fbpq7WMLH9bLCTUbTRkQV"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "close_room",
+      "discriminator": [
+        152,
+        197,
+        88,
+        192,
+        98,
+        197,
+        51,
+        211
+      ],
+      "accounts": [
+        {
+          "name": "room",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  111,
+                  111,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "bank.room_id",
+                "account": "Bank"
+              }
+            ]
+          }
+        },
+        {
+          "name": "bank",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  97,
+                  110,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "bank.room_id",
+                "account": "Bank"
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "address": "9Sg12k15Ann4SKSxcA85bq5fbpq7WMLH9bLCTUbTRkQV"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "close_ticket",
+      "discriminator": [
+        66,
+        209,
+        114,
+        197,
+        75,
+        27,
+        182,
+        117
+      ],
+      "accounts": [
+        {
+          "name": "ticket",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  105,
+                  99,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "ticket.room_id",
+                "account": "Ticket"
+              },
+              {
+                "kind": "account",
+                "path": "ticket.match_no",
+                "account": "Ticket"
+              },
+              {
+                "kind": "account",
+                "path": "ticket.player",
+                "account": "Ticket"
+              }
+            ]
+          }
+        },
+        {
+          "name": "bank",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  97,
+                  110,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "ticket.room_id",
+                "account": "Ticket"
+              }
+            ]
+          }
+        },
+        {
+          "name": "payout",
+          "writable": true,
+          "relations": [
+            "ticket"
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "create_room",
       "discriminator": [
         130,
         166,
@@ -334,38 +464,38 @@
             "program": {
               "kind": "const",
               "value": [
-                7,
-                77,
-                96,
-                127,
-                22,
-                138,
-                210,
-                133,
-                198,
-                84,
-                74,
-                237,
-                113,
-                200,
-                142,
-                218,
-                200,
-                123,
-                210,
-                142,
-                124,
-                22,
-                64,
+                174,
                 145,
-                61,
-                226,
-                91,
+                118,
+                112,
+                199,
+                206,
+                159,
+                206,
+                74,
+                78,
+                191,
+                13,
+                185,
+                67,
+                189,
+                163,
+                223,
+                189,
                 224,
-                119,
-                77,
-                36,
-                174
+                125,
+                172,
+                45,
+                56,
+                180,
+                142,
+                128,
+                22,
+                133,
+                145,
+                29,
+                212,
+                195
               ]
             }
           }
@@ -472,7 +602,7 @@
         },
         {
           "name": "owner_program",
-          "address": "VWHcbCSH4kATcuPJgjZ6QC56W3NBQ53U6fxJNtGknh3"
+          "address": "CkSb4kkmhzr8n9awdmrvqhuoWka6nZUXXb8RXnrFBAKU"
         },
         {
           "name": "delegation_program",
@@ -492,10 +622,6 @@
     },
     {
       "name": "end_now",
-      "docs": [
-        "Host ends a running night early: the next tick ends it normally (placements,",
-        "lights on, replay), then the room can be closed from the verdict."
-      ],
       "discriminator": [
         238,
         59,
@@ -520,10 +646,6 @@
     },
     {
       "name": "fallback_seed",
-      "docs": [
-        "If the VRF oracle doesn't answer within ~5 s, any seated player can",
-        "seed from ER state instead (flagged in the room so the UI can say so)."
-      ],
       "discriminator": [
         167,
         59,
@@ -587,10 +709,6 @@
     },
     {
       "name": "finish",
-      "docs": [
-        "Lights on. Flip World + Recorder to public, then commit the room to",
-        "Solana with a Magic Action that pays the pot and updates the board."
-      ],
       "discriminator": [
         67,
         74,
@@ -722,10 +840,6 @@
     },
     {
       "name": "heartbeat",
-      "docs": [
-        "Lobby presence: seated browsers ping every few seconds so abandoned",
-        "seats can be reclaimed and an absent host replaced."
-      ],
       "discriminator": [
         202,
         104,
@@ -794,9 +908,6 @@
     },
     {
       "name": "input",
-      "docs": [
-        "Player input. Hidden: it only touches the private World."
-      ],
       "discriminator": [
         231,
         19,
@@ -845,10 +956,6 @@
     },
     {
       "name": "join",
-      "docs": [
-        "Take a seat. The seat's view permission is rewritten so that only",
-        "`player` (your in-browser session key) can read it."
-      ],
       "discriminator": [
         206,
         55,
@@ -882,21 +989,17 @@
           }
         },
         {
-          "name": "view",
+          "name": "target",
           "writable": true
         },
         {
-          "name": "view_permission",
+          "name": "target_permission",
           "writable": true
         },
         {
-          "name": "player",
+          "name": "signer",
           "writable": true,
           "signer": true
-        },
-        {
-          "name": "ticket",
-          "optional": true
         },
         {
           "name": "permission_program",
@@ -938,10 +1041,6 @@
     },
     {
       "name": "kick",
-      "docs": [
-        "Host removes a player from the lobby. In a private room the code rotates",
-        "(`new_code`), so the kicked player's copy of the old one stops working."
-      ],
       "discriminator": [
         184,
         92,
@@ -975,15 +1074,15 @@
           }
         },
         {
-          "name": "view",
+          "name": "target",
           "writable": true
         },
         {
-          "name": "view_permission",
+          "name": "target_permission",
           "writable": true
         },
         {
-          "name": "player",
+          "name": "signer",
           "writable": true,
           "signer": true
         },
@@ -1047,15 +1146,15 @@
           }
         },
         {
-          "name": "view",
+          "name": "target",
           "writable": true
         },
         {
-          "name": "view_permission",
+          "name": "target_permission",
           "writable": true
         },
         {
-          "name": "player",
+          "name": "signer",
           "writable": true,
           "signer": true
         },
@@ -1081,58 +1180,7 @@
       ]
     },
     {
-      "name": "link_wallet",
-      "docs": [
-        "Move a session key's leaderboard stats to a wallet. The session key proves",
-        "ownership by signing; the wallet signs and pays the (base-layer) fee."
-      ],
-      "discriminator": [
-        86,
-        92,
-        31,
-        146,
-        228,
-        51,
-        209,
-        230
-      ],
-      "accounts": [
-        {
-          "name": "board",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  98,
-                  111,
-                  97,
-                  114,
-                  100,
-                  51
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "session",
-          "signer": true
-        },
-        {
-          "name": "wallet",
-          "writable": true,
-          "signer": true
-        }
-      ],
-      "args": []
-    },
-    {
       "name": "make_host",
-      "docs": [
-        "Host hands the room to another player who is in it."
-      ],
       "discriminator": [
         92,
         219,
@@ -1162,9 +1210,6 @@
     },
     {
       "name": "on_seed",
-      "docs": [
-        "VRF callback — seeds spawns, loot and the zone, sealed inside World."
-      ],
       "discriminator": [
         146,
         250,
@@ -1312,9 +1357,6 @@
     },
     {
       "name": "reset",
-      "docs": [
-        "Back to the lobby: re-seal World + Recorder for the next match."
-      ],
       "discriminator": [
         23,
         81,
@@ -1395,9 +1437,6 @@
     },
     {
       "name": "set_bots",
-      "docs": [
-        "Host picks how good the bots are: 0 = medium, 1 = easy, 2 = hard."
-      ],
       "discriminator": [
         116,
         7,
@@ -1426,43 +1465,7 @@
       ]
     },
     {
-      "name": "set_length",
-      "docs": [
-        "Legacy length field: kept for the account layout, every night is 5:00 (6000 ticks).",
-        "The zone schedule stretches to fit (see sim::seed_match)."
-      ],
-      "discriminator": [
-        180,
-        58,
-        143,
-        102,
-        0,
-        61,
-        51,
-        60
-      ],
-      "accounts": [
-        {
-          "name": "player",
-          "signer": true
-        },
-        {
-          "name": "room",
-          "writable": true
-        }
-      ],
-      "args": [
-        {
-          "name": "level",
-          "type": "u8"
-        }
-      ]
-    },
-    {
       "name": "set_mode",
-      "docs": [
-        "Host switches the room between solo and duos (seats pair up 0-1, 2-3, 4-5, 6-7)."
-      ],
       "discriminator": [
         159,
         47,
@@ -1492,9 +1495,6 @@
     },
     {
       "name": "set_size",
-      "docs": [
-        "Host resizes the room (seats beyond the new size must be empty)."
-      ],
       "discriminator": [
         30,
         213,
@@ -1524,10 +1524,6 @@
     },
     {
       "name": "settle",
-      "docs": [
-        "Magic Action: runs on Solana right after the ER commits the finished",
-        "room. Pays the pot and updates the global leaderboard."
-      ],
       "discriminator": [
         175,
         42,
@@ -1588,6 +1584,11 @@
           "writable": true
         },
         {
+          "name": "treasury",
+          "writable": true,
+          "address": "9Sg12k15Ann4SKSxcA85bq5fbpq7WMLH9bLCTUbTRkQV"
+        },
+        {
           "name": "escrow_auth"
         },
         {
@@ -1598,9 +1599,6 @@
     },
     {
       "name": "setup_core",
-      "docs": [
-        "Create the sealed World and set the World/Room permissions."
-      ],
       "discriminator": [
         136,
         14,
@@ -1634,37 +1632,15 @@
           }
         },
         {
-          "name": "world",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  119,
-                  111,
-                  114,
-                  108,
-                  100
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "room"
-              }
-            ]
-          }
-        },
-        {
-          "name": "world_permission",
+          "name": "target",
           "writable": true
         },
         {
-          "name": "room_permission",
+          "name": "target_permission",
           "writable": true
         },
         {
-          "name": "payer",
+          "name": "signer",
           "writable": true,
           "signer": true
         },
@@ -1686,9 +1662,6 @@
     },
     {
       "name": "setup_rec",
-      "docs": [
-        "Create one sealed flight-recorder chunk (10 KiB each, five per room)."
-      ],
       "discriminator": [
         86,
         190,
@@ -1722,15 +1695,15 @@
           }
         },
         {
-          "name": "rec",
+          "name": "target",
           "writable": true
         },
         {
-          "name": "rec_permission",
+          "name": "target_permission",
           "writable": true
         },
         {
-          "name": "payer",
+          "name": "signer",
           "writable": true,
           "signer": true
         },
@@ -1757,9 +1730,6 @@
     },
     {
       "name": "setup_view",
-      "docs": [
-        "Create the private view for one seat (no members until someone sits)."
-      ],
       "discriminator": [
         14,
         47,
@@ -1793,15 +1763,15 @@
           }
         },
         {
-          "name": "view",
+          "name": "target",
           "writable": true
         },
         {
-          "name": "view_permission",
+          "name": "target_permission",
           "writable": true
         },
         {
-          "name": "payer",
+          "name": "signer",
           "writable": true,
           "signer": true
         },
@@ -1828,9 +1798,6 @@
     },
     {
       "name": "start_match",
-      "docs": [
-        "Fill empty seats with bots, request the VRF seed and start the 20 Hz crank."
-      ],
       "discriminator": [
         100,
         246,
@@ -1945,10 +1912,6 @@
     },
     {
       "name": "tick",
-      "docs": [
-        "One 50 ms simulation step. Called by the crank (or any client as a",
-        "fallback — the slot gate stops double-ticking)."
-      ],
       "discriminator": [
         92,
         79,
@@ -2018,6 +1981,61 @@
         },
         {
           "name": "rec4",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "undelegate_room",
+      "discriminator": [
+        151,
+        179,
+        196,
+        11,
+        39,
+        232,
+        174,
+        131
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "room",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  111,
+                  111,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "room"
+              }
+            ]
+          }
+        },
+        {
+          "name": "magic_program",
+          "address": "Magic11111111111111111111111111111111111111"
+        },
+        {
+          "name": "magic_context",
+          "writable": true,
+          "address": "MagicContext1111111111111111111111111111111"
+        },
+        {
+          "name": "magic_fee_vault",
           "writable": true
         }
       ],
@@ -2168,6 +2186,21 @@
       "code": 6017,
       "name": "NoHost",
       "msg": "This room has no host — create your own"
+    },
+    {
+      "code": 6018,
+      "name": "NotAdmin",
+      "msg": "Admin only"
+    },
+    {
+      "code": 6019,
+      "name": "TicketLocked",
+      "msg": "This ticket can't be refunded yet"
+    },
+    {
+      "code": 6020,
+      "name": "StakesOutstanding",
+      "msg": "Tickets for this room still exist: run scripts/sweep_tickets.ts first"
     }
   ],
   "types": [
@@ -2190,6 +2223,22 @@
           {
             "name": "bump",
             "type": "u8"
+          },
+          {
+            "name": "outstanding",
+            "docs": [
+              "Stakes held for tickets not yet used or refunded. Counted, not read from the balance,",
+              "because anyone can send SOL to any account."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "tickets",
+            "docs": [
+              "Ticket accounts that still exist. A room can only close once all are gone, or the",
+              "used ones could never hand their rent back (closing a ticket needs its bank)."
+            ],
+            "type": "u32"
           }
         ]
       }
@@ -2507,7 +2556,7 @@
           {
             "name": "cfg",
             "docs": [
-              "room config set by its creator: bits 0-7 = seats (2..8, 0 = 8), bit 8 = unlisted, bits 9-10 = bot level, bits 11-12 = match length"
+              "room config set by its creator: bits 0-7 = seats (2..8, 0 = 8), bit 8 = unlisted, bits 9-10 = bot level, bits 13-15 = night modifier, bit 16 = duos"
             ],
             "type": "u32"
           },
@@ -2523,6 +2572,10 @@
                 8
               ]
             }
+          },
+          {
+            "name": "stake_deadline",
+            "type": "i64"
           }
         ]
       }
@@ -2554,6 +2607,20 @@
           {
             "name": "amount",
             "type": "u64"
+          },
+          {
+            "name": "expires_at",
+            "docs": [
+              "After this the stake can be refunded even if the room never settled."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "consumed",
+            "docs": [
+              "Set by settle: this stake went into a pot. Must stay the last field (see `use_ticket`)."
+            ],
+            "type": "bool"
           }
         ]
       }

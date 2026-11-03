@@ -21,7 +21,7 @@ async function canRead(c: BlackoutClient, pk: any) {
 let room = await A.fetchRoom(roomId);
 log("room", STATUS_NAME[room!.status], "mask", room!.readyMask.toString(16));
 if (room!.status === ST_REVEALED) {
-  log("reset leftover", await A.sendEr([A.resetIx(roomId)]));
+  log("reset leftover", await A.sendEr(A.withBudget(A.resetIx(roomId))));
   room = await A.fetchRoom(roomId);
 }
 const free = room!.players.map((p, i) => (p.equals(new Keypair().publicKey) ? -1 : i)); // placeholder
@@ -92,7 +92,7 @@ log("spectator reads world BEFORE finish:", await canRead(spectator, worldPda(ro
 if (room!.status === ST_ENDED) {
   const w = room!.winner;
   const winnerPayout = w !== NO_SEAT && room!.isBot[w] === 0 ? room!.payout[w] : null;
-  log("finish", await A.sendEr([A.finishIx(roomId, winnerPayout)]));
+  log("finish", await A.sendEr(A.withBudget(A.finishIx(roomId, winnerPayout))));
 }
 await sleep(1500);
 log("spectator reads world AFTER finish:", await canRead(spectator, worldPda(roomId)), "rec0:", await canRead(spectator, recPda(roomId, 0)));
@@ -110,7 +110,7 @@ for (let i = 0; i < 20; i++) {
   }
   await sleep(2000);
 }
-log("reset", await A.sendEr([A.resetIx(roomId)]).catch((e) => e.message));
+log("reset", await A.sendEr(A.withBudget(A.resetIx(roomId))).catch((e) => e.message));
 room = await A.fetchRoom(roomId);
 log("after reset", STATUS_NAME[room!.status], "seated", room!.nPlayers, "world readable by spectator:", await canRead(spectator, worldPda(roomId)));
 // leave so the room is clean

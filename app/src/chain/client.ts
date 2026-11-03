@@ -9,6 +9,7 @@ import {
   SystemProgram,
   Transaction,
   TransactionInstruction,
+  ComputeBudgetProgram,
 } from "@solana/web3.js";
 import nacl from "tweetnacl";
 import { Buffer } from "buffer";
@@ -36,11 +37,16 @@ const ns: any = anchorNs;
 const BN = ns.BN ?? ns["default"]?.BN;
 const BorshCoder = ns.BorshCoder ?? ns["default"]?.BorshCoder;
 
-export const BASE_ENDPOINT = "https://rpc.magicblock.app/devnet";
-export const TEE_ENDPOINT = "https://devnet-tee.magicblock.app";
-export const TEE_WS = "wss://devnet-tee.magicblock.app";
+// VITE_CLUSTER=mainnet + VITE_BASE_RPC=<a paid RPC URL> switches the whole app to mainnet.
+const env: Record<string, string | undefined> = (import.meta as any).env ?? {};
+export const IS_MAINNET = env.VITE_CLUSTER === "mainnet";
+export const BASE_ENDPOINT = env.VITE_BASE_RPC ?? "https://rpc.magicblock.app/devnet";
+export const TEE_ENDPOINT = IS_MAINNET ? "https://mainnet-tee.magicblock.app" : "https://devnet-tee.magicblock.app";
+export const TEE_WS = IS_MAINNET ? "wss://mainnet-tee.magicblock.app" : "wss://devnet-tee.magicblock.app";
 export const TEE_VALIDATOR = new PublicKey("MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo");
-export const PROGRAM_ID = new PublicKey((idl as any).address);
+/** Ticket account size: 8 discriminator + room 8 + match 4 + player 32 + payout 32 + amount 8 + expiry 8 + used 1. */
+export const TICKET_LEN = 101;
+export const PROGRAM_ID = new PublicKey(env.VITE_PROGRAM_ID ?? (idl as any).address);
 export const VRF_PROGRAM_ID = new PublicKey("Vrf1RNUjXmQGjmQrQLvJHs9SNkvDJEsRVFPkfSQUwGz");
 export const VRF_EPHEMERAL_QUEUE = new PublicKey("5hBR571xnXppuCPveTrctfTU7tJLSN94nq7kv7FRK5Tc");
 export const SLOT_HASHES = new PublicKey("SysvarS1otHashes111111111111111111111111111");
@@ -280,7 +286,6 @@ export class BlackoutClient {
       w(this.publicKey, true),
       r(SystemProgram.programId),
     ]);
-    const topUp = createTopUpEscrowInstruction(escrowPdaFromEscrowAuthority(room, 255), room, this.publicKey, 20_000_000, 255);
     const bufferPda = delegateBufferPdaFromDelegatedAccountAndOwnerProgram(room, PROGRAM_ID);
     const recordPda = delegationRecordPdaFromDelegatedAccount(room);
     const metaPda = delegationMetadataPdaFromDelegatedAccount(room);
@@ -295,6 +300,8 @@ export class BlackoutClient {
       r(DELEGATION_PROGRAM_ID),
       r(SystemProgram.programId),
     ]);
+    if (stakeLamports === 0n) return [create, delegate]; // free rooms never send a Magic Action
+    const topUp = createTopUpEscrowInstruction(escrowPdaFromEscrowAuthority(room, 255), room, this.publicKey, 1, 255);
     return [create, topUp, delegate];
   }
 
@@ -305,11 +312,11 @@ export class BlackoutClient {
       w(room),
       w(world),
       w(permissionPdaFromAccount(world)),
-      w(permissionPdaFromAccount(room)),
       w(this.publicKey, true),
       r(PERMISSION_PROGRAM_ID),
       w(EPHEMERAL_VAULT_ID),
       r(MAGIC_PROGRAM_ID),
+      w(permissionPdaFromAccount(room)),
     ]);
   }
 
@@ -350,15 +357,11 @@ export class BlackoutClient {
       w(view),
       w(permissionPdaFromAccount(view)),
       w(this.publicKey, true),
-      r(ticket ?? PROGRAM_ID), // Anchor optional account: program id = None
       r(PERMISSION_PROGRAM_ID),
       w(EPHEMERAL_VAULT_ID),
       r(MAGIC_PROGRAM_ID),
+      ...(ticket ? [r(ticket)] : []),
     ]);
-  }
-
-  linkWalletIx(wallet: PublicKey) {
-    return ix("link_wallet", {}, [w(boardPda()), r(this.publicKey, true), w(wallet, true)]);
   }
 
   claimIx(roomId: bigint, maxPlayers: number, unlisted: boolean, code = 0) {
@@ -392,9 +395,6 @@ export class BlackoutClient {
     return ix("end_now", {}, [r(this.publicKey, true), w(roomPda(roomId))]);
   }
 
-  setLengthIx(roomId: bigint, level: number) {
-    return ix("set_length", { level }, [r(this.publicKey, true), w(roomPda(roomId))]);
-  }
 
   setBotsIx(roomId: bigint, level: number) {
     return ix("set_bots", { level }, [r(this.publicKey, true), w(roomPda(roomId))]);
@@ -489,6 +489,12 @@ export class BlackoutClient {
     ]);
   }
 
+  /** `finish` and `reset` flip six permissions and derive up to 13 addresses: that sits right at
+   *  the default 200k compute limit, so give them room (rollup transactions are free). */
+  withBudget(ix: TransactionInstruction) {
+    return [ComputeBudgetProgram.setComputeUnitLimit({ units: 800_000 }), ix];
+  }
+
   resetIx(roomId: bigint) {
     const world = worldPda(roomId);
     return ix("reset", {}, [
@@ -501,6 +507,41 @@ export class BlackoutClient {
       r(MAGIC_PROGRAM_ID),
       ...this.recPermKeys(roomId),
     ]);
+  }
+
+  /** Give a ticket back: rent always, stake too if no settled match used it. Anyone can send this. */
+  closeTicketIx(roomId: bigint, ticket: PublicKey, payout: PublicKey) {
+    return ix("close_ticket", {}, [w(ticket), w(bankPda(roomId)), w(payout)]);
+  }
+
+  /** Every ticket this session key bought, for reclaiming refunds. */
+  async myTickets(): Promise<{ pubkey: PublicKey; roomId: bigint; payout: PublicKey }[]> {
+    const accounts = await this.base.getProgramAccounts(PROGRAM_ID, {
+      filters: [{ dataSize: TICKET_LEN }, { memcmp: { offset: 20, bytes: this.publicKey.toBase58() } }],
+    });
+    return accounts.map(({ pubkey, account }) => ({
+      pubkey,
+      roomId: new DataView(account.data.buffer, account.data.byteOffset).getBigUint64(8, true),
+      payout: new PublicKey(account.data.subarray(52, 84)),
+    }));
+  }
+
+  undelegateRoomIx(roomId: bigint) {
+    return ix("undelegate_room", {}, [
+      w(this.publicKey, true),
+      w(roomPda(roomId)),
+      r(MAGIC_PROGRAM_ID),
+      w(MAGIC_CONTEXT_ID),
+      w(magicFeeVaultPdaFromValidator(TEE_VALIDATOR)),
+    ]);
+  }
+
+  closeBoardIx() {
+    return ix("close_board", {}, [w(boardPda()), w(this.publicKey, true)]);
+  }
+
+  closeRoomIx(roomId: bigint) {
+    return ix("close_room", {}, [w(roomPda(roomId)), w(bankPda(roomId)), w(this.publicKey, true)]);
   }
 
   buyTicketIx(roomId: bigint, matchNo: number, payout: PublicKey) {

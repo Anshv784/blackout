@@ -87,7 +87,7 @@ export function WalletGate() {
             <h2>{gate.walletOnly ? "Staked nights need a wallet" : "Enter the Yard"}</h2>
             <p>
               {gate.walletOnly
-                ? "Every staker puts in the same amount and the winner takes the whole pot, paid straight to their wallet on Solana. Connect one to sit at the table."
+                ? "Every staker puts in the same amount and the winner takes the pot less a 5% house fee, paid straight to their wallet on Solana. Connect one to sit at the table."
                 : "Connect a wallet to keep your callsign, play staked nights and get ranked on the leaderboard (staked wins only). Or jump straight in as a guest. Either way, playing is free and gasless, with no popups mid-match."}
             </p>
             </div>
