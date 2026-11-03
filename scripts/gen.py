@@ -2,21 +2,27 @@
 # so both run bit-identical integer math.
 import math, os
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-rows = open(f"{root}/shared/map.txt").read().split()
+# Yard: border, container, building, tower, fence, crates. Meadow: hedge, rock, tree, water.
+WALL_CHARS = "#CBTFKHRW"
+def load(name):
+    rows = open(f"{root}/shared/{name}").read().split()
+    assert len(rows[0]) <= 64 and all(len(r) == len(rows[0]) for r in rows)
+    walls = []
+    for r in rows:
+        m = 0
+        for x, c in enumerate(r):
+            if c in WALL_CHARS:
+                m |= 1 << x
+        walls.append(m)
+    pick = lambda ch: [(x, y) for y, r in enumerate(rows) for x, c in enumerate(r) if c == ch]
+    return rows, walls, pick("l"), pick("S"), pick("L")
+rows, walls, lamps, spawns, loot = load("map.txt")
+rows_m, walls_m, lamps_m, spawns_m, loot_m = load("map_meadow.txt")
 H = len(rows)
 W = len(rows[0])
-assert W <= 64 and all(len(r) == W for r in rows)
-WALL_CHARS = "#CBTFK"  # border, container, building, tower, fence, crates
-walls = []
-for r in rows:
-    m = 0
-    for x, c in enumerate(r):
-        if c in WALL_CHARS:
-            m |= 1 << x
-    walls.append(m)
-lamps = [(x, y) for y, r in enumerate(rows) for x, c in enumerate(r) if c == 'l']
-spawns = [(x, y) for y, r in enumerate(rows) for x, c in enumerate(r) if c == 'S']
-loot = [(x, y) for y, r in enumerate(rows) for x, c in enumerate(r) if c == 'L']
+# both maps share one shape, so every array in the program keeps a fixed size
+assert (len(rows_m), len(rows_m[0])) == (H, W)
+assert (len(lamps_m), len(spawns_m), len(loot_m)) == (len(lamps), len(spawns), len(loot)), "Meadow needs the Yard's counts"
 # sin table: 256 steps over full circle, scaled by 1024; extra entry for interpolation
 sin = [round(math.sin(2 * math.pi * i / 256) * 1024) for i in range(257)]
 # atan table: atan(i/64) for i in 0..=64, in u16 angle units (65536 = full turn)
@@ -28,6 +34,10 @@ rs.append(f"pub const WALLS: [u64; {H}] = [" + ", ".join(f"0x{m:016x}" for m in 
 rs.append(f"pub const LAMPS: [(u8, u8); {len(lamps)}] = [" + ", ".join(f"({x}, {y})" for x, y in lamps) + "];")
 rs.append(f"pub const SPAWNS: [(u8, u8); {len(spawns)}] = [" + ", ".join(f"({x}, {y})" for x, y in spawns) + "];")
 rs.append(f"pub const LOOT_SPOTS: [(u8, u8); {len(loot)}] = [" + ", ".join(f"({x}, {y})" for x, y in loot) + "];")
+rs.append(f"pub const WALLS_MEADOW: [u64; {H}] = [" + ", ".join(f"0x{m:016x}" for m in walls_m) + "];")
+rs.append(f"pub const LAMPS_MEADOW: [(u8, u8); {len(lamps_m)}] = [" + ", ".join(f"({x}, {y})" for x, y in lamps_m) + "];")
+rs.append(f"pub const SPAWNS_MEADOW: [(u8, u8); {len(spawns_m)}] = [" + ", ".join(f"({x}, {y})" for x, y in spawns_m) + "];")
+rs.append(f"pub const LOOT_SPOTS_MEADOW: [(u8, u8); {len(loot_m)}] = [" + ", ".join(f"({x}, {y})" for x, y in loot_m) + "];")
 rs.append("pub const SIN_TABLE: [i32; 257] = [" + ", ".join(map(str, sin)) + "];")
 rs.append("pub const ATAN_TABLE: [i32; 65] = [" + ", ".join(map(str, atan)) + "];")
 open(f"{root}/programs/blackout/src/gen.rs", "w").write("\n".join(rs) + "\n")
@@ -39,6 +49,10 @@ ts.append(f"export const WALL_CHARS = {WALL_CHARS!r};".replace("'", '"'))
 ts.append("export const LAMPS: [number, number][] = [" + ", ".join(f"[{x}, {y}]" for x, y in lamps) + "];")
 ts.append("export const SPAWNS: [number, number][] = [" + ", ".join(f"[{x}, {y}]" for x, y in spawns) + "];")
 ts.append("export const LOOT_SPOTS: [number, number][] = [" + ", ".join(f"[{x}, {y}]" for x, y in loot) + "];")
+ts.append("export const MAP_ROWS_MEADOW: string[] = " + repr(rows_m).replace("'", '"') + ";")
+ts.append("export const LAMPS_MEADOW: [number, number][] = [" + ", ".join(f"[{x}, {y}]" for x, y in lamps_m) + "];")
+ts.append("export const SPAWNS_MEADOW: [number, number][] = [" + ", ".join(f"[{x}, {y}]" for x, y in spawns_m) + "];")
+ts.append("export const LOOT_SPOTS_MEADOW: [number, number][] = [" + ", ".join(f"[{x}, {y}]" for x, y in loot_m) + "];")
 ts.append("export const SIN_TABLE: number[] = [" + ", ".join(map(str, sin)) + "];")
 ts.append("export const ATAN_TABLE: number[] = [" + ", ".join(map(str, atan)) + "];")
 open(f"{root}/app/src/game/gen.ts", "w").write("\n".join(ts) + "\n")
