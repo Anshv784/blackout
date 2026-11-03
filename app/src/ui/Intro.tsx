@@ -50,8 +50,8 @@ export function Intro({ onDone }: { onDone: () => void }) {
   };
 
   const live = t >= TITLE_AT ? [] : LINES.filter((x) => t >= x.at && t < x.to);
-  // a hard flash on every cut, like a trailer edit
-  const cutFlash = t < TITLE_AT && CLIPS.some((c) => c.from > 0 && t >= c.from && t < c.from + 0.09);
+  // a quick dip to black around every cut (no white flash: easy on the eyes)
+  const dip = t >= TITLE_AT ? 0 : Math.max(0, ...CLIPS.filter((c) => c.from > 0).map((c) => 1 - Math.abs(t - c.from) / 0.12));
 
   useEffect(() => {
     if (started && t >= INTRO_LENGTH + 8) finish();
@@ -130,7 +130,7 @@ export function Intro({ onDone }: { onDone: () => void }) {
           </p>
         ),
       )}
-      {cutFlash && <div className="cut-flash" />}
+      {dip > 0 && <div className="cut-dip" style={{ opacity: dip * 0.85 }} />}
       {t >= TITLE_AT && (
         <div className="intro-title ad-end">
           <h1>BLACKOUT</h1>

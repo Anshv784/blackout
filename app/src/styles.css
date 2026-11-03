@@ -2441,7 +2441,7 @@ button {
 .ad-tag b{display:block;font-size:clamp(30px,4.4vw,64px);line-height:1;letter-spacing:.04em;color:#fff;text-shadow:0 4px 30px rgba(0,0,0,.8)}
 .ad-tag span{display:block;margin-top:8px;font-size:clamp(12px,1.2vw,16px);color:#d5dbea;letter-spacing:.04em;text-shadow:0 2px 12px #000}
 @keyframes adin{from{opacity:0;transform:translateX(-24px);filter:blur(6px)}to{opacity:1;transform:none;filter:none}}
-.cut-flash{position:absolute;inset:0;z-index:7;background:#fff;opacity:.55;pointer-events:none}
+.cut-dip{position:absolute;inset:0;z-index:7;background:#000;pointer-events:none}
 .ad-end{gap:10px}
 .ad-end p{font-size:clamp(15px,1.6vw,20px)!important}
 .ad-facts{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:6px 0 14px}
