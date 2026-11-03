@@ -1,12 +1,14 @@
 // The trailer: a ~34 s scripted cinematic in the real Yard. Everything is data:
 // actors (paths, facing, shots, falls), camera shots (hard cuts), blasts and the zone.
 // `globalThis.__introT = <seconds>` freezes it at a moment (used to review frames).
-import { Suspense, useEffect, useMemo, useRef } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useGLTF } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { EffectComposer, Bloom, Vignette, Noise } from "@react-three/postprocessing";
 import * as THREE from "three";
 import { Arena } from "./Arena";
+import { Meadow } from "./Meadow";
+import { setActiveMap } from "../game/maps";
 import { Avatar, SEAT_COLORS } from "./Avatar";
 import { TORCH_X } from "./Gun";
 import { stillMotion, SOLDIER_URL, type Motion } from "./Soldier";
@@ -16,9 +18,12 @@ export { INTRO_LENGTH };
 
 // ------------------------------------------------------------------ script
 //
-// THE LAST LIGHT. 03:12, the grid fails and eight strangers wake in the Yard. DUSK learns the
-// one rule (a light shows you the way and shows everyone where you are) by hiding from NYX's
-// torch, watches WRAITH forget it, outruns the zone, and wins the last duel by staying dark.
+// THE LAST LIGHT, in two nights.
+// Act I, the Yard: 03:12 the grid fails. DUSK wakes among the containers and learns the one rule
+// hiding from NYX's searching torch; WRAITH forgets it and dies. The Warden watches and tells no
+// one. Act II, the Meadow: no walls, only grass. VEX kills GLOOM with a crossbow nobody hears.
+// DUSK answers with a grenade, takes the silent bow, and in the last circle ends NYX, who kept
+// his light on, standing under a lantern on the creek bridge. One walks out.
 
 type V3 = [number, number, number];
 type Win = [number, number];
@@ -27,6 +32,8 @@ interface Actor {
   name: string;
   seat: number; // colour
   weapon: number;
+  /** the gun in hand changes at these times (picked up mid-scene) */
+  weapons?: { t: number; w: number }[];
   show: Win[];
   keys: Key[];
   fire?: { t: number; at: string | V3; miss?: number }[];
@@ -38,38 +45,46 @@ interface Actor {
   nvg?: boolean;
 }
 
+/** the night switches from the Yard to the Meadow here, behind a lightning flash */
+export const MAP_SWITCH = 33.0;
+
 export const ACTORS: Actor[] = [
   {
-    name: "DUSK", seat: 7, weapon: 3, show: [[6, 22], [34, 53]],
-    lights: [[9.8, 13], [47.0, 53]],
-    crouch: [[6, 9.2], [13, 22], [40, 45.2]],
+    name: "DUSK", seat: 7, weapon: 3, weapons: [{ t: 51.0, w: 7 }], show: [[6, 22], [37.2, 41.5], [44.6, 51.5], [55, 70]],
+    lights: [[9.8, 13]],
+    crouch: [[6, 9.2], [13, 22], [37.2, 48.6], [50.6, 51.5], [55, 59.7]],
     keys: [
-      // wakes in the container yard
+      // Act I: wakes in the container yard
       { t: 6, x: 6.5, z: 10.6, face: -20 }, { t: 12.9, x: 6.5, z: 10.6, face: -10 },
       // hides south of the containers while NYX passes on the other side
       { t: 13, x: 11.4, z: 13.45, face: -60 }, { t: 22, x: 11.4, z: 13.45, face: -80 },
-      // the zone: sprints east, throws at GLOOM
-      { t: 34, x: 5.5, z: 26.5, face: 0 }, { t: 37.1, x: 17.4, z: 26.5, face: 0 }, { t: 39.9, x: 17.4, z: 26.5, face: 12 },
-      // the duel: crouched in the dark behind the crates
-      { t: 40, x: 29.6, z: 30.5, face: -20 }, { t: 45.1, x: 29.6, z: 30.5, face: -30 }, { t: 45.4, x: 29.6, z: 30.5, face: -47 }, { t: 53, x: 29.6, z: 30.5, face: -47 },
+      // Act II: crawling north through the tall grass, west of the creek
+      { t: 37.2, x: 20.6, z: 29.4, face: -88 }, { t: 41.5, x: 20.3, z: 23.6, face: -95 },
+      // stops in the grass, watches the hedge, throws
+      { t: 44.6, x: 17.6, z: 19.6, face: 205 }, { t: 48.6, x: 17.6, z: 19.6, face: 202 },
+      // runs to the body and takes the crossbow
+      { t: 50.6, x: 11.2, z: 17.2, face: 200 }, { t: 51.5, x: 11.2, z: 17.2, face: 200 },
+      // the last circle: low in the tall grass south of the bridge
+      { t: 55, x: 31.5, z: 40.6, face: 218 }, { t: 59.6, x: 31.5, z: 40.6, face: 218 }, { t: 60.0, x: 31.5, z: 40.6, face: 219 },
+      { t: 70, x: 31.5, z: 40.6, face: 219 },
     ],
-    throwAt: 37.25,
-    fire: [{ t: 45.6, at: "NYX" }, { t: 45.85, at: "NYX" }],
+    throwAt: 47.3,
+    fire: [{ t: 60.0, at: "NYX" }],
   },
   {
-    name: "NYX", seat: 1, weapon: 4, show: [[13, 22], [22, 29], [40, 53]],
-    lights: [[13, 22], [40, 46]],
+    name: "NYX", seat: 1, weapon: 4, show: [[13, 22], [22, 29], [55, 70]],
+    lights: [[13, 22], [55, 60.3]],
     keys: [
-      // the hunter: walks the far side of the containers, torch searching
+      // Act I, the hunter: walks the far side of the containers, torch searching
       { t: 13, x: 21.0, z: 10.5, face: 180 }, { t: 20.5, x: 14.0, z: 10.5, face: 180 }, { t: 21.9, x: 13.6, z: 10.5, face: 180 },
       // dark on the road, waiting
       { t: 22, x: 21.5, z: 17.0, face: 145 }, { t: 29, x: 21.5, z: 17.0, face: 145 },
-      // the plaza: comes looking, passes the crates
-      { t: 40, x: 37.5, z: 28.5, face: 180 }, { t: 45.1, x: 31.6, z: 28.4, face: 185 }, { t: 53, x: 31.6, z: 28.4, face: 185 },
+      // Act II: on the south bridge, under the lantern, light on
+      { t: 55, x: 25.3, z: 36.5, face: -40 }, { t: 58.6, x: 27.4, z: 36.6, face: -25 }, { t: 70, x: 27.4, z: 36.6, face: -25 },
     ],
-    sweep: [{ from: 13, to: 21.9, amp: 32, period: 2.6 }, { from: 40.3, to: 45.2, amp: 38, period: 2.2 }],
+    sweep: [{ from: 13, to: 21.9, amp: 32, period: 2.6 }, { from: 55.2, to: 60.2, amp: 28, period: 2.4 }],
     fire: [{ t: 26.4, at: "WRAITH", miss: 0.1 }],
-    dead: 45.9,
+    dead: 60.3,
   },
   {
     name: "WRAITH", seat: 2, weapon: 1, show: [[22, 29]], lights: [[22, 26.6]],
@@ -78,14 +93,24 @@ export const ACTORS: Actor[] = [
     dead: 26.45,
   },
   {
-    name: "GLOOM", seat: 5, weapon: 2, show: [[34, 40]], lights: [[34, 38.2]],
-    keys: [{ t: 34, x: 23.5, z: 28.2, face: 200 }, { t: 37, x: 21.6, z: 27.6, face: 185 }, { t: 40, x: 21.6, z: 27.6, face: 185 }],
-    dead: 38.15,
+    // Act II: walks the north field with his torch on, past the hedge gap
+    name: "GLOOM", seat: 5, weapon: 2, show: [[41.5, 44.6]], lights: [[41.5, 43.8]],
+    keys: [{ t: 41.5, x: 3.5, z: 13.5, face: 0 }, { t: 44.6, x: 9.6, z: 13.4, face: 5 }],
+    dead: 43.75,
+  },
+  {
+    // Act II: crouched behind the hedgerow with a crossbow; never lights up, never makes a sound
+    name: "VEX", seat: 3, weapon: 7, show: [[41.5, 51.5]],
+    crouch: [[41.5, 48.2]],
+    keys: [{ t: 41.5, x: 10.1, z: 16.6, face: 230 }, { t: 43.3, x: 10.1, z: 16.6, face: 238 }, { t: 51.5, x: 10.1, z: 16.6, face: 238 }],
+    fire: [{ t: 43.4, at: "GLOOM" }],
+    dead: 48.25,
   },
 ];
 
 type Cam = { from: number; to: number; p0: V3; p1: V3; l0: V3; l1: V3; follow?: string; fill?: number };
 export const CAMS: Cam[] = [
+  // ---- Act I, the Yard
   // 03:12, the district from above; the lights die
   { from: 0, to: 6, p0: [24, 40, 62], p1: [24, 26, 44], l0: [24, 0, 24], l1: [16, 0, 18] },
   // DUSK wakes on the wet ground: low, slow push in from the side
@@ -102,24 +127,41 @@ export const CAMS: Cam[] = [
   { from: 25.4, to: 26.9, p0: [22.6, 1.6, 15.4], p1: [22.5, 1.55, 15.5], l0: [16.5, 1.0, 20.5], l1: [16.5, 1.0, 20.5] },
   // he goes down where he stood; his torch rolls away and lights him
   { from: 26.9, to: 29, p0: [1.6, 1.5, 2.4], p1: [1.9, 2.1, 2.7], l0: [-0.6, 0.2, -0.3], l1: [-0.6, 0.15, -0.3], follow: "WRAITH" },
-  // the Warden over the water tower
-  { from: 29, to: 34, p0: [31, 4, 33], p1: [28, 8.5, 30], l0: [24, 8.5, 24], l1: [24, 10, 24] },
-  // the zone: running alongside DUSK
-  { from: 34, to: 37.1, p0: [3.0, 1.25, -2.0], p1: [2.8, 1.3, -1.8], l0: [0, 1.0, 0], l1: [0, 1.0, 0], follow: "DUSK", fill: 1.4 },
-  // the frag: behind him as it lands on GLOOM
-  { from: 37.1, to: 40, p0: [15.6, 1.75, 25.3], p1: [15.2, 2.2, 24.9], l0: [21.6, 0.8, 27.6], l1: [21.6, 0.6, 27.6] },
-  // the duel: low behind DUSK in the dark, NYX's light coming
-  { from: 40, to: 45.2, p0: [27.6, 0.85, 32.0], p1: [27.8, 0.9, 31.9], l0: [34.0, 1.0, 28.4], l1: [32.4, 1.0, 28.4] },
-  // he rises and fires
-  { from: 45.2, to: 47, p0: [33.0, 1.3, 31.6], p1: [33.2, 1.35, 31.8], l0: [30.4, 1.0, 29.4], l1: [30.4, 1.0, 29.4], fill: 1.0 },
-  // close on the one who walks out, pulling away
-  { from: 47, to: 53, p0: [30.9, 1.45, 29.6], p1: [33.0, 3.0, 31.8], l0: [29.6, 1.25, 30.5], l1: [29.6, 1.0, 30.5], fill: 1.6 },
+  // the Warden over the water tower, the circle closing on the Yard
+  { from: 29, to: 33, p0: [31, 4, 33], p1: [28, 8.5, 30], l0: [24, 8.5, 24], l1: [24, 10, 24] },
+  // ---- Act II, the Meadow
+  // night two: high over the fields, the creek a silver line, lanterns, fireflies
+  { from: 33, to: 37.2, p0: [24, 30, 66], p1: [24, 15, 47], l0: [24, 0, 24], l1: [22, 0, 26], fill: 0 },
+  // low in the tall grass behind DUSK as he crawls
+  { from: 37.2, to: 41.5, p0: [0.55, 0.75, 1.9], p1: [0.5, 0.8, 1.7], l0: [-0.1, 0.45, -2.6], l1: [-0.1, 0.45, -2.6], follow: "DUSK", fill: 1.1 },
+  // behind the hedge with VEX: GLOOM's torch on the far side of the gap
+  { from: 41.5, to: 44.6, p0: [11.7, 0.85, 18.3], p1: [11.5, 0.9, 18.1], l0: [7.2, 0.9, 13.6], l1: [7.6, 0.9, 13.6], fill: 0.5 },
+  // DUSK in the grass, the throw lined up on the hedge
+  { from: 44.6, to: 48.6, p0: [19.4, 1.25, 20.6], p1: [19.2, 1.35, 20.4], l0: [11.0, 0.5, 16.6], l1: [10.6, 0.5, 16.6], fill: 0.9 },
+  // the body, and the crossbow taken from it
+  { from: 48.6, to: 51.5, p0: [13.4, 1.0, 18.7], p1: [12.9, 0.95, 18.4], l0: [10.6, 0.5, 16.8], l1: [10.8, 0.6, 16.9], fill: 1.0 },
+  // the Warden over the Meadow, drawing the last circle round the bridge
+  { from: 51.5, to: 55, p0: [27, 2.5, 56], p1: [27, 5.5, 50], l0: [27, 6, 37], l1: [27, 9.5, 37] },
+  // the last circle: behind DUSK low in the grass, NYX on the bridge under the lantern
+  { from: 55, to: 59.7, p0: [32.7, 1.25, 42.4], p1: [32.5, 1.3, 42.1], l0: [26.4, 1.05, 36.5], l1: [27.2, 1.05, 36.6], fill: 0.6 },
+  // he rises: one bolt, no flash, no sound
+  { from: 59.7, to: 61.6, p0: [29.6, 1.35, 33.9], p1: [29.8, 1.4, 33.7], l0: [27.4, 0.95, 36.8], l1: [27.4, 0.8, 36.8], fill: 0.8 },
+  // close on the one who walks out, pulling away over the dark field
+  { from: 61.6, to: 70, p0: [30.2, 1.35, 42.0], p1: [28.4, 3.4, 44.2], l0: [31.5, 1.15, 40.6], l1: [31.5, 0.9, 40.6], fill: 1.4 },
 ];
 
-const BLASTS: { t: number; x: number; z: number }[] = [{ t: 38.15, x: 21.5, z: 27.5 }];
-const NADE = { from: 37.35, to: 38.15, a: [17.8, 1.5, 26.5] as V3, b: [21.5, 0.2, 27.5] as V3 };
-const ZONE = { from: 33.8, to: 40, r0: 30, r1: 14, x: 24, z: 24 };
-const WARDEN = { from: 29.4, to: 34 };
+const BLASTS: { t: number; x: number; z: number }[] = [{ t: 48.2, x: 10.2, z: 16.7 }];
+const NADES: { from: number; to: number; a: V3; b: V3 }[] = [{ from: 47.4, to: 48.2, a: [17.2, 1.5, 19.4], b: [10.2, 0.2, 16.7] }];
+/** the aimed throw drawn before it's thrown (as in the game): DUSK lines it up */
+const ARC = { from: 45.4, to: 47.35, a: [17.3, 1.4, 19.4] as V3, b: [10.2, 0.05, 16.7] as V3 };
+const ZONES = [
+  { from: 29.4, to: 33, r0: 30, r1: 18, x: 24, z: 24 },
+  { from: 51.6, to: 57.5, r0: 24, r1: 9, x: 27, z: 37 },
+];
+const WARDENS = [
+  { from: 29.4, to: 33, x: 24, z: 24 },
+  { from: 51.6, to: 55, x: 27, z: 37 },
+];
 const TITLE_AT = INTRO_LENGTH;
 
 // ------------------------------------------------------------------ helpers
@@ -166,6 +208,8 @@ function ActorView({ a, t }: { a: Actor; t: React.MutableRefObject<number> }) {
   const flash = useRef<THREE.PointLight>(null);
   const fired = useRef(new Set<number>());
   const { scene } = useThree();
+  const weaponAt = (now: number) => (a.weapons ?? []).reduce((w, s) => (now >= s.t ? s.w : w), a.weapon);
+  const [weapon, setWeapon] = useState(a.weapon);
   useEffect(() => {
     scene.add(tgt);
     if (spot.current) spot.current.target = tgt;
@@ -175,6 +219,8 @@ function ActorView({ a, t }: { a: Actor; t: React.MutableRefObject<number> }) {
   }, [scene, tgt]);
   useFrame(() => {
     const now = t.current;
+    const w = weaponAt(now);
+    if (w !== weapon) setWeapon(w);
     const dead = a.dead !== undefined && now >= a.dead;
     // a body stays exactly where and how it fell
     const p = poseAt(a, dead ? a.dead! : now);
@@ -212,7 +258,7 @@ function ActorView({ a, t }: { a: Actor; t: React.MutableRefObject<number> }) {
       spot.current.color.set("#fff1d0");
     } else if (spot.current) {
       // from the torch under the barrel (the same spot the lens glows on the gun)
-      const lens = -0.07 + 0.85 * ((TORCH_X[a.weapon] ?? 0.6) + 0.08);
+      const lens = -0.07 + 0.72 * ((TORCH_X[w] ?? 0.6) + 0.08);
       spot.current.position.set(p.x + Math.cos(fa) * lens, m.crouch ? 0.68 : 0.94, p.z + Math.sin(fa) * lens);
       spot.current.intensity = lit ? 48 * flick : 0;
       spot.current.color.set(a.nvg ? "#9dffb8" : "#fff1d0");
@@ -220,8 +266,11 @@ function ActorView({ a, t }: { a: Actor; t: React.MutableRefObject<number> }) {
     if (!dropped) tgt.position.set(p.x + Math.cos(fa) * 6, 0.3, p.z + Math.sin(fa) * 6);
     // gunfire: tracer to the target (or near it), muzzle flash, sound once
     if (tracer.current && flash.current) {
+      const bolt = w === 7;
       tracer.current.visible = shot >= 0 && on;
-      flash.current.intensity = shot >= 0 && on ? 26 : 0;
+      flash.current.intensity = shot >= 0 && on && !bolt ? 26 : 0;
+      (tracer.current.material as THREE.MeshBasicMaterial).color.set(bolt ? "#8a8f98" : "#ffe6a8");
+      tracer.current.scale.y = tracer.current.scale.z = bolt ? 0.45 : 1;
       if (shot >= 0) {
         const f = a.fire![shot];
         const to = typeof f.at === "string" ? poseAt(actor(f.at), now) : { x: f.at[0], z: f.at[2] };
@@ -233,11 +282,11 @@ function ActorView({ a, t }: { a: Actor; t: React.MutableRefObject<number> }) {
         const len = Math.hypot(tx - mx, tz - mz);
         tracer.current.position.set((mx + tx) / 2, m.crouch ? 0.75 : 1.0, (mz + tz) / 2);
         tracer.current.rotation.set(0, -Math.atan2(tz - mz, tx - mx), 0);
-        tracer.current.scale.set(len, 1, 1);
+        tracer.current.scale.x = len;
         flash.current.position.set(mx, 1.05, mz);
         if (!fired.current.has(shot)) {
           fired.current.add(shot);
-          audio.shotAt(a.weapon, a.name === "DUSK" ? 1 : 6, 0);
+          audio.shotAt(w, a.name === "DUSK" ? 1 : w === 7 ? 3 : 6, 0);
         }
       }
     }
@@ -245,7 +294,7 @@ function ActorView({ a, t }: { a: Actor; t: React.MutableRefObject<number> }) {
   return (
     <>
       <group ref={g} visible={false}>
-        <Avatar color={SEAT_COLORS[a.seat]} weapon={a.weapon} motion={motion} ring={false} />
+        <Avatar color={SEAT_COLORS[a.seat]} weapon={weapon} motion={motion} ring={false} />
       </group>
       <spotLight ref={spot} angle={0.55} penumbra={0.35} distance={13} decay={1.05} intensity={0} castShadow={a.name === "DUSK" || a.name === "NYX"} shadow-bias={-0.0006} shadow-normalBias={0.04} />
       <pointLight ref={flash} color="#ffb347" distance={9} decay={1.3} intensity={0} />
@@ -257,8 +306,8 @@ function ActorView({ a, t }: { a: Actor; t: React.MutableRefObject<number> }) {
   );
 }
 
-/** The frag in flight, the blast, the smoke. */
-function Blasts({ t }: { t: React.MutableRefObject<number> }) {
+/** A frag in flight, the blast, the smoke. */
+function Blast({ t, n, b }: { t: React.MutableRefObject<number>; n: (typeof NADES)[number]; b: (typeof BLASTS)[number] }) {
   const nade = useRef<THREE.Mesh>(null);
   const blast = useRef<THREE.Mesh>(null);
   const light = useRef<THREE.PointLight>(null);
@@ -266,33 +315,32 @@ function Blasts({ t }: { t: React.MutableRefObject<number> }) {
   const boomed = useRef(false);
   useFrame(() => {
     const now = t.current;
-    const k = (now - NADE.from) / (NADE.to - NADE.from);
+    const k = (now - n.from) / (n.to - n.from);
     if (nade.current) {
       nade.current.visible = k > 0 && k < 1;
-      const [ax, ay, az] = NADE.a;
-      const [bx, by, bz] = NADE.b;
+      const [ax, ay, az] = n.a;
+      const [bx, by, bz] = n.b;
       nade.current.position.set(ax + (bx - ax) * k, ay + (by - ay) * k + Math.sin(k * Math.PI) * 1.4, az + (bz - az) * k);
     }
-    const B = BLASTS[0];
-    const b = (now - B.t) / 0.45;
+    const q = (now - b.t) / 0.45;
     if (blast.current) {
-      blast.current.visible = b > 0 && b < 1;
-      blast.current.position.set(B.x, 0.6, B.z);
-      blast.current.scale.setScalar(0.3 + b * 2.0);
-      (blast.current.material as THREE.MeshBasicMaterial).opacity = 0.75 * (1 - b) * (1 - b);
+      blast.current.visible = q > 0 && q < 1;
+      blast.current.position.set(b.x, 0.6, b.z);
+      blast.current.scale.setScalar(0.3 + q * 2.0);
+      (blast.current.material as THREE.MeshBasicMaterial).opacity = 0.75 * (1 - q) * (1 - q);
     }
     if (light.current) {
-      light.current.position.set(B.x, 1.3, B.z);
-      light.current.intensity = b > 0 && b < 1 ? 45 * (1 - b) : 0;
+      light.current.position.set(b.x, 1.3, b.z);
+      light.current.intensity = q > 0 && q < 1 ? 45 * (1 - q) : 0;
     }
     smoke.current.forEach((m, i) => {
       if (!m) return;
-      const s = (now - B.t - i * 0.07) / 2.4;
+      const s = (now - b.t - i * 0.07) / 2.4;
       m.visible = s > 0 && s < 1.4;
-      m.position.set(B.x + Math.cos(i * 1.7) * s * 1.5, 0.6 + s * 1.9 + (i % 3) * 0.2, B.z + Math.sin(i * 1.7) * s * 1.5);
+      m.position.set(b.x + Math.cos(i * 1.7) * s * 1.5, 0.6 + s * 1.9 + (i % 3) * 0.2, b.z + Math.sin(i * 1.7) * s * 1.5);
       m.scale.setScalar(0.5 + s * 1.7);
     });
-    if (now >= B.t && !boomed.current) {
+    if (now >= b.t && now < b.t + 0.5 && !boomed.current) {
       boomed.current = true;
       audio.explosion(3);
     }
@@ -317,9 +365,58 @@ function Blasts({ t }: { t: React.MutableRefObject<number> }) {
     </>
   );
 }
+function Blasts({ t }: { t: React.MutableRefObject<number> }) {
+  return (
+    <>
+      {NADES.map((n, i) => (
+        <Blast key={i} t={t} n={n} b={BLASTS[i]} />
+      ))}
+    </>
+  );
+}
+
+/** The aimed throw lined up before it's thrown: the same dashed arc and landing ring as in a match. */
+function ThrowArc({ t }: { t: React.MutableRefObject<number> }) {
+  const line = useMemo(() => {
+    const pts: THREE.Vector3[] = [];
+    const [ax, ay, az] = ARC.a;
+    const [bx, by, bz] = ARC.b;
+    for (let i = 0; i <= 40; i++) {
+      const u = i / 40;
+      pts.push(new THREE.Vector3(ax + (bx - ax) * u, ay + (by - ay) * u + Math.sin(u * Math.PI) * 1.4, az + (bz - az) * u));
+    }
+    const g = new THREE.BufferGeometry().setFromPoints(pts);
+    const l = new THREE.Line(g, new THREE.LineDashedMaterial({ color: "#ff6b4a", dashSize: 0.22, gapSize: 0.14, transparent: true, depthTest: false, toneMapped: false }));
+    l.computeLineDistances();
+    l.renderOrder = 20;
+    return l;
+  }, []);
+  const ring = useRef<THREE.Mesh>(null);
+  useFrame(() => {
+    const now = t.current;
+    const on = now >= ARC.from && now < ARC.to;
+    const fade = on ? Math.min(1, (now - ARC.from) / 0.3) : 0;
+    line.visible = on;
+    (line.material as THREE.LineDashedMaterial).opacity = 0.9 * fade;
+    if (ring.current) {
+      ring.current.visible = on;
+      ring.current.scale.setScalar(3 * (1 + Math.sin(now * 6) * 0.03));
+      (ring.current.material as THREE.MeshBasicMaterial).opacity = 0.8 * fade;
+    }
+  });
+  return (
+    <>
+      <primitive object={line} />
+      <mesh ref={ring} rotation-x={-Math.PI / 2} position={[ARC.b[0], 0.06, ARC.b[2]]} visible={false} renderOrder={21}>
+        <ringGeometry args={[0.94, 1, 64]} />
+        <meshBasicMaterial color="#ff6b4a" transparent depthTest={false} toneMapped={false} />
+      </mesh>
+    </>
+  );
+}
 
 /** The zone wall sweeping in. */
-function ZoneWall({ t }: { t: React.MutableRefObject<number> }) {
+function ZoneWall({ t, z: ZONE }: { t: React.MutableRefObject<number>; z: (typeof ZONES)[number] }) {
   const m = useRef<THREE.Mesh>(null);
   const mat = useMemo(
     () =>
@@ -351,7 +448,7 @@ function ZoneWall({ t }: { t: React.MutableRefObject<number> }) {
   );
 }
 
-function Warden({ t }: { t: React.MutableRefObject<number> }) {
+function Warden({ t, w: WARDEN }: { t: React.MutableRefObject<number>; w: (typeof WARDENS)[number] }) {
   const g = useRef<THREE.Group>(null);
   const eye = useRef<THREE.Mesh>(null);
   const beam = useRef<THREE.Group>(null);
@@ -374,7 +471,7 @@ function Warden({ t }: { t: React.MutableRefObject<number> }) {
     const gone = now > WARDEN.to - 0.3 ? Math.max(0, 1 - (now - WARDEN.to + 0.3) / 0.5) : 1;
     const s = appear * gone;
     if (g.current) {
-      g.current.visible = s > 0.01;
+      g.current.visible = s > 0.01 && now >= WARDEN.from - 0.1 && now < WARDEN.to + 0.4;
       g.current.scale.setScalar(0.2 + s * 0.8);
       g.current.rotation.y = now * 0.25;
       g.current.position.y = 9.8 + Math.sin(now * 0.8) * 0.3;
@@ -387,7 +484,7 @@ function Warden({ t }: { t: React.MutableRefObject<number> }) {
     beamMat.uniforms.uA.value = s;
   });
   return (
-    <group ref={g} position={[24, 9.8, 24]} visible={false}>
+    <group ref={g} position={[WARDEN.x, 9.8, WARDEN.z]} visible={false}>
       <mesh>
         <icosahedronGeometry args={[1.6, 1]} />
         <meshBasicMaterial color="#a64dff" wireframe transparent opacity={0.6} toneMapped={false} />
@@ -439,8 +536,8 @@ function Director({ t, onTime }: { t: React.MutableRefObject<number>; onTime: (s
       pos = [p.x + pos[0], pos[1], p.z + pos[2]];
       look = [p.x + look[0], look[1], p.z + look[2]];
     }
-    const B = BLASTS[0];
-    const shake = now > B.t && now < B.t + 0.55 ? (1 - (now - B.t) / 0.55) * 0.14 : 0;
+    const B = BLASTS.find((b) => now > b.t && now < b.t + 0.55);
+    const shake = B ? (1 - (now - B.t) / 0.55) * 0.14 : 0;
     camera.position.set(pos[0] + (Math.random() - 0.5) * shake, pos[1] + (Math.random() - 0.5) * shake, pos[2]);
     camera.lookAt(...look);
     if (fill.current) {
@@ -450,14 +547,14 @@ function Director({ t, onTime }: { t: React.MutableRefObject<number>; onTime: (s
     // the city's lights die early; lightning when the Warden wakes; light floods in for the title
     // the city's lights die at 03:12 and only come back for the title
     (globalThis as any).__boLightsOut = now > 3.1 && now < TITLE_AT;
-    const strikes = [2.9, 3.05, 29.6];
+    const strikes = [2.9, 3.05, 29.6, MAP_SWITCH - 0.25, MAP_SWITCH - 0.08, 51.7];
     let li = 0;
     for (const st of strikes) if (now >= st && now < st + 0.16) li = 5 * (1 - (now - st) / 0.16);
     if (lightning.current) lightning.current.intensity = li;
     const on = now > TITLE_AT ? Math.min(1, (now - TITLE_AT) / 0.6) : 0;
     if (amb.current) amb.current.intensity = 0.04 + on * 0.55;
     // NYX's boots on the far side of the container, passing left to right of DUSK's ear
-    for (const [w0, w1, cx] of [[13.4, 20.6, 15], [40.4, 45.1, 31]]) {
+    for (const [w0, w1, cx] of [[13.4, 20.6, 15], [55.2, 58.6, 30]]) {
       if (now <= w0 || now >= w1) continue;
       const n = Math.floor((now - w0) / 0.6) + w0 * 100;
       if (n !== lastStep.current) {
@@ -473,9 +570,9 @@ function Director({ t, onTime }: { t: React.MutableRefObject<number>; onTime: (s
     });
     cue("wake", 6.2, () => audio.hurt());
     cue("wolves", 4.2, () => audio.howl(-0.6, 0.7));
-    cue("wolves2", 40.6, () => audio.howl(0.7, 0.55));
     cue("click", 9.8, () => audio.reload());
     cue("heart", 13.2, () => audio.setHeartbeat(0.9));
+    cue("hunt", 13.6, () => audio.horror("bass", 0.5, { wet: 0.7 }));
     cue("heartoff", 21.6, () => audio.setHeartbeat(0.3));
     cue("fall1", 26.9, () => {
       audio.bodyFall(0.3, 0.8);
@@ -486,17 +583,33 @@ function Director({ t, onTime }: { t: React.MutableRefObject<number>; onTime: (s
       audio.boom();
       audio.whisper(-0.6);
     });
-    cue("zone", 33.9, () => audio.setZoneDanger(1));
-    cue("toss", 37.25, () => audio.toss(1));
-    cue("clink", 37.95, () => audio.clink(0.8, 0.3));
-    cue("fall2", 38.6, () => audio.bodyFall(0.3, 0.7));
-    cue("zoneoff", 40, () => audio.setZoneDanger(0));
-    cue("heart2", 40.4, () => audio.setHeartbeat(1));
-    cue("heart2off", 45.6, () => audio.setHeartbeat(0));
-    cue("fall3", 46.35, () => audio.bodyFall(-0.2, 1));
-    cue("click2", 47.0, () => audio.reload());
-    cue("walksout", 47.4, () => audio.horror("high", 0.75));
-    cue("hunt", 13.6, () => audio.horror("bass", 0.5, { wet: 0.7 }));
+    cue("zone", 29.8, () => audio.setZoneDanger(1));
+    // the cut to night two: thunder over the fields, the Yard's dread gives way to wind
+    cue("cut", MAP_SWITCH - 0.25, () => {
+      audio.setZoneDanger(0);
+      audio.thunder(0.6);
+      audio.boom();
+    });
+    cue("meadow", MAP_SWITCH + 1.2, () => audio.howl(0.5, 0.45));
+    cue("crawl", 37.4, () => audio.setHeartbeat(0.5));
+    cue("gloomfall", 43.85, () => audio.bodyFall(-0.4, 0.5));
+    cue("silence", 44.0, () => audio.horror("mid", 0.6, { wet: 0.8 }));
+    cue("toss", 47.3, () => audio.toss(1));
+    cue("clink", 48.0, () => audio.clink(-0.6, 0.3));
+    cue("vexfall", 48.7, () => audio.bodyFall(-0.5, 0.6));
+    cue("crawloff", 48.8, () => audio.setHeartbeat(0));
+    cue("pickup", 50.9, () => audio.reload(7, 1));
+    cue("warden2", 51.8, () => {
+      audio.boom();
+      audio.whisper(0.6);
+    });
+    cue("zone2", 51.9, () => audio.setZoneDanger(1));
+    cue("heart2", 55.2, () => audio.setHeartbeat(1));
+    cue("zone2off", 57.5, () => audio.setZoneDanger(0));
+    cue("heart2off", 60.0, () => audio.setHeartbeat(0));
+    cue("fall3", 60.75, () => audio.bodyFall(-0.2, 1));
+    cue("walksout", 62.0, () => audio.horror("high", 0.75));
+    cue("wolves2", 63.5, () => audio.howl(0.7, 0.4));
     cue("lights", TITLE_AT, () => {
       audio.lightsOn();
       audio.boom();
@@ -515,6 +628,20 @@ function Director({ t, onTime }: { t: React.MutableRefObject<number>; onTime: (s
 }
 
 const TOUCH = typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches;
+
+/** Act I plays in the Yard, Act II in the Meadow: the stage swaps at the lightning cut. */
+function Stage({ t }: { t: React.MutableRefObject<number> }) {
+  const [act, setAct] = useState(1);
+  useFrame(() => {
+    const want = t.current >= MAP_SWITCH - 0.05 ? 2 : 1;
+    if (want !== act) {
+      setActiveMap(want === 2 ? 1 : 0);
+      setAct(want);
+    }
+  });
+  useEffect(() => () => setActiveMap(0), []);
+  return act === 2 ? <Meadow /> : <Arena />;
+}
 
 /** Mounts once the soldier model has loaded: compiles every shader up front (no stall on the
  *  first cut), then says so. The story's clock only starts after this. */
@@ -551,13 +678,18 @@ export function IntroScene({ onTime, onReady }: { onTime: (s: number) => void; o
       <Suspense fallback={null}>
         <Ready onReady={onReady} />
         <Director t={t} onTime={onTime} />
-        <Arena />
+        <Stage t={t} />
         {ACTORS.map((a) => (
           <ActorView key={a.name} a={a} t={t} />
         ))}
         <Blasts t={t} />
-        <ZoneWall t={t} />
-        <Warden t={t} />
+        <ThrowArc t={t} />
+        {ZONES.map((z, i) => (
+          <ZoneWall key={i} t={t} z={z} />
+        ))}
+        {WARDENS.map((w, i) => (
+          <Warden key={i} t={t} w={w} />
+        ))}
       </Suspense>
       {!TOUCH && (
         <EffectComposer multisampling={0}>

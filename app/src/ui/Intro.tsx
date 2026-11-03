@@ -9,22 +9,33 @@ const IntroScene = lazy(() => loadScene().then((m) => ({ default: m.IntroScene }
 // the story, told underneath the picture: narration (bottom), a few cards (centre), name tags
 type Line = { at: number; to: number; text: string; kind: "say" | "card" | "name"; sub?: string };
 const LINES: Line[] = [
+  // ---- Act I · the Yard
   { at: 0.6, to: 2.9, kind: "card", text: "03:12", sub: "THE GRID FAILS" },
-  { at: 3.4, to: 5.8, kind: "say", text: "Every light in the district goes out at once." },
-  { at: 6.6, to: 9.4, kind: "say", text: "Eight strangers wake up inside the Yard." },
+  { at: 3.4, to: 5.8, kind: "say", text: "Every light in the district dies at once." },
+  { at: 6.6, to: 9.4, kind: "say", text: "Eight strangers wake inside the Yard." },
   { at: 7.2, to: 12.6, kind: "name", text: "DUSK", sub: "woke up first" },
   { at: 9.8, to: 12.8, kind: "say", text: "No map. No allies. One way out." },
   { at: 13.6, to: 17.0, kind: "say", text: "A torch shows you the way…" },
-  { at: 14.4, to: 19.5, kind: "name", text: "NYX", sub: "sniper · hunting" },
+  { at: 14.4, to: 19.5, kind: "name", text: "NYX", sub: "hunter · light on" },
   { at: 17.3, to: 21.6, kind: "say", text: "…and shows everyone else exactly where you are." },
   { at: 22.4, to: 25.0, kind: "say", text: "WRAITH heard something in the dark." },
   { at: 22.6, to: 25.0, kind: "name", text: "WRAITH", sub: "kept his light on" },
-  { at: 26.9, to: 29.0, kind: "card", text: "EVERY SHOT", sub: "IS A FLARE" },
-  { at: 29.8, to: 32.0, kind: "say", text: "Above the Yard, the Warden sees every move…" },
-  { at: 32.0, to: 33.9, kind: "card", text: "IT TELLS NO ONE" },
-  { at: 34.4, to: 37.0, kind: "say", text: "Then the Yard starts to close." },
-  { at: 40.4, to: 44.8, kind: "say", text: "Stay dark. Stay low. Let the light come to you." },
-  { at: 47.4, to: 49.8, kind: "card", text: "ONE WALKS OUT" },
+  { at: 26.9, to: 28.9, kind: "card", text: "EVERY SHOT", sub: "IS A FLARE" },
+  { at: 29.3, to: 31.2, kind: "say", text: "Above the Yard, the Warden sees every move…" },
+  { at: 31.2, to: 32.8, kind: "card", text: "IT TELLS NO ONE" },
+  // ---- Act II · the Meadow
+  { at: 33.4, to: 36.4, kind: "card", text: "NIGHT TWO", sub: "THE MEADOW" },
+  { at: 37.6, to: 40.8, kind: "say", text: "Two walked out of the Yard. Out here there are no walls. Only grass." },
+  { at: 41.8, to: 44.4, kind: "name", text: "VEX", sub: "crossbow · never makes a sound" },
+  { at: 42.0, to: 44.4, kind: "say", text: "GLOOM thought the dark was empty." },
+  { at: 44.6, to: 46.8, kind: "card", text: "NOT EVERY KILL", sub: "MAKES A SOUND" },
+  { at: 45.6, to: 48.0, kind: "say", text: "Aim where they'll be. Not where they are." },
+  { at: 48.9, to: 51.3, kind: "say", text: "Take what the dark leaves behind." },
+  { at: 51.8, to: 54.8, kind: "say", text: "The Warden draws the last circle round the bridge." },
+  { at: 55.4, to: 58.6, kind: "say", text: "NYX made it out too. He still trusts his light." },
+  { at: 56.0, to: 59.6, kind: "name", text: "NYX", sub: "under the lantern" },
+  { at: 59.8, to: 61.8, kind: "card", text: "STAY DARK", sub: "STAY SILENT" },
+  { at: 62.6, to: 65.6, kind: "card", text: "ONE WALKS OUT" },
 ];
 const TITLE_AT = INTRO_LENGTH;
 
@@ -127,7 +138,7 @@ export function Intro({ onDone }: { onDone: () => void }) {
           <p>stay dark. nobody sees you, not even the chain.</p>
           {t > TITLE_AT + 1.2 && (
             <button className="btn primary big" onClick={finish}>
-              ENTER THE YARD
+              ENTER
             </button>
           )}
         </div>

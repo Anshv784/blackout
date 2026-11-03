@@ -144,7 +144,7 @@ No ghosting: when you die your View is emptied. Bots follow the same vision rule
 
 ### The story
 
-First-time visitors get a 50-second trailer, played live in the real Yard with the game's own soldiers, lights and sound. At 03:12 the grid fails and eight strangers wake in the Yard. DUSK learns the one rule by hiding behind a container while NYX's torch sweeps past: a light shows you the way, and shows everyone else where you are. He watches WRAITH spray at a sound and get picked off from the dark. The Warden watches it all and tells no one. The zone closes in, DUSK throws a frag, and he wins the last duel by staying dark and letting the light come to him. Replay it any time from **Story** in the top bar.
+First-time visitors get a one-minute trailer in two nights, played live in the game's own two maps with its soldiers, lights and sound. Night one, the Yard: at 03:12 the grid fails and eight strangers wake among the containers. DUSK learns the one rule hiding from NYX's searching torch (a light shows you the way, and shows everyone where you are) and watches WRAITH forget it. The Warden sees everything and tells no one. Night two, the Meadow: no walls, only grass. VEX kills with a crossbow nobody hears; DUSK lines up a grenade, takes the silent bow, and in the last circle ends NYX, who still trusts his light, under a lantern on the creek bridge. Replay it any time from **Story** in the top bar.
 
 <p align="center">
   <img src="docs/assets/story.jpg" alt="The trailer: NYX's torch sweeps past DUSK hiding behind a container" width="100%">
