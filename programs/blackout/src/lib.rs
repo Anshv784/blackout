@@ -44,7 +44,7 @@ pub mod blackout {
 
     // ---- Solana: admin
 
-    pub fn init_board(ctx: Context<InitBoard>, daily_prefund: u64) -> Result<()> {
+    pub fn init_board<'info>(ctx: Context<'info, InitBoard<'info>>, daily_prefund: u64) -> Result<()> {
         instructions::admin::handle_init_board(ctx, daily_prefund)
     }
 

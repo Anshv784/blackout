@@ -12,16 +12,31 @@ use ephemeral_rollups_sdk::ephem::{FoldableIntentBuilder, MagicIntentBundleBuild
 
 /// Admin: create the staked leaderboard and the daily board. `daily_prefund` pays the
 /// daily board's rollup rent (its sealed seed account).
-pub fn handle_init_board(ctx: Context<InitBoard>, daily_prefund: u64) -> Result<()> {
+/// Creates the leaderboard, and the daily board too unless it already exists (so the leaderboard
+/// can be closed and made again without touching the daily, which lives in the rollup).
+pub fn handle_init_board<'info>(ctx: Context<'info, InitBoard<'info>>, daily_prefund: u64) -> Result<()> {
     require_keys_eq!(ctx.accounts.payer.key(), ADMIN, BlackoutError::NotAdmin);
-    transfer(
-        CpiContext::new(
-            ctx.accounts.system_program.key(),
-            Transfer { from: ctx.accounts.payer.to_account_info(), to: ctx.accounts.daily.to_account_info() },
-        ),
-        daily_prefund,
-    )?;
-    ctx.accounts.daily.load_init()?;
+    ctx.accounts.board.load_init()?;
+    let daily: &AccountInfo<'info> = ctx.accounts.daily.as_ref();
+    if daily.owner == &anchor_lang::system_program::ID && daily.data_is_empty() {
+        let space = 8 + core::mem::size_of::<Daily>();
+        let lamports = Rent::get()?.minimum_balance(space) + daily_prefund;
+        let bump = [ctx.bumps.daily];
+        let seeds: &[&[u8]] = &[DAILY_SEED, &bump];
+        anchor_lang::system_program::create_account(
+            CpiContext::new_with_signer(
+                ctx.accounts.system_program.key(),
+                anchor_lang::system_program::CreateAccount { from: ctx.accounts.payer.to_account_info(), to: daily.clone() },
+                &[seeds],
+            ),
+            lamports,
+            space as u64,
+            &crate::ID,
+        )?;
+        let loader = AccountLoader::<Daily>::try_from_unchecked(&crate::ID, daily)?;
+        loader.load_init()?;
+        loader.exit(&crate::ID)?;
+    }
     Ok(())
 }
 
@@ -100,8 +115,9 @@ pub fn handle_undelegate_room(ctx: Context<UndelegateRoom>) -> Result<()> {
 pub struct InitBoard<'info> {
     #[account(init, payer = payer, space = 8 + core::mem::size_of::<Board>(), seeds = [BOARD_SEED], bump)]
     pub board: AccountLoader<'info, Board>,
-    #[account(init, payer = payer, space = 8 + core::mem::size_of::<Daily>(), seeds = [DAILY_SEED], bump)]
-    pub daily: AccountLoader<'info, Daily>,
+    /// CHECK: the daily board's PDA; created here only if it doesn't exist yet (see the handler)
+    #[account(mut, seeds = [DAILY_SEED], bump)]
+    pub daily: UncheckedAccount<'info>,
     #[account(mut)]
     pub payer: Signer<'info>,
     pub system_program: Program<'info, System>,
