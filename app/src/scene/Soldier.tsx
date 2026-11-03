@@ -61,9 +61,21 @@ const RECOIL: [number, number, number, number][] = [
   [0.12, 0.3, 1.5, 0.002], // S12K: big shove
   [0.05, 0.09, 1.0, 0.00005], // M416: tight climb
   [0.14, 0.34, 1.4, 0.004], // KAR98K: heavy, slow to settle
+  [0.09, 0.22, 1.2, 0.0012], // marksman: firm, settles fast
+  [0.04, 0.08, 0.9, 0.00003], // LMG: steady chatter
+  [0.03, 0.05, 0, 0.0005], // crossbow: a nudge, no flash
 ];
 const HEIGHT = 1.38; // world units (a tile is 1)
-const GUN_POS = new THREE.Vector3(0.1, 1.0, 0.13); // the stock, at the right shoulder (+x forward, +z right)
+// the stock at the right shoulder (+x forward, +z right), pulled in so the left hand really reaches
+// the handguard (this rig's arms are short: at the old 0.85 scale the support hand stopped in mid-air)
+const GUN_POS = new THREE.Vector3(0.05, 1.0, 0.09);
+const GUN_INNER = new THREE.Vector3(-0.17, 0, -0.12);
+/** real proportions: a rifle is about half a person's height */
+export const GUN_SCALE = 0.72;
+/** where the hands go, in the gun's own part space (see Gun.tsx): the right wrist just behind and
+ *  outside the pistol grip, the left wrist under and left of the handguard */
+const GRIP_AT = new THREE.Vector3(0.3, -0.075, 0.045);
+const FRONT_AT = new THREE.Vector3(0.62, -0.08, -0.05);
 
 const tmpA = new THREE.Vector3();
 const tmpB = new THREE.Vector3();
@@ -112,11 +124,174 @@ function reach(upper: THREE.Object3D, lower: THREE.Object3D, hand: THREE.Object3
   aimBone(lower, hand, target);
 }
 
+/** Repaints the model's beige sci-fi armour as woodland field kit: the original shading (folds,
+ *  straps, panel lines) is kept as light and dark, and an original 4-tone camo is printed over it. */
+let camoMap: THREE.Texture | null = null;
+function camo(src: THREE.Texture): THREE.Texture {
+  if (camoMap) return camoMap;
+  const img = src.image as HTMLImageElement | ImageBitmap;
+  const w = img.width;
+  const h = img.height;
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const g = c.getContext("2d")!;
+  g.drawImage(img as CanvasImageSource, 0, 0);
+  const d = g.getImageData(0, 0, w, h);
+  // smooth value noise, a few octaves, for blotchy patches
+  const R = 64;
+  const grid = Array.from({ length: (R + 1) * (R + 1) }, (_, i) => {
+    const x = Math.sin(i * 127.1 + 311.7) * 43758.5453;
+    return x - Math.floor(x);
+  });
+  const at = (x: number, y: number) => grid[(y % R) * (R + 1) + (x % R)];
+  const noise = (u: number, v: number) => {
+    const x = u * R;
+    const y = v * R;
+    const x0 = Math.floor(x);
+    const y0 = Math.floor(y);
+    const fx = x - x0;
+    const fy = y - y0;
+    const sx = fx * fx * (3 - 2 * fx);
+    const sy = fy * fy * (3 - 2 * fy);
+    const a = at(x0, y0) + (at(x0 + 1, y0) - at(x0, y0)) * sx;
+    const b = at(x0, y0 + 1) + (at(x0 + 1, y0 + 1) - at(x0, y0 + 1)) * sx;
+    return a + (b - a) * sy;
+  };
+  // olive base, brown, dark green, near-black
+  const tones = [
+    [92, 98, 66],
+    [104, 84, 58],
+    [52, 64, 44],
+    [34, 34, 30],
+  ];
+  const px = d.data;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      const r = px[i];
+      const gg = px[i + 1];
+      const b = px[i + 2];
+      const lum = (0.3 * r + 0.59 * gg + 0.11 * b) / 255;
+      const sat = Math.max(r, gg, b) - Math.min(r, gg, b);
+      // saturated details (the red trim) and very dark parts (straps, pouches) stay gear-coloured
+      const u = x / w;
+      const v = y / h;
+      const n = noise(u * 0.25, v * 0.25) * 0.6 + noise(u * 0.5 + 0.3, v * 0.5) * 0.3 + noise(u + 0.7, v + 0.1) * 0.1;
+      const tone = n < 0.36 ? 0 : n < 0.5 ? 1 : n < 0.62 ? 2 : n < 0.7 ? 0 : 3;
+      let [tr, tg, tb] = tones[tone];
+      if (sat > 60) [tr, tg, tb] = [58, 56, 50]; // trim becomes webbing grey
+      if (lum < 0.18) [tr, tg, tb] = [30, 30, 28]; // straps and pouches: black nylon
+      const k = 0.35 + lum * 1.25;
+      px[i] = Math.min(255, tr * k);
+      px[i + 1] = Math.min(255, tg * k);
+      px[i + 2] = Math.min(255, tb * k);
+    }
+  }
+  g.putImageData(d, 0, 0);
+  const t = new THREE.CanvasTexture(c);
+  t.flipY = src.flipY;
+  t.colorSpace = src.colorSpace;
+  t.wrapS = src.wrapS;
+  t.wrapT = src.wrapT;
+  t.anisotropy = 4;
+  camoMap = t;
+  return t;
+}
+
+type Chain = THREE.Object3D[];
+interface Grip {
+  chains: Chain[]; // index, middle, ring, pinky: segments 1..3
+  axis: THREE.Vector3; // local axis that closes the fingers towards the palm
+  hand: THREE.Object3D;
+  finger: THREE.Vector3; // hand-local: wrist -> knuckles
+  palm: THREE.Vector3; // hand-local: out of the palm
+}
+const curlQ = new THREE.Quaternion();
+const qGun = new THREE.Quaternion();
+const hd = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+/** Finds, once, which way this rig's fingers bend shut: tries each axis and keeps the one that
+ *  brings the fingertip closest to the wrist. (Rigs differ; guessing gives claws.) */
+function gripFor(model: THREE.Object3D, side: "Left" | "Right"): Grip | null {
+  const b = (n: string) => model.getObjectByName(`mixamorig${side}Hand${n}`);
+  const chains = ["Index", "Middle", "Ring", "Pinky"].map((f) => [1, 2, 3].map((k) => b(`${f}${k}`)).filter(Boolean) as THREE.Object3D[]);
+  const tip = b("Middle4");
+  const wrist = model.getObjectByName(`mixamorig${side}Hand`);
+  if (!tip || !wrist || chains.some((c) => c.length !== 3)) return null;
+  const mid = chains[1];
+  const saved = mid.map((o) => o.quaternion.clone());
+  let best: THREE.Vector3 | null = null;
+  let bestD = Infinity;
+  const w = new THREE.Vector3();
+  const t = new THREE.Vector3();
+  for (const axis of [new THREE.Vector3(1, 0, 0), new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -1)]) {
+    mid.forEach((o, i) => o.quaternion.copy(saved[i]).multiply(curlQ.setFromAxisAngle(axis, 0.9)));
+    wrist.updateMatrixWorld(true);
+    const d = w.setFromMatrixPosition(wrist.matrixWorld).distanceTo(t.setFromMatrixPosition(tip.matrixWorld));
+    if (d < bestD) {
+      bestD = d;
+      best = axis;
+    }
+  }
+  mid.forEach((o, i) => o.quaternion.copy(saved[i]));
+  wrist.updateMatrixWorld(true);
+  if (!best) return null;
+  // the hand's own axes, measured: fingers point from the wrist to the middle knuckle, and the
+  // palm faces the way a fingertip moves as the hand closes
+  const knuckle = new THREE.Vector3().setFromMatrixPosition(chains[1][0].matrixWorld);
+  const wristP = new THREE.Vector3().setFromMatrixPosition(wrist.matrixWorld);
+  const fingerW = knuckle.sub(wristP).normalize();
+  const tip0 = new THREE.Vector3().setFromMatrixPosition(tip.matrixWorld);
+  mid.forEach((o, i) => o.quaternion.copy(saved[i]).multiply(curlQ.setFromAxisAngle(best!, 0.5)));
+  wrist.updateMatrixWorld(true);
+  const tip1 = new THREE.Vector3().setFromMatrixPosition(tip.matrixWorld);
+  mid.forEach((o, i) => o.quaternion.copy(saved[i]));
+  wrist.updateMatrixWorld(true);
+  const palmW = tip1.sub(tip0);
+  palmW.addScaledVector(fingerW, -palmW.dot(fingerW)).normalize();
+  const inv = wrist.getWorldQuaternion(new THREE.Quaternion()).invert();
+  return { chains, axis: best, hand: wrist, finger: fingerW.applyQuaternion(inv), palm: palmW.applyQuaternion(inv) };
+}
+
+const basisM = new THREE.Matrix4();
+const basisL = new THREE.Matrix4();
+const qWant = new THREE.Quaternion();
+const qLocal = new THREE.Quaternion();
+const qParent = new THREE.Quaternion();
+const vA = new THREE.Vector3();
+const vB = new THREE.Vector3();
+const vC = new THREE.Vector3();
+/** Turn the hand so its fingers point along `finger` and its palm faces `palm` (world space),
+ *  blended by `w`. This is what keeps fingers on the grip instead of through the receiver. */
+function orientHand(g: Grip | null, finger: THREE.Vector3, palm: THREE.Vector3, w: number) {
+  if (!g || w <= 0) return;
+  const f = vA.copy(finger).normalize();
+  const p = vB.copy(palm).addScaledVector(f, -palm.dot(f)).normalize();
+  basisM.makeBasis(f, p, vC.crossVectors(f, p));
+  const lf = g.finger;
+  const lp = g.palm;
+  basisL.makeBasis(lf, lp, vC.crossVectors(lf, lp));
+  qWant.setFromRotationMatrix(basisM).multiply(qLocal.setFromRotationMatrix(basisL).invert());
+  g.hand.parent!.getWorldQuaternion(qParent);
+  qLocal.copy(qParent).invert().multiply(qWant);
+  g.hand.quaternion.slerp(qLocal, w);
+}
+/** Close the fingers round whatever the hand holds: `amount` 0 open .. 1 a full fist.
+ *  The trigger finger stays a little straighter on the gun hand. */
+function curl(g: Grip | null, amount: number, trigger = false) {
+  if (!g || amount <= 0) return;
+  g.chains.forEach((chain, f) => {
+    const k = trigger && f === 0 ? 0.55 : 1;
+    chain.forEach((o, seg) => o.quaternion.multiply(curlQ.setFromAxisAngle(g.axis, amount * k * [0.95, 1.05, 0.7][seg])));
+  });
+}
+
 export function Soldier({ color, weapon = 0, ghost = false, motion }: { color: string; weapon?: number; ghost?: boolean; motion?: React.MutableRefObject<Motion> }) {
   const gltf = useGLTF(SOLDIER_URL) as any;
   const root = useRef<THREE.Group>(null);
   const gunRef = useRef<THREE.Group>(null);
-  const { model, mixer, actions, bones, scale } = useMemo(() => {
+  const innerRef = useRef<THREE.Group>(null);
+  const { model, mixer, actions, bones, scale, grips } = useMemo(() => {
     const model = cloneSkinned(gltf.scene) as THREE.Group;
     const box = new THREE.Box3().setFromObject(gltf.scene);
     const scale = HEIGHT / Math.max(0.01, box.max.y - box.min.y);
@@ -126,10 +301,27 @@ export function Soldier({ color, weapon = 0, ghost = false, motion }: { color: s
         o.receiveShadow = false;
         o.frustumCulled = false;
         if (ghost) {
+          // an empty seat: a faint hologram in the seat colour
           o.material = o.material.clone();
+          // an empty seat: a dark silhouette, the seat colour only as a faint glow at the edges
+          o.material.color = new THREE.Color("#07080b");
+          o.material.emissive = new THREE.Color(color).multiplyScalar(0.07);
+          o.material.roughness = 0.9;
+          o.material.metalness = 0;
           o.material.transparent = true;
-          o.material.opacity = 0.35;
+          o.material.opacity = 0.42;
           o.material.depthWrite = false;
+        } else if (!o.material.userData.real) {
+          // the file ships fully matte (roughness 1), which flattens the kit into plastic;
+          // a little sheen on the fabric and a glassy visor read as real gear under the lights
+          const visor = /visor/i.test(o.material.name);
+          if (!visor && o.material.map) o.material.map = camo(o.material.map);
+          if (visor) o.material.color = new THREE.Color("#3a4048"); // smoked goggles
+          o.material.roughness = visor ? 0.2 : 0.8;
+          o.material.metalness = visor ? 0.7 : 0.05;
+          o.material.envMapIntensity = visor ? 1.6 : 0.7;
+          o.material.needsUpdate = true;
+          o.material.userData.real = true;
         }
       }
     });
@@ -146,6 +338,8 @@ export function Soldier({ color, weapon = 0, ghost = false, motion }: { color: s
     });
     actions.idle.setEffectiveWeight(1);
     const b = (n: string) => model.getObjectByName(`mixamorig${n}`)!;
+    model.updateMatrixWorld(true);
+    const grips = { r: gripFor(model, "Right"), l: gripFor(model, "Left") };
     const bones = {
       spine: b("Spine2"),
       neck: b("Neck"),
@@ -161,8 +355,8 @@ export function Soldier({ color, weapon = 0, ghost = false, motion }: { color: s
       rUp: b("RightUpLeg"),
       rLeg: b("RightLeg"),
     };
-    return { model, mixer, actions, bones, scale };
-  }, [gltf, ghost]);
+    return { model, mixer, actions, bones, scale, grips };
+  }, [gltf, ghost, color]);
 
   useEffect(() => () => void mixer.stopAllAction(), [mixer]);
 
@@ -239,7 +433,7 @@ export function Soldier({ color, weapon = 0, ghost = false, motion }: { color: s
           // pops up with a little overshoot, then sits still
           const k = Math.min(1, bt / 0.8);
           const s = k < 1 ? 1 + 2.2 * Math.pow(k - 1, 3) + 1.2 * Math.pow(k - 1, 2) : 1;
-          box.current.scale.setScalar(Math.max(0.01, s) * 1.25);
+          box.current.scale.setScalar(Math.max(0.01, s));
           if (pool.current) box.current.position.set(pool.current.position.x, 0, pool.current.position.z);
         }
       }
@@ -355,18 +549,38 @@ export function Soldier({ color, weapon = 0, ghost = false, motion }: { color: s
       const mag = gr.getObjectByName("mag");
       const pump = gr.getObjectByName("pump");
       const bolt = gr.getObjectByName("bolt");
-      const magGun = weapon === 0 || weapon === 1 || weapon === 3;
+      const magGun = weapon === 0 || weapon === 1 || weapon === 3 || weapon === 5 || weapon === 6;
       if (rp >= 0) {
         const tilt = win(0, 0.12, 0.86, 1, rp);
         // the gun swings across, muzzle down and out to the right, mag well turned toward the
         // left hand (and toward the shoulder camera, which otherwise only sees your back)
         gr.rotation.y -= 0.5 * tilt;
         gr.position.z += 0.08 * tilt;
-        if (magGun) {
+        // held, not mounted: a slow hand-held drift while the hands work
+        gr.rotation.z += 0.025 * Math.sin(rp * 19) * tilt;
+        gr.rotation.x += 0.02 * Math.sin(rp * 13 + 1) * tilt;
+        if (weapon === 6) {
+          // a belt-fed gun is reloaded level: rolled a little to the left so the cover opens
+          // toward you, the stock still at the shoulder
+          gr.rotation.x -= 0.22 * tilt;
+          gr.position.y -= 0.03 * tilt;
+          const slam = rp > 0.7 ? Math.exp(-(rp - 0.7) * 60) : 0; // the cover slammed shut
+          gr.position.y += 0.02 * slam;
+          gr.position.x -= 0.03 * win(0.8, 0.83, 0.85, 0.9, rp); // charged
+        } else if (magGun) {
           gr.rotation.x -= 0.6 * tilt;
           gr.rotation.z -= 0.22 * tilt;
           gr.position.y -= 0.06 * tilt;
-          gr.position.x -= 0.03 * win(0.68, 0.71, 0.74, 0.8, rp); // the charging handle snaps back
+          // the pull on the old mag tugs the gun down; the slap of the new one knocks it up
+          gr.position.y -= 0.025 * win(0.09, 0.13, 0.14, 0.18, rp);
+          const slap = rp > 0.52 ? Math.exp(-(rp - 0.52) * 60) : 0;
+          gr.position.y += 0.035 * slap;
+          gr.rotation.z += 0.12 * slap;
+          // the charging handle: pulled, released, and the bolt slams home with a kick
+          gr.position.x -= 0.03 * win(0.68, 0.71, 0.74, 0.8, rp);
+          const slam = rp > 0.76 ? Math.exp(-(rp - 0.76) * 55) : 0;
+          gr.position.x += 0.025 * slam;
+          gr.rotation.z += 0.08 * slam;
         } else if (weapon === 2) {
           gr.rotation.x += 0.85 * tilt; // loading port up
           gr.rotation.z -= 0.1 * tilt;
@@ -377,17 +591,32 @@ export function Soldier({ color, weapon = 0, ghost = false, motion }: { color: s
         }
       }
       if (mag) {
-        // out at 12%, back in from 45%: the empty one falls to the ground
-        const out = rp >= 0.12 && rp < 0.45;
+        // the left hand grips the empty mag and draws it out of the well (8-16%), lets it fall, and
+        // from 45% the fresh one rides up into the well and seats with a click at 52%
+        const out = rp >= 0.16 && rp < 0.45;
         const rest = mag.userData.rest ?? (mag.userData.rest = mag.position.y);
         mag.visible = !out;
-        mag.position.y = rp >= 0.45 && rp < 0.53 ? rest - 0.2 * (1 - ss(0.45, 0.52, rp)) : rest;
-        if (rp >= 0.12 && magDropped.current !== m.reloadAt && !ghost) {
+        const draw = rp >= 0 && rp < 0.16 ? 0.16 * ss(0.09, 0.16, rp) : 0;
+        mag.position.y = rp >= 0.45 && rp < 0.53 ? rest - 0.2 * (1 - ss(0.45, 0.52, rp)) : rest - draw;
+        if (rp >= 0.16 && magDropped.current !== m.reloadAt && !ghost) {
           magDropped.current = m.reloadAt ?? 0;
           mag.updateWorldMatrix(true, false);
           dropMag(mag.getWorldPosition(tmpA), mag.getWorldQuaternion(wq), weapon, 1);
         }
       }
+      const lid = gr.getObjectByName("lid");
+      if (lid) {
+        // the feed cover hinges up at its back edge, stays up while the belt goes in, then slams
+        const restX = lid.userData.rx ?? (lid.userData.rx = lid.position.x);
+        const restY = lid.userData.ry ?? (lid.userData.ry = lid.position.y);
+        const open = rp >= 0 ? win(0.08, 0.15, 0.62, 0.7, rp) : 0;
+        const a = 1.25 * open;
+        lid.rotation.z = a;
+        lid.position.x = restX - 0.12 * (1 - Math.cos(a));
+        lid.position.y = restY + 0.12 * Math.sin(a);
+      }
+      const arrow = gr.getObjectByName("arrow");
+      if (arrow) arrow.visible = !(m.reloading && rp >= 0 && rp < 0.5) && !(m.shotAt && performance.now() - m.shotAt < 400 && !m.reloading);
       if (pump) {
         const rest = pump.userData.rest ?? (pump.userData.rest = pump.position.x);
         pump.position.x = rest - 0.09 * (rp >= 0 ? win(0.82, 0.86, 0.88, 0.92, rp) : 0);
@@ -419,20 +648,49 @@ export function Soldier({ color, weapon = 0, ghost = false, motion }: { color: s
 
     // hands on the gun: right on the grip, left on the handguard (and through the reload)
     g.updateWorldMatrix(true, true);
-    const grip = gr ? gr.localToWorld(target.set(0.14, -0.05, 0)) : target.set(0, 0, 0);
+    const inner = innerRef.current;
+    const grip = gr && inner ? inner.localToWorld(target.copy(GRIP_AT)) : target.set(0, 0, 0);
     let rightT: THREE.Vector3 = grip;
     if (throwing) {
       // overhand throw with the right arm
       const p = (now - m.throwAt) / 450;
       rightT = g.localToWorld(kp[7].set(0.1 + p * 0.5, 1.45 - p * 0.35, 0.18));
     }
-    const front = gr ? gr.localToWorld(ikF.set(0.42, -0.03, 0)) : grip;
+    const front = gr && inner ? inner.localToWorld(ikF.copy(FRONT_AT)) : grip;
     let leftT: THREE.Vector3 = front;
     let carry = 0; // what the left hand holds: 1 a magazine, 2 a shell, 3 a rifle round
     if (rp >= 0 && gr && !throwing) {
-      const pouch = g.localToWorld(kp[0].set(0.06, 0.92, -0.17)); // the vest, left side
+      const pouch = g.localToWorld(kp[0].set(0.12, 0.7, -0.15)); // the mag pouches on the belt, front left
       const handguard = kp[1].copy(front);
-      if (weapon === 0 || weapon === 1 || weapon === 3) {
+      if (weapon === 6) {
+        const box = gr.getObjectByName("mag");
+        const boxP = box ? box.getWorldPosition(kp[2]) : kp[2].copy(front);
+        const coverP = gr.localToWorld(kp[3].set(0.2, 0.09, 0));
+        const beltP = gr.localToWorld(kp[4].set(0.17, 0.07, 0.02));
+        const handle = gr.localToWorld(kp[5].set(0.12, 0.06, 0.04));
+        leftT = along(
+          [
+            [0, handguard],
+            [0.08, coverP], // flip the cover up
+            [0.14, coverP],
+            [0.2, boxP], // unhook the empty box
+            [0.3, pouch], // a full one from the pouch
+            [0.38, pouch],
+            [0.47, boxP], // hook it on
+            [0.55, beltP], // lay the belt across the tray
+            [0.62, beltP],
+            [0.68, coverP], // slam the cover
+            [0.76, handle], // and charge it
+            [0.84, handle],
+            [0.94, handguard],
+          ],
+          rp,
+          kp[6],
+        );
+        carry = rp > 0.32 && rp < 0.47 ? 1 : 0;
+        // the empty box: off with the hand, then the new one appears as it's hooked on
+        if (box) box.visible = !(rp > 0.2 && rp < 0.46);
+      } else if (weapon === 0 || weapon === 1 || weapon === 3 || weapon === 5) {
         const mag = gr.getObjectByName("mag");
         const well = mag ? mag.getWorldPosition(kp[2]) : kp[2].copy(front);
         const below = kp[3].copy(well);
@@ -442,8 +700,8 @@ export function Soldier({ color, weapon = 0, ghost = false, motion }: { color: s
         leftT = along(
           [
             [0, handguard],
-            [0.08, well], // thumb on the release, fingers on the mag
-            [0.13, well],
+            [0.08, well], // thumb on the release, fingers round the mag
+            [0.16, below], // draw it out of the well, then let it go
             [0.27, pouch], // the empty one is falling; reach for a fresh one
             [0.35, pouch],
             [0.45, below], // line it up under the well
@@ -471,17 +729,20 @@ export function Soldier({ color, weapon = 0, ghost = false, motion }: { color: s
         // a shell travels from the pouch to the port in each cycle
         const ph = (rp - 0.12) / 0.22 - Math.floor((rp - 0.12) / 0.22);
         carry = rp > 0.12 && rp < 0.78 && ph > 0.38 && ph < 0.82 ? 2 : 0;
-      } else if (weapon === 4) {
-        const top = gr.localToWorld(kp[2].set(0.24, 0.09, 0)); // the open breech
+      } else if (weapon === 4 || weapon === 7) {
+        // rifle: the open breech, three rounds; crossbow: one bolt from the quiver laid on the rail
+        const top = weapon === 7 ? gr.localToWorld(kp[2].set(0.2, 0.08, 0)) : gr.localToWorld(kp[2].set(0.24, 0.09, 0));
         const keys: [number, THREE.Vector3][] = [[0, handguard]];
-        for (let i = 0; i < 3; i++) {
-          const s0 = 0.22 + i * 0.13;
-          keys.push([s0 + 0.06, pouch], [s0 + 0.13, top]);
+        const rounds = weapon === 7 ? 1 : 3;
+        for (let i = 0; i < rounds; i++) {
+          const s0 = weapon === 7 ? 0.25 : 0.22 + i * 0.13;
+          const len = weapon === 7 ? 0.25 : 0.13;
+          keys.push([s0 + len * 0.46, pouch], [s0 + len, top]);
         }
         keys.push([0.8, handguard]);
         leftT = along(keys, rp, kp[6]);
         const ph = (rp - 0.22) / 0.13 - Math.floor((rp - 0.22) / 0.13);
-        carry = rp > 0.22 && rp < 0.61 && ph > 0.45 ? 3 : 0;
+        carry = weapon === 7 ? (rp > 0.37 && rp < 0.5 ? 3 : 0) : rp > 0.22 && rp < 0.61 && ph > 0.45 ? 3 : 0;
         // the right hand leaves the grip to work the bolt, open and then closed
         const boltObj = gr.getObjectByName("bolt");
         if (boltObj) {
@@ -496,6 +757,33 @@ export function Soldier({ color, weapon = 0, ghost = false, motion }: { color: s
     reach(bones.rArm, bones.rFore, bones.rHand, rightT, pole);
     g.localToWorld(pole.set(0.25, 0.55, -0.55));
     reach(bones.lArm, bones.lFore, bones.lHand, leftT, pole);
+    // hands set on the gun the way people hold one: right palm against the pistol grip with the
+    // fingers wrapping its front, left palm up under the handguard. Measured in the gun's frame, so
+    // they follow every tilt of the reload.
+    if (gr && !throwing) {
+      gr.getWorldQuaternion(qGun);
+      const fwd = hd[0].set(1, -0.28, 0).applyQuaternion(qGun);
+      const inward = hd[1].set(0, 0, -1).applyQuaternion(qGun);
+      orientHand(grips.r, fwd, inward, rightT === grip ? 1 : 0.35);
+      // left: across under the handguard; while carrying, the palm turns to hold what it brings
+      const across = hd[2].set(0.35, 0, 1).applyQuaternion(qGun);
+      const up = hd[3].set(0, 1, 0).applyQuaternion(qGun);
+      // full grip on the gun; relaxing as the hand travels away (to the belt and back)
+      const away = Math.min(1, leftT.distanceTo(front) / 0.22);
+      const handling = (1 - away) * (carry ? 0.6 : 1);
+      orientHand(grips.l, across, up, picking ? 1 - bendK : handling);
+    }
+    // hands close round the grip and the handguard (looser while the left hand fetches a mag)
+    curl(grips.r, 0.95, true);
+    curl(grips.l, carry ? 0.55 : 0.85);
+    // eyes on the work: the head tips down to the mag well through the reload
+    if (rp >= 0) {
+      const busy = win(0.05, 0.15, 0.85, 0.97, rp);
+      bones.neck.rotation.x += 0.35 * busy;
+      // shoulders come forward over the work, and turn a little toward the mag well
+      bones.spine.rotation.x += 0.1 * busy;
+      bones.spine.rotation.y -= 0.08 * busy;
+    }
     // what the left hand is carrying, in the hand, lined up with the gun
     const h = held.current;
     if (h) {
@@ -517,26 +805,41 @@ export function Soldier({ color, weapon = 0, ghost = false, motion }: { color: s
       <group rotation-y={-Math.PI / 2} scale={scale}>
         <primitive object={model} />
       </group>
-      {/* the death box a body turns into: dark steel crate, the player's colour band glowing round it */}
+      {/* the death box a body turns into: a compact olive supply case (its footprint matches the
+          solid BOX_R in the program), steel latches, and the player's colour as a thin glowing strap */}
       <group ref={box} visible={false} scale={1}>
-        {/* the band glows (no light: switching one on would recompile every shader mid-fight) */}
-        <mesh position={[0, 0.26, 0]} castShadow>
-          <boxGeometry args={[0.62, 0.5, 0.48]} />
-          <meshStandardMaterial color="#6a707c" emissive="#1c2028" roughness={0.6} metalness={0.25} />
+        {/* body */}
+        <mesh position={[0, 0.14, 0]} castShadow receiveShadow>
+          <boxGeometry args={[0.44, 0.26, 0.32]} />
+          <meshStandardMaterial color="#3f4632" roughness={0.78} metalness={0.05} />
         </mesh>
-        <mesh position={[0, 0.535, 0]}>
-          <boxGeometry args={[0.66, 0.06, 0.52]} />
-          <meshStandardMaterial color="#8a909c" emissive="#20242c" roughness={0.5} metalness={0.3} />
+        {/* lid, slightly proud of the body */}
+        <mesh position={[0, 0.3, 0]} castShadow>
+          <boxGeometry args={[0.46, 0.06, 0.34]} />
+          <meshStandardMaterial color="#353b2a" roughness={0.7} metalness={0.08} />
         </mesh>
-        <mesh position={[0, 0.3, 0]}>
-          <boxGeometry args={[0.64, 0.07, 0.5]} />
+        {/* carry handle */}
+        <mesh position={[0, 0.345, 0]}>
+          <boxGeometry args={[0.16, 0.025, 0.04]} />
+          <meshStandardMaterial color="#1b1d20" roughness={0.5} metalness={0.4} />
+        </mesh>
+        {/* the colour strap (glows; no light, so no shader recompiles mid-fight) */}
+        <mesh position={[0, 0.17, 0]}>
+          <boxGeometry args={[0.452, 0.035, 0.332]} />
           <meshBasicMaterial color={color} toneMapped={false} />
         </mesh>
-        {[-0.28, 0.28].map((x) =>
-          [-0.21, 0.21].map((z) => (
-            <mesh key={`${x}${z}`} position={[x, 0.26, z]}>
-              <boxGeometry args={[0.08, 0.52, 0.08]} />
-              <meshStandardMaterial color="#9aa0aa" emissive="#22262e" roughness={0.45} metalness={0.35} />
+        {/* latches and corner guards */}
+        {[-0.15, 0.15].map((x) => (
+          <mesh key={x} position={[x, 0.26, 0.165]}>
+            <boxGeometry args={[0.05, 0.07, 0.02]} />
+            <meshStandardMaterial color="#9aa0aa" roughness={0.35} metalness={0.8} />
+          </mesh>
+        ))}
+        {[-0.215, 0.215].map((x) =>
+          [-0.155, 0.155].map((z) => (
+            <mesh key={`${x}${z}`} position={[x, 0.14, z]}>
+              <boxGeometry args={[0.03, 0.27, 0.03]} />
+              <meshStandardMaterial color="#2a2d31" roughness={0.45} metalness={0.6} />
             </mesh>
           )),
         )}
@@ -562,7 +865,7 @@ export function Soldier({ color, weapon = 0, ghost = false, motion }: { color: s
         </mesh>
       </group>
       <group ref={gunRef} position={GUN_POS.toArray()}>
-        <group position={[-0.17, 0, -0.12]} scale={0.85}>
+        <group ref={innerRef} position={GUN_INNER.toArray()} scale={GUN_SCALE}>
           <Gun weapon={shown} ghost={ghost} torch={torchOn} />
         </group>
         {/* muzzle flash: two crossed bright cards at the barrel tip, for ~55 ms per shot */}

@@ -5,6 +5,8 @@ import { Html, OrbitControls } from "@react-three/drei";
 import { EffectComposer, Bloom, Vignette } from "@react-three/postprocessing";
 import * as THREE from "three";
 import { MAP_W } from "../game/gen";
+import { Meadow } from "./Meadow";
+import { useMapStore } from "../game/maps";
 import { Arena } from "./Arena";
 import { Avatar, SEAT_COLORS, aimToRotY } from "./Avatar";
 import { stillMotion, type Motion } from "./Soldier";
@@ -301,6 +303,7 @@ export function ReplayScene({
   onTime: (t: number) => void;
   follow: boolean;
 }) {
+  const mapId = useMapStore((m) => m.id);
   return (
     <Canvas
       shadows={!TOUCH}
@@ -314,7 +317,7 @@ export function ReplayScene({
     >
       <color attach="background" args={["#030305"]} />
       <Lights rec={rec} me={me} ctl={ctl} />
-      <Arena lit />
+      {mapId === 1 ? <Meadow lit /> : <Arena lit />}
       <Players rec={rec} room={room} me={me} ctl={ctl} />
       <ZoneRing world={world} ctl={ctl} rec={rec} />
       <Driver rec={rec} me={me} ctl={ctl} onTime={onTime} />

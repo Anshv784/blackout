@@ -18,6 +18,9 @@ const GUN_SAMPLE: [string, number, number][] = [
   ["shot_20g", 1.0, 0.5], // S12K
   ["shot_308", 1.14, 0.42], // M416
   ["shot_308", 0.94, 0.52], // KAR98K
+  ["shot_308", 1.04, 0.48], // marksman
+  ["shot_308", 1.22, 0.38], // LMG: lighter round, fast
+  ["", 1, 0], // crossbow: no gunshot (see shot())
 ];
 
 class Audio {
@@ -377,7 +380,7 @@ class Audio {
       // armor: two velcro straps torn open and pressed shut
       for (const d of [0.12, 0.42]) this.hit({ kind: "white", dur: 0.2, type: "bandpass", f: 3200, q: 1.2, vol: 0.08, wet: 0.06, delay: d, attack: 0.01 });
       this.thump({ f0: 150, f1: 90, dur: 0.08, vol: 0.14, delay: 0.66, wet: 0.1 });
-    } else if (kind === 3 || kind === 4 || kind === 6 || kind === 7 || kind === 8) {
+    } else if (kind === 3 || kind === 4 || kind === 6 || kind === 7 || kind === 8 || kind === 15 || kind === 16 || kind === 17) {
       // a gun case: two latches, lid, then the weapon racked
       this.tick(3300, 0.1, 0.04);
       this.tick(3500, 0.1, 0.13);
@@ -603,6 +606,16 @@ class Audio {
   shotAt(weapon: number, dist = 0, pan = 0) {
     const c = this.ensure();
     if (!c || this.muted) return;
+    if (weapon === 7) {
+      // the crossbow: no bang. The string lets go with a low thrum and the bolt hisses off;
+      // only you (or someone right beside you) hears it
+      if (dist > 4) return;
+      const v = dist === 0 ? 1 : 0.35;
+      this.tone(92, 0.16, "triangle", 0.22 * v, pan, 70, 0, 0.02);
+      this.hit({ kind: "white", dur: 0.09, type: "bandpass", f: 2600, f2: 900, q: 1.4, vol: 0.12 * v, pan, wet: 0.08, attack: 0.005 });
+      this.hit({ kind: "white", dur: 0.03, type: "highpass", f: 5000, vol: 0.05 * v, pan, wet: 0.02 });
+      return;
+    }
     // a real gun: close is a sharp crack, far is a dull thud rolling off the walls
     const [smp, rate, gunLoud] = GUN_SAMPLE[weapon] ?? GUN_SAMPLE[0];
     if (this.has(smp)) {
@@ -620,6 +633,8 @@ class Audio {
       [2600, 520, 0.14, 95, 0.26, 1.2, 1.1], // S12K: big boom
       [3800, 900, 0.07, 120, 0.14, 0.9, 0.85], // M416: punchy crack
       [3000, 700, 0.12, 80, 0.32, 2.2, 1.25], // KAR98K: thunderclap that rolls away
+      [3300, 800, 0.1, 100, 0.22, 1.5, 1.05], // marksman: heavy crack
+      [4000, 1200, 0.05, 125, 0.1, 0.8, 0.75], // LMG: quick, steady chatter
     ][weapon] ?? [3600, 1100, 0.07, 150, 0.12, 0.7, 0.8];
     const [crack, body, blen, tf, tlen, tail, loud] = P;
     const far = Math.min(1, dist / 26);
@@ -637,7 +652,8 @@ class Audio {
     if (dist === 0) {
       // your own gun's mechanism
       if (weapon === 0) this.tick(5200, 0.08, 0.05);
-      if (weapon === 1 || weapon === 3) this.tick(6200, 0.05, 0.03);
+      if (weapon === 1 || weapon === 3 || weapon === 6) this.tick(6200, 0.05, 0.03);
+      if (weapon === 5) this.tick(5600, 0.07, 0.04);
       if (weapon === 2) {
         this.hit({ kind: "white", dur: 0.06, type: "bandpass", f: 1800, q: 2, vol: 0.18, wet: 0.1, delay: 0.32 });
         this.hit({ kind: "white", dur: 0.07, type: "bandpass", f: 1400, q: 2, vol: 0.2, wet: 0.1, delay: 0.45 });
@@ -726,6 +742,20 @@ class Audio {
       if (weapon === 2) {
         for (let i = 0; i < 3; i++) this.play("shell_load", { vol: 0.5, delay: dur * (0.3 + i * 0.22), wet: 0.08, rate: 0.97 + Math.random() * 0.06 });
         this.play("rack", { vol: 0.7, rate: 0.62, delay: dur * 0.84, wet: 0.08 });
+      } else if (weapon === 7) {
+        // crossbow: the string drawn back with a creak, a bolt laid on the rail, the latch clicks
+        this.hit({ kind: "brown", dur: dur * 0.35, type: "bandpass", f: 300, f2: 520, q: 2, vol: 0.12, wet: 0.08, delay: dur * 0.15, attack: dur * 0.2 });
+        this.tick(2200, 0.12, dur * 0.52);
+        this.hit({ kind: "white", dur: 0.12, type: "bandpass", f: 3200, q: 2, vol: 0.06, wet: 0.08, delay: dur * 0.7 });
+        this.tick(3400, 0.1, dur * 0.86);
+      } else if (weapon === 6) {
+        // LMG: lid up, old belt out, new box on, belt laid, lid slammed, charged
+        this.tick(2600, 0.1, dur * 0.1);
+        this.play("mag_out", { vol: 0.5, delay: dur * 0.2, wet: 0.08, rate: 0.8 });
+        this.hit({ kind: "white", dur: 0.25, type: "bandpass", f: 1800, q: 1.5, vol: 0.07, wet: 0.08, delay: dur * 0.45 });
+        this.play("mag_in", { vol: 0.55, delay: dur * 0.6, wet: 0.08, rate: 0.85 });
+        this.thump({ f0: 200, f1: 110, dur: 0.07, vol: 0.2, delay: dur * 0.74, wet: 0.1 });
+        this.play("rack", { vol: 0.55, delay: dur * 0.86, wet: 0.08, rate: 0.85 });
       } else if (weapon === 4) {
         this.play("bolt_load", { vol: 0.5, delay: dur * 0.06, wet: 0.08 });
         for (let i = 0; i < 3; i++) this.tick(3600 + Math.random() * 500, 0.05, dur * (0.38 + i * 0.13));

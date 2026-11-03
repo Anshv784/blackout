@@ -153,6 +153,9 @@ const MAG_SIZE: [number, number, number][] = [
   [0.042, 0.15, 0.038],
   [0.042, 0.17, 0.038],
   [0.042, 0.15, 0.038],
+  [0.04, 0.12, 0.036], // marksman: short 10-round box
+  [0.07, 0.1, 0.09], // LMG: a belt box
+  [0.01, 0.01, 0.2], // crossbow: a spent bolt
 ];
 const mg = {
   pos: new Float32Array(MAX_MAGS * 3),
@@ -444,7 +447,7 @@ const lidScale = new THREE.Matrix4();
 const LOOTED_FOR = 7; // seconds an emptied crate stays on the ground
 /** size [w, h, d] and colour of the case each loot kind came in */
 function caseOf(kind: number): [[number, number, number], string] {
-  if (kind === 3 || kind === 4 || kind === 6 || kind === 7) return [[1.05, 0.2, 0.4], "#3d4630"];
+  if (kind === 3 || kind === 4 || kind === 6 || kind === 7 || kind === 15 || kind === 16 || kind === 17) return [[1.05, 0.2, 0.4], "#3d4630"];
   if (kind === 1) return [[0.52, 0.32, 0.38], "#d9dce0"];
   if (kind === 2) return [[0.58, 0.3, 0.44], "#33402f"];
   if (kind === 5) return [[0.34, 0.12, 0.34], "#2b2d33"];

@@ -2,7 +2,8 @@ import { useMemo, useRef } from "react";
 import { TOUCH } from "../game/device";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { MAP_ROWS, LOOT_SPOTS, LAMPS, MAP_W, MAP_H, WALL_CHARS } from "../game/gen";
+import { MAP_ROWS as YARD_ROWS, LOOT_SPOTS, LAMPS, MAP_W, MAP_H, WALL_CHARS } from "../game/gen";
+import { activeMap } from "../game/maps";
 import { Dressing } from "./Dressing";
 import { usePrefs, gfx } from "../game/prefs";
 
@@ -14,7 +15,7 @@ export interface WallBox {
   y: number;
   w: number;
   h: number;
-  kind: "border" | "container" | "concrete" | "pillar" | "building" | "tower" | "fence" | "crates";
+  kind: "border" | "container" | "concrete" | "pillar" | "building" | "tower" | "fence" | "crates" | "hedge" | "rock" | "tree" | "water";
   tone: number;
   height: number;
 }
@@ -28,7 +29,9 @@ const rnd = (seed: number) => {
 };
 
 /** Greedy-merge wall tiles of the same type into boxes, then give each a look. */
-export function wallBoxes(): WallBox[] {
+export function wallBoxes(rows: string[] = activeMap().rows): WallBox[] {
+  const MAP_ROWS = rows;
+  const meadow = rows !== YARD_ROWS;
   const H = MAP_ROWS.length;
   const W = MAP_ROWS[0].length;
   const used = Array.from({ length: H }, () => new Array(W).fill(false));
@@ -48,8 +51,9 @@ export function wallBoxes(): WallBox[] {
       for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) used[yy][xx] = true;
       const r = rnd(x * 73 + y * 151 + w * 7 + h);
       const kind: WallBox["kind"] =
-        ch === "#" ? "border" : ch === "C" ? "container" : ch === "B" ? "building" : ch === "T" ? "tower" : ch === "F" ? "fence" : "crates";
+        ch === "#" ? "border" : ch === "C" ? "container" : ch === "B" ? "building" : ch === "T" ? (meadow ? "tree" : "tower") : ch === "F" ? "fence" : ch === "H" ? "hedge" : ch === "R" ? "rock" : ch === "W" ? "water" : "crates";
       const height =
+        kind === "hedge" ? 1.3 : kind === "rock" ? 1.1 + r() * 0.35 : kind === "tree" ? 3.2 : kind === "water" ? 0.05 : kind === "building" && meadow ? 2.2 :
         kind === "border" ? 2.2 : kind === "container" ? 1.35 + (r() < 0.3 ? 0.25 : 0) : kind === "building" ? 2.4 : kind === "tower" ? (w === 1 && h === 1 ? 2.4 : 1.0) : kind === "fence" ? 1.4 : 0.8 + r() * 0.25;
       out.push({ x, y, w, h, kind, tone: Math.floor(r() * 4), height });
     }
@@ -259,7 +263,7 @@ function borderTex() {
 function floorTexture() {
   const cell = 64;
   const size = MAP_W * cell;
-  const at = (x: number, y: number) => (x >= 0 && y >= 0 && x < MAP_W && y < MAP_H ? MAP_ROWS[y][x] : "#");
+  const at = (x: number, y: number) => (x >= 0 && y >= 0 && x < MAP_W && y < MAP_H ? YARD_ROWS[y][x] : "#");
   return canvasTex(size, size, (g) => {
     // ground per tile: concrete yard, asphalt road, dirt field, indoor floor
     for (let y = 0; y < MAP_H; y++)
@@ -698,7 +702,7 @@ function segHitsBox(a: THREE.Vector3, b: THREE.Vector3, min: [number, number, nu
 }
 
 export function Arena({ lit = false }: { lit?: boolean }) {
-  const boxes = useMemo(wallBoxes, []);
+  const boxes = useMemo(() => wallBoxes(YARD_ROWS), []);
   const floor = useMemo(floorTexture, []);
   // a unit box drawn in two calls instead of six: the four walls, then the roof (no floor face,
   // nobody sees under a wall). Six face groups cost ~400 extra draw calls across the Yard.

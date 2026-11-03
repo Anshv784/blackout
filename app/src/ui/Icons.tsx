@@ -12,6 +12,12 @@ const GUN_PATHS: string[] = [
   "M2 15l14-4h14l4-3h34l4 3h18v3h10v3H86v3H58l-4 11h-8l3-11H38l-5 6H24l2-6H14L2 20z M50 22h8l-3 11h-8z M44 6h12v3H44z",
   // KAR98K: wooden stock, bolt, long barrel, scope
   "M2 17l18-5h20l4 2h56v4H44l-4 3H24l-8 7H6z M38 6h26v5H38z M42 11h4v3h-4z M56 11h4v3h-4z M56 18l4 6h-3l-3-5z",
+  // marksman: skeleton stock, receiver, short straight mag, long barrel, low scope
+  "M2 14h4l10 2h22l3-4h36v4h22v3H78v3H54l-3 10h-8l3-10H36l-6 5H22l-4-5H6l-4 4z M44 7h20v4H44z M46 22h7l-2 9h-7z",
+  // LMG: thick receiver, box under it, bipod legs, carry handle, heavy barrel
+  "M2 15l12-3h18l3-3h38l4 3h24v4H74v3H52l-2 6H34l-2-6H22l-6 5H6L2 19z M36 20h14v8H36z M40 5h16v3H40z M78 20l4 12h-3l-3-10z M84 20l-2 12h3l2-10z",
+  // crossbow: stock, rail, wide bow limbs, string, a bolt
+  "M2 19l14-3h50v4H24l-6 6H8L2 22z M60 6l4 0 2 10h-6z M60 34l4 0 2-14h-6z M64 7l-30 12 30 12 0 2-34-14 34-14z M30 17h56l6 2-6 2H30z",
 ];
 
 export function GunIcon({ weapon, className = "" }: { weapon: number; className?: string }) {

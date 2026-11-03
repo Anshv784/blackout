@@ -5,6 +5,8 @@ import { Html, PerformanceMonitor, useGLTF } from "@react-three/drei";
 import { EffectComposer, Bloom, Vignette, Noise, ChromaticAberration } from "@react-three/postprocessing";
 import { BlendFunction } from "postprocessing";
 import * as THREE from "three";
+import { Meadow } from "./Meadow";
+import { useMapStore } from "../game/maps";
 import { Arena, occlusion } from "./Arena";
 import { Avatar, Gun, SEAT_COLORS, aimToRotY } from "./Avatar";
 import { stillMotion, SOLDIER_URL, type Motion } from "./Soldier";
@@ -15,18 +17,18 @@ import { prefs, usePrefs, gfx, setPref } from "../game/prefs";
 import { feel } from "../game/feel";
 import { useStore } from "../game/store";
 import { Effects, sparks } from "./Effects";
-import { radToAngle, angleToRad, isWall, lightsOut } from "../game/sim";
+import { radToAngle, angleToRad, isWall, lightsOut, predictThrow, THROW_MAX_TILES, THROW_PER_TILE } from "../game/sim";
 import { Details, ejectCasing } from "./Details";
 import { MAP_W } from "../game/gen";
 import { audio } from "../game/audio";
 
 const CONE_RAD = (7000 / 65536) * Math.PI * 2; // half-angle used on chain
 const VISION_TILES = 10;
-const LOOT_COLORS = ["#fff", "#06d6a0", "#4cc9f0", "#ff8c42", "#ef476f", "#f15bb5", "#ffd166", "#c77dff", "#ff3b3b", "#9ae64a", "#c9ccd1", "#ffffff", "#ffb347", "#38e1ff", "#3cff7a"];
-const LOOT_LABEL = ["", "MEDKIT", "ARMOR", "UMP", "S12K", "FLARE", "M416", "KAR98K", "SUPPLY DROP", "FRAG", "SMOKE", "FLASHBANG", "DECOY", "SENSOR", "NIGHT VISION"];
-const COOLDOWN_MS = [350, 100, 800, 150, 1500];
+const LOOT_COLORS = ["#fff", "#06d6a0", "#4cc9f0", "#ff8c42", "#ef476f", "#f15bb5", "#ffd166", "#c77dff", "#ff3b3b", "#9ae64a", "#c9ccd1", "#ffffff", "#ffb347", "#38e1ff", "#3cff7a", "#ffcf6e", "#ff7a3d", "#b9f27c"];
+const LOOT_LABEL = ["", "MEDKIT", "ARMOR", "UMP", "S12K", "FLARE", "M416", "KAR98K", "SUPPLY DROP", "FRAG", "SMOKE", "FLASHBANG", "DECOY", "SENSOR", "NIGHT VISION", "MARKSMAN", "LMG", "CROSSBOW"];
+const COOLDOWN_MS = [350, 100, 800, 150, 1500, 450, 100, 1300];
 // crosshair kick per shot (vertical, horizontal jitter) — PUBG-style: you pull it back down
-const RECOIL = [[0.02, 0.004], [0.009, 0.006], [0.045, 0.01], [0.013, 0.005], [0.07, 0.002]];
+const RECOIL = [[0.02, 0.004], [0.009, 0.006], [0.045, 0.01], [0.013, 0.005], [0.07, 0.002], [0.035, 0.003], [0.011, 0.011], [0.012, 0.001]];
 
 const TOUCH = typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches;
 const CENTER = new THREE.Vector2(0, 0);
@@ -423,7 +425,7 @@ function Bullets({ session }: { session: Session }) {
   );
 }
 
-const LOOT_GUN: Record<number, number> = { 3: 1, 4: 2, 6: 3, 7: 4 };
+const LOOT_GUN: Record<number, number> = { 3: 1, 4: 2, 6: 3, 7: 4, 15: 5, 16: 6, 17: 7 };
 
 /** A real crate per loot kind: medkit case, vest box, flare canister, or a gun case with the gun on top. */
 function Crate({ kind }: { kind: number }) {
@@ -503,7 +505,7 @@ function Crate({ kind }: { kind: number }) {
           </mesh>
         </group>
       )}
-      {kind >= 9 && (
+      {kind >= 9 && kind <= 14 && (
         <group position={[0, 0.13, 0]}>
           <mesh>
             <boxGeometry args={[0.42, 0.24, 0.32]} />
@@ -571,7 +573,7 @@ function Crate({ kind }: { kind: number }) {
             <meshBasicMaterial color={c} toneMapped={false} />
           </mesh>
           {/* the gun itself, laid on the lid */}
-          <group position={[-0.62 * (gun === 4 ? 1.05 : 0.95), 0.27, -0.05]} scale={gun === 4 ? 0.8 : 1}>
+          <group position={[-0.62 * (gun === 4 || gun === 6 ? 1.05 : 0.95), 0.27, -0.05]} scale={gun === 4 || gun === 6 ? 0.8 : 1}>
             <Gun weapon={gun} display />
           </group>
         </group>
@@ -1090,6 +1092,7 @@ function InputController({ session }: { session: Session }) {
       if (ray.ray.intersectPlane(plane, hit) && hit.distanceTo(ray.ray.origin) < 60) {
         const dx = hit.x - p.x / 256;
         const dz = hit.z - p.y / 256;
+        controls.throwTiles = Math.hypot(dx, dz);
         // a crosshair below/behind your body would aim backwards, turn you round and swing the
         // camera to your face: only aim at points clearly in front, else use the view heading
         const ahead = dx * Math.cos(controls.camYaw) + dz * Math.sin(controls.camYaw);
@@ -1104,8 +1107,10 @@ function InputController({ session }: { session: Session }) {
     }
     else if (p && controls.mouseActive) {
       ray.setFromCamera(mouse.current, camera);
-      if (ray.ray.intersectPlane(plane, hit) && hit.distanceTo(ray.ray.origin) < 60) aim = radToAngle(Math.atan2(hit.z - p.y / 256, hit.x - p.x / 256));
-      else aim = radToAngle(Math.atan2(ray.ray.direction.z, ray.ray.direction.x)); // pointing at the sky: aim that way
+      if (ray.ray.intersectPlane(plane, hit) && hit.distanceTo(ray.ray.origin) < 60) {
+        aim = radToAngle(Math.atan2(hit.z - p.y / 256, hit.x - p.x / 256));
+        controls.throwTiles = Math.hypot(hit.x - p.x / 256, hit.z - p.y / 256);
+      } else aim = radToAngle(Math.atan2(ray.ray.direction.z, ray.ray.direction.x)); // pointing at the sky: aim that way
     }
     const k = controls.keys;
     // aim-relative: W walks toward the mouse, S backs off, A/D strafe around it
@@ -1143,10 +1148,89 @@ function InputController({ session }: { session: Session }) {
       (controls.crouch || controls.touchCrouch ? 32 : 0) |
       (controls.keys.has(" ") || controls.touchJump ? 64 : 0) |
       (controls.keys.has("x") || controls.keys.has("1") || controls.keys.has("2") || now < controls.swapUntil ? 16 : 0);
-    session.setInput(dx * 127, dy * 127, aim, buttons);
+    const throwing = controls.gadgetHeld || now < controls.gadgetUntil;
+    session.setInput(dx * 127, dy * 127, aim, buttons | (throwing ? throwByte() << 8 : 0));
     session.frame();
   });
   return null;
+}
+
+/** The throw byte for where the crosshair is on the ground (touch: a mid-range lob). */
+function throwByte() {
+  const tiles = controls.touchAim !== null ? 5 : Math.min(THROW_MAX_TILES, Math.max(1, controls.throwTiles || THROW_MAX_TILES));
+  return Math.round(tiles * THROW_PER_TILE);
+}
+/** blast / cloud radius per gadget, in tiles (mirrors the program's FRAG_R, SMOKE_R, FLASHBANG_R) */
+const GADGET_RADIUS = [0, 3, 2.5, 7, 1.2, 1.2, 0];
+const GADGET_TINT = ["#fff", "#ff6b4a", "#cfd6e4", "#fff3b0", "#7cc4ff", "#7cffb2", "#fff"];
+
+/** Holding G: the arc the throw will fly and where it lands, run on the program's own physics. */
+function ThrowPreview({ session }: { session: Session }) {
+  const line = useMemo(() => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(64 * 3), 3));
+    return new THREE.Line(g, new THREE.LineDashedMaterial({ color: "#ffffff", dashSize: 0.18, gapSize: 0.12, transparent: true, opacity: 0.85, depthTest: false }));
+  }, []);
+  const ring = useRef<THREE.Mesh>(null);
+  const fill = useRef<THREE.Mesh>(null);
+  const dot = useRef<THREE.Mesh>(null);
+  useFrame(({ clock }) => {
+    const g = session.view?.inv?.gadget ?? 0;
+    const on = !!controls.gadgetHeld && g > 0 && g !== 6 && (session.view?.inv?.count ?? 0) > 0 && !!session.view?.me.alive;
+    line.visible = on;
+    if (ring.current) ring.current.visible = on;
+    if (fill.current) fill.current.visible = on;
+    if (dot.current) dot.current.visible = on;
+    const me = session.myPos();
+    if (!on || !me) return;
+    const path = predictThrow(me.x, me.y, session.input.aim, throwByte());
+    // draw a lob: the program's flat path, lifted into an arc that peaks a third of the way out
+    const pos = line.geometry.getAttribute("position") as THREE.BufferAttribute;
+    const N = 63;
+    for (let i = 0; i <= N; i++) {
+      const f = (i / N) * (path.length - 1);
+      const a = path[Math.floor(f)];
+      const b = path[Math.min(path.length - 1, Math.floor(f) + 1)];
+      const t = f - Math.floor(f);
+      const x = (a.x + (b.x - a.x) * t) / 256;
+      const z = (a.y + (b.y - a.y) * t) / 256;
+      const u = i / N;
+      const h = 1.0 + 1.6 * Math.sin(Math.min(1, u * 1.35) * Math.PI) * (1 - u * 0.25);
+      pos.setXYZ(i, x, u > 0.74 ? Math.max(0.05, h * (1 - (u - 0.74) / 0.26)) : h, z);
+    }
+    pos.needsUpdate = true;
+    line.geometry.computeBoundingSphere();
+    line.computeLineDistances();
+    const end = path[path.length - 1];
+    const r = GADGET_RADIUS[g] || 1;
+    const col = GADGET_TINT[g] || "#fff";
+    const pulse = 1 + Math.sin(clock.elapsedTime * 6) * 0.03;
+    for (const m of [ring.current, fill.current, dot.current]) {
+      if (!m) continue;
+      m.position.set(end.x / 256, 0.04, end.y / 256);
+      (m.material as THREE.MeshBasicMaterial).color.set(col);
+    }
+    ring.current!.scale.setScalar(r * pulse);
+    fill.current!.scale.setScalar(r);
+    (line.material as THREE.LineDashedMaterial).color.set(col);
+  });
+  return (
+    <>
+      <primitive object={line} renderOrder={20} />
+      <mesh ref={ring} rotation-x={-Math.PI / 2} renderOrder={21} visible={false}>
+        <ringGeometry args={[0.94, 1, 64]} />
+        <meshBasicMaterial transparent opacity={0.9} depthTest={false} toneMapped={false} />
+      </mesh>
+      <mesh ref={fill} rotation-x={-Math.PI / 2} renderOrder={19} visible={false}>
+        <circleGeometry args={[1, 48]} />
+        <meshBasicMaterial transparent opacity={0.12} depthTest={false} toneMapped={false} />
+      </mesh>
+      <mesh ref={dot} rotation-x={-Math.PI / 2} renderOrder={22} visible={false}>
+        <circleGeometry args={[0.12, 20]} />
+        <meshBasicMaterial transparent opacity={0.95} depthTest={false} toneMapped={false} />
+      </mesh>
+    </>
+  );
 }
 
 function Post({ session }: { session: Session }) {
@@ -1232,6 +1316,7 @@ function DisplayPrefs() {
 }
 
 export const GameScene = memo(function GameScene({ session }: { session: Session }) {
+  const mapId = useMapStore((m) => m.id);
   const p = usePrefs();
   // phones start at 70% pixels (phone screens are dense; this is the biggest single win)
   const [dpr, setDpr] = useState(TOUCH ? 0.7 : 1);
@@ -1252,7 +1337,7 @@ export const GameScene = memo(function GameScene({ session }: { session: Session
       <fog attach="fog" args={["#020203", TOUCH ? 14 : 18, TOUCH ? 34 : 46]} />
       <hemisphereLight args={["#20305a", "#000000", 0.06]} />
       <FlareLight session={session} />
-      <Arena />
+      {mapId === 1 ? <Meadow /> : <Arena />}
       <MyPlayer session={session} />
       <Others session={session} />
       <Corpses session={session} />
@@ -1263,6 +1348,7 @@ export const GameScene = memo(function GameScene({ session }: { session: Session
       <Fx session={session} />
       <CameraRig session={session} />
       <InputController session={session} />
+      <ThrowPreview session={session} />
       <FpsMeter />
       <LaserSight session={session} />
       <DisplayPrefs />
