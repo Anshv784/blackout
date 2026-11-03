@@ -102,7 +102,8 @@ pub fn seed_match(room: &mut Room, w: &mut World, seed: [u8; 32]) {
     for i in 0..10usize.min(MAXL) {
         let (lx, ly) = map.loot[spots[i]];
         let roll = rng_next(w) % 100;
-        let kind = loot_for_roll(roll, m);
+        // the Meadow hides one ghillie suit a night, in a random crate (the last one dealt)
+        let kind = if room.cfg & CFG_MEADOW != 0 && i == 9 { LOOT_GHILLIE } else { loot_for_roll(roll, m) };
         w.loot[i] = Loot { x: tile_center(lx), y: tile_center(ly), kind, active: 1 };
     }
 

@@ -81,7 +81,8 @@ export function verifyMatch(room: Room, world: World, rec: Recording, occupied: 
   for (let i = 0; i < 10; i++) {
     const [lx, ly] = LOOT_SPOTS[spots[i]];
     const roll = rng.next() % 100;
-    const kind = lootForRoll(roll, nightMod);
+    // the Meadow's last crate is always the ghillie suit (mirror of sim/seed.rs)
+    const kind = room.map === 1 && i === 9 ? 18 : lootForRoll(roll, nightMod);
     loot.push({ x: tc(lx), y: tc(ly), kind });
   }
   // zone

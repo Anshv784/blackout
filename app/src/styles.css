@@ -2449,3 +2449,4 @@ button {
 .ad-facts b{color:var(--gold);margin-right:6px;font-size:14px}
 .ad-small{display:block;margin-top:12px;font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:#8c94aa}
 @media (max-width:640px){.ad-tag{left:5vw;right:5vw;bottom:18vh}}
+.ghillie-chip{position:absolute;top:118px;left:50%;transform:translateX(-50%);z-index:6;padding:6px 14px;border-radius:999px;background:rgba(40,60,28,.85);border:1px solid rgba(127,211,107,.5);color:#b9f2a4;font-size:11px;letter-spacing:.14em;font-weight:700;pointer-events:none}

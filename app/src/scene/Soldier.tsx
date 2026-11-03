@@ -286,10 +286,73 @@ function curl(g: Grip | null, amount: number, trigger = false) {
   });
 }
 
-export function Soldier({ color, weapon = 0, ghost = false, motion }: { color: string; weapon?: number; ghost?: boolean; motion?: React.MutableRefObject<Motion> }) {
+/** A ghillie suit: hundreds of burlap and leaf strands hanging from a hood and shoulders. One
+ *  mesh, built once and shared; placed on the chest bone so it moves (and crouches) with you. */
+let ghillieGeo: THREE.BufferGeometry | null = null;
+function ghillieGeometry() {
+  if (ghillieGeo) return ghillieGeo;
+  const pos: number[] = [];
+  const col: number[] = [];
+  let seed = 7;
+  const r = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
+  const tones = [[0.24, 0.3, 0.14], [0.32, 0.36, 0.18], [0.36, 0.3, 0.18], [0.18, 0.24, 0.1], [0.42, 0.4, 0.22]];
+  // anchor points: a hood over the head, a ring round the shoulders, the back and the hips
+  const anchors: [number, number, number, number][] = []; // x (fwd), y (up), z (side), strand length
+  for (let i = 0; i < 70; i++) {
+    const a = r() * Math.PI * 2;
+    anchors.push([Math.cos(a) * 0.12, 0.42 + r() * 0.08, Math.sin(a) * 0.12, 0.16 + r() * 0.14]); // hood
+  }
+  for (let i = 0; i < 140; i++) {
+    const a = r() * Math.PI * 2;
+    anchors.push([Math.cos(a) * 0.17 - 0.03, 0.2 + r() * 0.08, Math.sin(a) * 0.24, 0.24 + r() * 0.26]); // shoulders
+  }
+  for (let i = 0; i < 120; i++) {
+    anchors.push([-0.14 - r() * 0.05, -0.2 + r() * 0.4, (r() - 0.5) * 0.4, 0.2 + r() * 0.3]); // back
+  }
+  for (let i = 0; i < 70; i++) {
+    const a = r() * Math.PI * 2;
+    anchors.push([Math.cos(a) * 0.15, -0.3 + r() * 0.06, Math.sin(a) * 0.2, 0.2 + r() * 0.22]); // hips
+  }
+  for (const [x, y, z, len] of anchors) {
+    // a strand: a thin twisted quad hanging down, kinked a little at the middle
+    const w = 0.012 + r() * 0.018;
+    const tw = r() * Math.PI;
+    const dx = Math.cos(tw) * w;
+    const dz = Math.sin(tw) * w;
+    const kx = (r() - 0.5) * 0.05;
+    const kz = (r() - 0.5) * 0.05;
+    const mid = [x + kx, y - len * 0.5, z + kz];
+    const end = [x + kx * 1.6 - 0.02, y - len, z + kz * 1.6];
+    const quad = (a: number[], b: number[]) => {
+      pos.push(a[0] - dx, a[1], a[2] - dz, a[0] + dx, a[1], a[2] + dz, b[0] - dx, b[1], b[2] - dz);
+      pos.push(a[0] + dx, a[1], a[2] + dz, b[0] + dx, b[1], b[2] + dz, b[0] - dx, b[1], b[2] - dz);
+    };
+    quad([x, y, z], mid);
+    quad(mid, end);
+    const t = tones[Math.floor(r() * tones.length)];
+    const k = 0.5 + r() * 0.35; // dusk-dark, like the grass at night
+    for (let v = 0; v < 12; v++) col.push(t[0] * k, t[1] * k, t[2] * k);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+  g.computeVertexNormals();
+  ghillieGeo = g;
+  return g;
+}
+const ghillieMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0, side: THREE.DoubleSide });
+
+export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, motion }: { color: string; weapon?: number; ghost?: boolean; ghillie?: boolean; motion?: React.MutableRefObject<Motion> }) {
   const gltf = useGLTF(SOLDIER_URL) as any;
   const root = useRef<THREE.Group>(null);
   const gunRef = useRef<THREE.Group>(null);
+  const cloak = useMemo(() => {
+    const m = new THREE.Mesh(ghillieGeometry(), ghillieMat);
+    m.castShadow = true;
+    m.frustumCulled = false;
+    m.visible = false;
+    return m;
+  }, []);
   const innerRef = useRef<THREE.Group>(null);
   const { model, mixer, actions, bones, scale, grips } = useMemo(() => {
     const model = cloneSkinned(gltf.scene) as THREE.Group;
@@ -798,6 +861,24 @@ export function Soldier({ color, weapon = 0, ghost = false, motion }: { color: s
       }
     }
   });
+
+  // the suit rides on the chest bone: oriented and scaled once, in the soldier's own frame
+  useEffect(() => {
+    const spine = bones.spine;
+    if (!spine || !root.current) return;
+    root.current.updateMatrixWorld(true);
+    const rq = root.current.getWorldQuaternion(new THREE.Quaternion());
+    const rs = root.current.getWorldScale(new THREE.Vector3());
+    const bq = spine.getWorldQuaternion(new THREE.Quaternion());
+    const bs = spine.getWorldScale(new THREE.Vector3());
+    cloak.quaternion.copy(bq.invert().multiply(rq));
+    cloak.scale.set(rs.x / bs.x, rs.y / bs.y, rs.z / bs.z);
+    spine.add(cloak);
+    return () => {
+      spine.remove(cloak);
+    };
+  }, [bones, cloak]);
+  cloak.visible = ghillie && !ghost;
 
   return (
     <group ref={root}>

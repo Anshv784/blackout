@@ -283,7 +283,7 @@ pub fn step_pickups(room: &Room, w: &mut World, loot_events: &mut [(i32, i32); 4
                 continue;
             }
             // bots don't carry gadgets
-            if !human && is_gadget_loot(l.kind) {
+            if !human && (is_gadget_loot(l.kind) || l.kind == LOOT_GHILLIE) {
                 continue;
             }
             if is_gadget_loot(l.kind) {
@@ -303,6 +303,7 @@ pub fn step_pickups(room: &Room, w: &mut World, loot_events: &mut [(i32, i32); 4
             match l.kind {
                 LOOT_MEDKIT => p.hp = (p.hp + 50).min(100),
                 LOOT_ARMOR => p.armor = (p.armor + 50).min(100),
+                LOOT_GHILLIE => w.bots[s].stuck = 1,
                 LOOT_SMG | LOOT_SHOTGUN | LOOT_AR | LOOT_SNIPER | LOOT_DMR | LOOT_LMG | LOOT_XBOW => {
                     let wpn = loot_gun(l.kind).unwrap_or(W_SNIPER);
                     // a second gun goes in the free slot; with both full it replaces the one in hand
@@ -472,7 +473,7 @@ pub fn step_deaths(room: &mut Room, w: &mut World, killer: &[u32; MAXP], tick: u
         } else {
             (0, 0, 0)
         };
-        let mut drops = [0u32; 4];
+        let mut drops = [0u32; 5];
         let mut n_drops = 0;
         if p.weapon != W_PISTOL {
             drops[n_drops] = gun_loot(p.weapon);
@@ -491,7 +492,11 @@ pub fn step_deaths(room: &mut Room, w: &mut World, killer: &[u32; MAXP], tick: u
             drops[n_drops] = LOOT_FRAG + gadget - 1;
             n_drops += 1;
         }
-        const AROUND: [(i32, i32); 4] = [(BOX_R + 40, 0), (0, BOX_R + 40), (-(BOX_R + 40), 0), (0, -(BOX_R + 40))];
+        if wears_ghillie(room, w, s) {
+            drops[n_drops] = LOOT_GHILLIE;
+            n_drops += 1;
+        }
+        const AROUND: [(i32, i32); 5] = [(BOX_R + 40, 0), (0, BOX_R + 40), (-(BOX_R + 40), 0), (0, -(BOX_R + 40)), (BOX_R + 30, BOX_R + 30)];
         for (i, &kind) in drops[..n_drops].iter().enumerate() {
             let (ox, oy) = AROUND[i];
             // off the crate where there's floor, on it where there's a wall

@@ -11,7 +11,7 @@ import { Arena, occlusion } from "./Arena";
 import { Avatar, Gun, SEAT_COLORS, aimToRotY } from "./Avatar";
 import { stillMotion, SOLDIER_URL, type Motion } from "./Soldier";
 import type { Session } from "../game/session";
-import { ST_COUNTDOWN, ST_LIVE, ST_ENDED, MOD_ONE_LIGHT, VIS_LIGHT, VIS_WATCHED } from "../chain/layout";
+import { ST_COUNTDOWN, ST_LIVE, ST_ENDED, MOD_ONE_LIGHT, VIS_LIGHT, VIS_WATCHED, VIS_GHILLIE } from "../chain/layout";
 import { controls, wheelInput, gadgetCancel } from "../game/controls";
 import { prefs, usePrefs, gfx, setPref } from "../game/prefs";
 import { feel } from "../game/feel";
@@ -24,8 +24,8 @@ import { audio } from "../game/audio";
 
 const CONE_RAD = (7000 / 65536) * Math.PI * 2; // half-angle used on chain
 const VISION_TILES = 10;
-const LOOT_COLORS = ["#fff", "#06d6a0", "#4cc9f0", "#ff8c42", "#ef476f", "#f15bb5", "#ffd166", "#c77dff", "#ff3b3b", "#9ae64a", "#c9ccd1", "#ffffff", "#ffb347", "#38e1ff", "#3cff7a", "#ffcf6e", "#ff7a3d", "#b9f27c"];
-const LOOT_LABEL = ["", "MEDKIT", "ARMOR", "UMP", "S12K", "FLARE", "M416", "KAR98K", "SUPPLY DROP", "FRAG", "SMOKE", "FLASHBANG", "DECOY", "SENSOR", "NIGHT VISION", "MARKSMAN", "LMG", "CROSSBOW"];
+const LOOT_COLORS = ["#fff", "#06d6a0", "#4cc9f0", "#ff8c42", "#ef476f", "#f15bb5", "#ffd166", "#c77dff", "#ff3b3b", "#9ae64a", "#c9ccd1", "#ffffff", "#ffb347", "#38e1ff", "#3cff7a", "#ffcf6e", "#ff7a3d", "#b9f27c", "#7fd36b"];
+const LOOT_LABEL = ["", "MEDKIT", "ARMOR", "UMP", "S12K", "FLARE", "M416", "KAR98K", "SUPPLY DROP", "FRAG", "SMOKE", "FLASHBANG", "DECOY", "SENSOR", "NIGHT VISION", "MARKSMAN", "LMG", "CROSSBOW", "GHILLIE SUIT"];
 const COOLDOWN_MS = [350, 100, 800, 150, 1500, 450, 100, 1300];
 // crosshair kick per shot (vertical, horizontal jitter) — PUBG-style: you pull it back down
 const RECOIL = [[0.02, 0.004], [0.009, 0.006], [0.045, 0.01], [0.013, 0.005], [0.07, 0.002], [0.035, 0.003], [0.011, 0.011], [0.012, 0.001]];
@@ -60,6 +60,7 @@ function MyPlayer({ session }: { session: Session }) {
   const dryAt = useRef(0);
   const lastPos = useRef({ x: 0, y: 0 });
   const myWeapon = useStore((s) => s.view?.me.weapon ?? 0);
+  const myGhillie = useStore((s) => !!s.view?.ghillie);
   const myAlive = useStore((s) => (s.view?.me.alive ?? 1) !== 0);
   const lastWeaponSound = useRef(myWeapon);
   useEffect(() => {
@@ -213,7 +214,7 @@ function MyPlayer({ session }: { session: Session }) {
   return (
     <group ref={group}>
       <group ref={aimGroup}>
-        <Avatar color={SEAT_COLORS[session.mySeat ?? 0]} me weapon={myWeapon} motion={motion} ring={myAlive} />
+        <Avatar color={SEAT_COLORS[session.mySeat ?? 0]} me weapon={myWeapon} motion={motion} ring={myAlive} ghillie={myGhillie} />
         {/* volumetric beam: a cone lying along +x */}
         <mesh position={[VISION_TILES / 2 + 0.3, 0.75, 0]} rotation-z={Math.PI / 2} material={beam}>
           <coneGeometry args={[Math.tan(CONE_RAD) * VISION_TILES, VISION_TILES, 48, 1, true]} />
@@ -294,11 +295,15 @@ function Others({ session }: { session: Session }) {
   const lastT = useRef<number[]>(Array(8).fill(0));
   const motionRefs = useMemo(() => Array.from({ length: 8 }, (_, i) => ({ get current() { return motions.current[i]; }, set current(v: Motion) { motions.current[i] = v; } })), []);
   // re-render only when someone's gun changes
-  const seen = useStore((st) => st.view?.players.map((p) => `${p.seat}:${p.weapon}`).join(",") ?? "");
+  const seen = useStore((st) => st.view?.players.map((p) => `${p.seat}:${p.weapon}:${p.flags & VIS_GHILLIE ? 1 : 0}`).join(",") ?? "");
   const lastWeapon = useRef<number[]>(Array(8).fill(0));
+  const lastGhillie = useRef<boolean[]>(Array(8).fill(false));
   for (const kv of seen.split(",")) {
-    const [a, b] = kv.split(":").map(Number);
-    if (kv && a >= 0 && a < 8) lastWeapon.current[a] = b;
+    const [a, b, c] = kv.split(":").map(Number);
+    if (kv && a >= 0 && a < 8) {
+      lastWeapon.current[a] = b;
+      lastGhillie.current[a] = c === 1;
+    }
   }
   const weapons = lastWeapon.current;
   const GRACE = 280; // ms an enemy stays solid after leaving your view (kills cone-edge flicker)
@@ -377,7 +382,7 @@ function Others({ session }: { session: Session }) {
       {Array.from({ length: 8 }, (_, s) => (
         <group key={s}>
           <group ref={(el) => (refs.current[s] = el)} visible={false}>
-            <Avatar color={SEAT_COLORS[s]} weapon={weapons[s]} motion={motionRefs[s]} />
+            <Avatar color={SEAT_COLORS[s]} weapon={weapons[s]} motion={motionRefs[s]} ghillie={lastGhillie.current[s]} />
             <Html position={[0, 1.6, 0]} center zIndexRange={[4, 0]} style={{ pointerEvents: "none" }}>
               <div className="tag" ref={(el) => (labels.current[s] = el)} style={{ ["--c" as any]: SEAT_COLORS[s] }}>
                 <span>{room?.names[s] || `#${s}`}</span>

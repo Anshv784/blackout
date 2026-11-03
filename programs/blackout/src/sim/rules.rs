@@ -98,9 +98,11 @@ pub const NIGHT_MODS: u32 = 7;
 /// View flags: the player carries the One Light / is the one you're watching after death
 pub const VIS_LIGHT: u32 = 512;
 pub const VIS_WATCHED: u32 = 1024;
+pub const VIS_GHILLIE: u32 = 2048;
 /// View.status high bits, for your own seat
 pub const VIEW_I_CARRY_LIGHT: u32 = 1 << 16;
 pub const VIEW_SPECTATING: u32 = 1 << 17;
+pub const VIEW_GHILLIE: u32 = 1 << 18;
 /// The night's modifier, rolled from the VRF seed (Room.cfg bits 13-15).
 pub fn night_mod(room: &Room) -> u32 {
     (room.cfg >> 13) & 7
@@ -211,6 +213,13 @@ pub const LOOT_SNIPER: u32 = 7;
 pub const LOOT_DMR: u32 = 15;
 pub const LOOT_LMG: u32 = 16;
 pub const LOOT_XBOW: u32 = 17;
+/// a ghillie suit (the Meadow only): crouched in it, you're seen only up close
+pub const LOOT_GHILLIE: u32 = 18;
+pub const GHILLIE_R: i32 = 3 * UNIT;
+/// Humans never use their bot brain's `stuck` counter: it marks the suit (1 = wearing).
+pub fn wears_ghillie(room: &Room, w: &World, s: usize) -> bool {
+    room.is_bot[s] == 0 && w.bots[s].stuck == 1
+}
 /// gadget loot kinds are a block: frag .. night vision
 pub fn is_gadget_loot(kind: u32) -> bool {
     (LOOT_FRAG..=LOOT_NVG).contains(&kind)

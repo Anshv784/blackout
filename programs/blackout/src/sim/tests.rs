@@ -781,3 +781,75 @@ mod new_guns {
         assert!(!seen_bow, "a crossbow shot should not light the shooter up");
     }
 }
+
+#[cfg(test)]
+mod ghillie {
+    use super::*;
+
+    fn meadow_room() -> (Room, World) {
+        let mut room: Room = bytemuck::Zeroable::zeroed();
+        let mut w: World = bytemuck::Zeroable::zeroed();
+        for s in 0..MAXP {
+            room.is_bot[s] = if s < 2 { 0 } else { 1 };
+            if s < 2 {
+                room.players[s] = anchor_lang::prelude::Pubkey::new_from_array([s as u8 + 1; 32]);
+            }
+        }
+        room.cfg = 2 | CFG_MEADOW;
+        let mut seed = [5u8; 32];
+        seed[31] = 0;
+        seed_match(&mut room, &mut w, seed);
+        (room, w)
+    }
+
+    #[test]
+    fn the_meadow_has_one_ghillie_a_night_and_the_yard_none() {
+        let (_, w) = meadow_room();
+        assert_eq!(w.loot.iter().filter(|l| l.active == 1 && l.kind == LOOT_GHILLIE).count(), 1);
+        let mut room: Room = bytemuck::Zeroable::zeroed();
+        let mut w2: World = bytemuck::Zeroable::zeroed();
+        room.cfg = 2;
+        seed_match(&mut room, &mut w2, [5u8; 32]);
+        assert!(w2.loot.iter().all(|l| l.kind != LOOT_GHILLIE));
+    }
+
+    /// The viewer (seat 0) looks straight at seat 1, 6 tiles away in the open Meadow.
+    fn seen(wear: bool, crouch: bool, fired: bool) -> bool {
+        let (mut room, mut w) = meadow_room();
+        room.status = ST_LIVE;
+        let m = map_of(&room);
+        let y = (1..MAP_H - 1).find(|&ty| (2..12).all(|tx| !is_wall(m, tx, ty) && !is_wall(m, tx, ty - 1) && !is_wall(m, tx, ty + 1))).unwrap();
+        for s in 0..MAXP {
+            w.players[s].alive = 0;
+        }
+        for (s, tx) in [(0usize, 3u8), (1, 9)] {
+            let p = &mut w.players[s];
+            *p = PlayerState::default();
+            p.alive = 1;
+            p.hp = 100;
+            p.x = tile_center(tx);
+            p.y = tile_center(y as u8);
+        }
+        w.players[0].aim = 0;
+        w.players[1].moved = if crouch { 8 } else { 0 };
+        w.bots[1].stuck = wear as u32;
+        let tick = 400u32;
+        w.tick = tick;
+        if fired {
+            w.players[1].last_shot = tick + 1;
+        }
+        // no lamps near: put the light carrier nowhere
+        let sight = compute_sight(&room, &w, true, tick - COUNTDOWN_TICKS, tick);
+        let mut view: View = bytemuck::Zeroable::zeroed();
+        write_view(&room, &w, &mut view, 0, &sight, &[], &[], tick);
+        (0..view.n_players as usize).any(|i| view.players[i].seat == 1)
+    }
+
+    #[test]
+    fn crouched_in_a_ghillie_you_vanish_until_you_fire() {
+        assert!(seen(false, true, false), "a crouched player without the suit is seen in the cone");
+        assert!(!seen(true, true, false), "crouched in the suit, hidden");
+        assert!(seen(true, false, false), "standing in the suit, seen");
+        assert!(seen(true, true, true), "firing gives you away even in the suit");
+    }
+}

@@ -448,6 +448,7 @@ const LOOTED_FOR = 7; // seconds an emptied crate stays on the ground
 /** size [w, h, d] and colour of the case each loot kind came in */
 function caseOf(kind: number): [[number, number, number], string] {
   if (kind === 3 || kind === 4 || kind === 6 || kind === 7 || kind === 15 || kind === 16 || kind === 17) return [[1.05, 0.2, 0.4], "#3d4630"];
+  if (kind === 18) return [[0.62, 0.22, 0.46], "#3e4a2c"];
   if (kind === 1) return [[0.52, 0.32, 0.38], "#d9dce0"];
   if (kind === 2) return [[0.58, 0.3, 0.44], "#33402f"];
   if (kind === 5) return [[0.34, 0.12, 0.34], "#2b2d33"];

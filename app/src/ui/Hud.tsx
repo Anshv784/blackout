@@ -76,6 +76,7 @@ export function Hud({ session }: { session: Session }) {
       {!countdown && room.nightMod === MOD_ONE_LIGHT && me.alive === 1 && (
         <div className="light-chip">{view.carriesLight ? "YOU CARRY THE LIGHT · everyone sees it" : "NO LIGHT · hunt by sound"}</div>
       )}
+      {view.ghillie && me.alive === 1 && <div className="ghillie-chip">GHILLIE SUIT · crouch to vanish</div>}
       {watching && (
         <div className="watch-chip">
           WATCHING <b style={{ color: SEAT_COLORS[watching.seat] }}>{room.names[watching.seat]}</b> · the one who got you

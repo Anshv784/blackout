@@ -234,6 +234,8 @@ export interface View {
   inv: Inventory;
   /** One Light nights: you carry the only flashlight */
   carriesLight: boolean;
+  /** you're wearing a ghillie suit */
+  ghillie: boolean;
   /** dead, watching your killer (their entry has VIS_WATCHED) */
   spectating: boolean;
 }
@@ -252,6 +254,8 @@ export const MOD_ONE_LIGHT = 6;
 /** VisPlayer flags (mirror of sim/rules.rs) */
 export const VIS_LIGHT = 512;
 export const VIS_WATCHED = 1024;
+export const VIS_GHILLIE = 2048;
+export const LOOT_GHILLIE = 18;
 /** Bot personalities (mirror of sim/rules.rs bot_style: public room data, never the seed) */
 export const BOT_STYLE = ["", "CAMPER", "STALKER", "RUSHER"];
 export const botStyle = (matchNo: number, seat: number) => BOT_STYLE[(matchNo + seat) % 4];
@@ -276,6 +280,7 @@ export function decodeView(data: Uint8Array): View {
   const status = rawStatus & 0xffff;
   const carriesLight = (rawStatus & (1 << 16)) !== 0;
   const spectating = (rawStatus & (1 << 17)) !== 0;
+  const ghillie = (rawStatus & (1 << 18)) !== 0;
   const seat = r.u32();
   const me = readPlayer(r);
   const kills = r.u32();
@@ -290,7 +295,7 @@ export function decodeView(data: Uint8Array): View {
   const pings = r.arr(12, () => ({ tick: r.u32(), angle: r.u32(), kind: r.u32(), dist: r.u32() }));
   const p = r.u32();
   const inv = { sec: (p & 0xf) - 1, secMag: (p >>> 4) & 0x3f, gadget: (p >>> 10) & 0xf, count: (p >>> 14) & 0xf, nvg: ((p >>> 18) & 0xff) * 4, blind: ((p >>> 26) & 0x3f) * 2 };
-  return { tick, status, seat, me, kills, place, players, bullets, loot, pingHead, pings, inv, carriesLight, spectating };
+  return { tick, status, seat, me, kills, place, players, bullets, loot, pingHead, pings, inv, carriesLight, spectating, ghillie };
 }
 
 export interface World {

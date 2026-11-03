@@ -111,6 +111,8 @@ pub fn compute_sight(room: &Room, w: &World, live: bool, t: u32, tick: u32) -> S
                 // a flashbang took your eyes: only what's right next to you
             } else if !lights_out
                 && (!one_light || v == carrier)
+                // crouched in a ghillie suit and not firing: torches and eyes slide past you
+                && !(wears_ghillie(room, w, q) && pq.moved & 8 != 0 && pq.last_shot + 2 < tick + 1 && d2 > (GHILLIE_R as i64).pow(2))
                 && d2 <= (if pq.moved & 8 != 0 { vr * 7 / 10 } else { vr } as i64).pow(2)
                 && angle_diff(pv.aim, atan2(pq.y - pv.y, pq.x - pv.x)) <= cone
                 && line_of_sight(m, pv.x, pv.y, pq.x, pq.y)
@@ -253,6 +255,9 @@ pub fn write_view(room: &Room, w: &World, view: &mut View, v: usize, sight: &Sig
     if w.light == v as u32 + 1 {
         view.status |= VIEW_I_CARRY_LIGHT;
     }
+    if wears_ghillie(room, w, v) {
+        view.status |= VIEW_GHILLIE;
+    }
     if occupied && pv.alive == 0 && room.status == ST_LIVE {
         watch_killer(room, w, view, v, vis);
         return;
@@ -267,7 +272,7 @@ pub fn write_view(room: &Room, w: &World, view: &mut View, v: usize, sight: &Sig
             continue;
         }
         let pq = w.players[q];
-        view.players[n] = VisPlayer { seat: q as u32, x: pq.x, y: pq.y, aim: pq.aim, hp: pq.hp, weapon: pq.weapon, flags: f };
+        view.players[n] = VisPlayer { seat: q as u32, x: pq.x, y: pq.y, aim: pq.aim, hp: pq.hp, weapon: pq.weapon, flags: f | if wears_ghillie(room, w, q) { VIS_GHILLIE } else { 0 } };
         n += 1;
     }
     view.n_players = n as u32;
