@@ -48,7 +48,7 @@ function Operator({ color }: { color: string }) {
     if (!g.current) return;
     const t = clock.elapsedTime;
     // soldiers face +x in their own frame; the camera is out on +z: face it, a touch to the left
-    const want = -Math.PI / 2 + 0.85 + Math.sin(t * 0.25) * 0.12 + look.current * 0.5;
+    const want = -Math.PI / 2 + 0.22 + Math.sin(t * 0.25) * 0.06 + look.current * 0.3;
     g.current.rotation.y += (want - g.current.rotation.y) * 0.05;
   });
   return (
