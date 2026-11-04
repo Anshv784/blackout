@@ -445,7 +445,10 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
       )}
       <div className="dock">
         <div className="dock-cell invite">
-          <label>{isPrivate ? "ROOM CODE · share it with friends" : "INVITE"}</label>
+          <label className="dock-head">
+            <span>{isPrivate ? "ROOM CODE" : "INVITE"}</span>
+            <em>{isPrivate ? "share it with friends" : "friends join from this link"}</em>
+          </label>
           {isPrivate && mySeat !== null && (
             <div className="row code-row">
               <b className="room-code">{codeText}</b>
@@ -477,6 +480,12 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
         </div>
 
         <div className="dock-cell main">
+          <label className="dock-head">
+            <span>THE NIGHT</span>
+            <em>
+              {humans}/{size} seated · {room.map === 1 ? "Meadow" : "Yard"}
+            </em>
+          </label>
           {mySeat === null ? (
             <button className="btn primary huge" disabled={!!busy} onClick={() => take()}>
               {busy === "join" ? (staked ? "BUYING TICKET…" : "SITTING DOWN…") : staked ? `STAKE ${(Number(room.stake) / 1e9).toFixed(2)} SOL & SIT` : "TAKE A SEAT"}

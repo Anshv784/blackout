@@ -2580,3 +2580,29 @@ button {
 .cs-kit{gap:12px!important}
 @media (max-height:820px) and (min-width:861px){.lk-tile .lk-fill{aspect-ratio:1.6}.lk{padding:10px}}
 @media (max-width:480px){.lk-tabs button{font-size:9px;letter-spacing:.06em}}
+
+/* lobby control bar: every column opens with a heading on the same line, content below it */
+.dock{align-items:stretch!important}
+.dock-cell{justify-content:flex-start!important;gap:12px!important;padding:16px 20px 18px!important}
+.dock-cell .dock-head,.night-set>label{display:flex!important;justify-content:space-between;align-items:baseline;gap:10px;margin:0!important;min-height:16px;font-size:10px!important;letter-spacing:.2em!important;font-weight:700;color:var(--dim)!important;white-space:nowrap}
+.dock-head em,.ns-sum-inline{font-style:normal;font-family:var(--mono);font-size:10px!important;letter-spacing:.04em!important;font-weight:400;color:#7d859a!important;text-transform:none}
+.dock-cell.main{align-items:stretch!important}
+.dock-cell.main .btn.huge{width:100%}
+.dock-cell.main .dock-leave{align-self:center;margin-top:-2px}
+.dock-cell.invite .row{margin-top:2px}
+.night-set{gap:12px!important}
+.ns-grid{gap:8px!important}
+
+/* the H controls card: five sections in a tidy grid */
+.key-guide.kg2{display:flex!important;flex-direction:column;align-items:stretch!important;gap:12px;padding:16px 18px!important;width:min(780px,calc(100vw - 40px));max-width:none}
+.kg2-head{display:flex;justify-content:space-between;align-items:center;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,.08)}
+.kg2-head b{font-size:11px;letter-spacing:.24em;color:var(--gold)}
+.kg2-head span{font-size:11px;color:#7d859a;display:flex;gap:6px;align-items:center}
+.kg2-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px 18px}
+.kg2 .kg-group{display:grid!important;grid-template-columns:96px minmax(0,1fr);column-gap:10px;row-gap:7px;align-content:start}
+.kg2 .kg-group>b{grid-column:1 / -1;font-size:9.5px;letter-spacing:.22em;color:#ffd166;margin-bottom:2px}
+.kg2 .kg-row{display:contents}
+.kg2 .kg-keys{justify-content:flex-end}
+.kg2 .kg-what{font-size:12px;color:#e2e6f0;white-space:normal;line-height:1.25}
+.kg2 .kg-what em{display:block;margin:2px 0 0;font-size:10px;color:#7d859a}
+@media (max-width:760px){.kg2-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}

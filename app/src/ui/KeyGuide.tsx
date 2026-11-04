@@ -11,23 +11,30 @@ const OPEN_FOR = 25000; // ms the card stays up when a night starts
 type Row = [keys: string[], what: string, note?: string];
 const MOVE: Row[] = [
   [["W", "A", "S", "D"], "move"],
-  [["Shift"], "run", "tap · or W W"],
-  [["C"], "sneak", "silent"],
-  [["Ctrl"], "prone", "crawl · hardest to spot"],
-  [["Space"], "jump"],
-  [["B"], "emote", "opens the emote wheel"],
-];
-const FIGHT: Row[] = [
   [["Mouse"], "look", "or arrows"],
+  [["Shift"], "run", "tap · or W W"],
+  [["Space"], "jump", "clears a death crate"],
+];
+const STEALTH: Row[] = [
+  [["C"], "sneak", "silent, harder to see"],
+  [["Ctrl"], "prone", "crawl, hardest to spot"],
+  [["B"], "emote", "opens the wheel"],
+];
+const COMBAT: Row[] = [
   [["LMB"], "fire", "or F"],
   [["RMB"], "aim / scope", "or Z"],
   [["R"], "reload"],
-  [["Wheel"], "swap gun", "or X"],
-  [["G"], "throw", "hold to aim"],
+  [["Wheel"], "swap gun", "or X · 1 · 2"],
+];
+const GEAR: Row[] = [
+  [["G"], "throw", "hold to aim, release"],
+  [["RMB"], "cancel throw", "while holding G"],
+  [["—"], "pick up", "walk over loot"],
 ];
 const VIEW: Row[] = [
   [["Tab"], "map"],
   [["V"], "camera"],
+  [["Q", "E"], "turn camera"],
   [["M"], "mute"],
   [["Esc"], "settings"],
   [["H"], "this card"],
@@ -62,15 +69,20 @@ export function KeyGuide({ session, touch }: { session: Session; touch: boolean 
       </div>
     );
   return (
-    <div className="key-guide" onClick={() => setOpen(false)}>
-      <div className="kg-col">
-        <Group title="MOVE" rows={MOVE} />
-        <Group title="VIEW" rows={VIEW} />
+    <div className="key-guide kg2" onClick={() => setOpen(false)}>
+      <div className="kg2-head">
+        <b>CONTROLS</b>
+        <span>
+          <kbd>H</kbd> to hide
+        </span>
       </div>
-      <Group title="FIGHT" rows={FIGHT} />
-      <small>
-        <kbd>H</kbd> hide
-      </small>
+      <div className="kg2-grid">
+        <Group title="MOVE" rows={MOVE} />
+        <Group title="STEALTH" rows={STEALTH} />
+        <Group title="COMBAT" rows={COMBAT} />
+        <Group title="GEAR" rows={GEAR} />
+        <Group title="VIEW & MENU" rows={VIEW} />
+      </div>
     </div>
   );
 }
