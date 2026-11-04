@@ -2624,3 +2624,26 @@ button {
 .dock-seats i.me{background:var(--gold);border-color:var(--gold);box-shadow:0 0 8px rgba(255,209,102,.6)}
 .dock-seats span{margin-left:6px;font-size:11px;color:#7d859a}
 .dock .dock-leave{align-self:center;margin:0!important;font-size:10.5px!important}
+
+/* Operator page: operator / gunsmith switch, armory list, gun stats */
+.lk-tabs{grid-template-columns:repeat(auto-fit,minmax(0,1fr))!important}
+.cs-mode{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:12px;background:rgba(255,255,255,.04);margin-bottom:14px}
+.cs-mode button{padding:10px 6px;border-radius:9px;border:0;background:none;color:var(--dim);font:inherit;font-size:11px;font-weight:700;letter-spacing:.16em;cursor:pointer}
+.cs-mode button.on{background:var(--gold);color:#111}
+.gs-list{display:flex;flex-direction:column;gap:6px}
+.gs-item{display:flex;align-items:center;gap:12px;padding:8px 12px;border-radius:11px;background:rgba(12,14,22,.82);border:1px solid var(--line);color:var(--fg);cursor:pointer;font:inherit;text-align:left}
+.gs-item:hover{border-color:#3a4260}
+.gs-item.on{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold)}
+.gs-item .gun-icon{width:64px;height:26px;color:#9aa2b6;flex:none}
+.gs-item.on .gun-icon{color:var(--gold)}
+.gs-item b{display:block;font-size:12.5px;letter-spacing:.12em}
+.gs-item span{display:block;font-size:10.5px;color:var(--dim);text-transform:capitalize}
+.gs-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;padding:4px 10px 0}
+.gs-stats div{display:flex;flex-direction:column;gap:5px}
+.gs-stats span{font-size:9.5px;letter-spacing:.18em;color:var(--dim);font-weight:700}
+.gs-stats i{display:block;height:5px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden}
+.gs-stats b{display:block;height:100%;background:linear-gradient(90deg,#ffd166,#ffb347);border-radius:3px;transition:width .3s}
+.gs-stage{cursor:grab}
+@media (max-height:820px) and (min-width:861px){.gs-item{padding:5px 10px}.gs-item .gun-icon{height:20px}}
+@media (max-width:860px){.gs-list{display:grid;grid-template-columns:repeat(2,1fr)}.gs-stats{grid-template-columns:repeat(2,1fr)}}
+.how-credits{max-width:900px;margin:30px auto 40px;padding:0 20px;color:var(--dim);font-size:12px;line-height:1.6}.how-credits b{display:block;font-size:10px;letter-spacing:.2em;color:#8a91a6;margin-bottom:6px}

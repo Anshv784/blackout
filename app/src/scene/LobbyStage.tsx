@@ -66,7 +66,7 @@ function Pedestal({ i, n, gap, rows, seat, onTake, onMakeHost, onKick, onSelf }:
     const t = clock.elapsedTime;
     if (ring.current) (ring.current.material as THREE.MeshBasicMaterial).opacity = seat.taken ? 0.95 : 0.2 + 0.15 * Math.sin(t * 2 + i);
     // face the camera (out on +z), turned a touch towards the middle, with a slow idle sway; soldiers face +x in their own frame
-    if (g.current) g.current.rotation.y = -Math.PI / 2 + 0.35 + Math.sin(t * 0.5 + i) * 0.08;
+    if (g.current) g.current.rotation.y = -Math.PI / 2 + 0.8 + Math.sin(t * 0.5 + i) * 0.06;
   });
   return (
     <group position={[x, 0, z]}>

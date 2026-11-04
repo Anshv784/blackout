@@ -74,7 +74,7 @@ function Plinth() {
 }
 
 export const CharacterStage = memo(function CharacterStage({ look, weapon, emoteAt }: { look: Look; weapon: number; emoteAt: number }) {
-  const spin = useRef(-Math.PI / 2 + 0.45);
+  const spin = useRef(-Math.PI / 2 + 0.8);
   const drag = useRef<number | null>(null);
   return (
     <div
