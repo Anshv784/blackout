@@ -1,4 +1,4 @@
-/** `n` names a moving part the reload animates: the magazine, the shotgun's pump, the Kar98's bolt */
+/** `n` names a moving part the reload animates: the magazine, the shotgun's pump, the Talon's bolt */
 type Part = { p: [number, number, number]; s: [number, number, number]; c?: string; r?: number; ry?: number; cyl?: boolean; glow?: string; n?: string };
 
 

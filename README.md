@@ -154,7 +154,7 @@ First-time visitors get a 34-second launch trailer, cut fast from one night play
 |---|---|
 | **Stealth first** | You see only your flashlight cone. Shooting lights you up for everyone nearby; footsteps, reloads and loot pickups make directional sound pings. |
 | **Move** | Shift sprints (1.5×, loud, burns stamina), C crouches to sneak (slow and silent), Space jumps. Stamina, crouch and jump are simulated on-chain and mirrored bit-for-bit for prediction. |
-| **Guns** | P92, UMP, S12K, M416 and Kar98k, two slots, aim down sights, recoil. Each has its own layered sound: crack, body, tail, and the slide, pump or bolt. |
+| **Guns** | eight original guns: VESPER pistol, HORNET SMG, MAUL shotgun, KESTREL rifle, TALON sniper, LANCE marksman rifle, BULWARK LMG and the silent WHISPER crossbow; two slots, aim down sights, recoil. Each has its own layered sound: crack, body, tail, and the slide, pump or bolt. |
 | **Gadgets** | Frag, smoke, flashbang, decoy, motion sensor and night vision. Hold G to see the arc and where it lands, let go to throw. The can flies, bounces off walls and rolls on-chain; you see and hear it. |
 | **Events** | Supply drops, a mid-night BLACKOUT that kills the lamps, and a bounty on the kill leader. |
 | **Duos** | Partners see each other through walls, get downed instead of dying, and revive by standing over each other. |

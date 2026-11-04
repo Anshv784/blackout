@@ -567,7 +567,7 @@ export class Session {
         this.drop = { x: v.me.x + Math.cos(a) * p.dist * UNIT, y: v.me.y + Math.sin(a) * p.dist * UNIT, at: now };
         if (fresh) {
           audio.airdrop();
-          banner("SUPPLY DROP", "danger", `Kar98k · full vest · full health · ${p.dist}m away, follow the red smoke`);
+          banner("SUPPLY DROP", "danger", `Talon · full vest · full health · ${p.dist}m away, follow the red smoke`);
         }
         continue;
       }

@@ -277,15 +277,15 @@ pub struct Weapon {
 }
 
 pub const WEAPONS: [Weapon; 8] = [
-    // P92 pistol
+    // VESPER pistol
     Weapon { dmg: 22, cooldown: 7, mag: 10, reload: 28, speed: 280, ttl: 16, pellets: 1, spread: 0 },
-    // UMP SMG: fast, short, sprays
+    // HORNET SMG: fast, short, sprays
     Weapon { dmg: 11, cooldown: 2, mag: 30, reload: 40, speed: 300, ttl: 14, pellets: 1, spread: 900 },
-    // S12K shotgun: five pellets, close only
+    // MAUL shotgun: five pellets, close only
     Weapon { dmg: 13, cooldown: 16, mag: 5, reload: 44, speed: 260, ttl: 8, pellets: 5, spread: 2600 },
-    // M416 assault rifle: the all-rounder
+    // KESTREL assault rifle: the all-rounder
     Weapon { dmg: 15, cooldown: 3, mag: 30, reload: 42, speed: 340, ttl: 20, pellets: 1, spread: 260 },
-    // Kar98k sniper: two body shots, slow bolt, long and loud
+    // Talon sniper: two body shots, slow bolt, long and loud
     Weapon { dmg: 80, cooldown: 30, mag: 5, reload: 56, speed: 460, ttl: 26, pellets: 1, spread: 0 },
     // marksman rifle: semi-automatic, hits hard at mid range, a 10-round mag
     Weapon { dmg: 38, cooldown: 9, mag: 10, reload: 46, speed: 420, ttl: 24, pellets: 1, spread: 60 },

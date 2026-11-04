@@ -2,15 +2,15 @@
 // All 100x40 (guns) or 24x24 (glyphs), drawn with currentColor.
 
 const GUN_PATHS: string[] = [
-  // P92 pistol
+  // VESPER pistol
   "M14 12h44l4 4v6H40l-4 12h-12l3-12H14z M24 22h10l-1 4h-8z",
-  // UMP smg: body, stock, curved mag
+  // HORNET smg: body, stock, curved mag
   "M6 14h10l4-3h48l4 3h14v5H72v4H56l-3 13h-9l3-13H32l-4 6H18l2-6H6z M58 24h7l-2 8h-7z",
-  // S12K shotgun: long barrel + box mag + pump
+  // MAUL shotgun: long barrel + box mag + pump
   "M4 13h22l6-3h52l10 3v5H84v3H40l-2 11h-9l2-11H26l-6 5H6z M48 21h14v4H48z",
-  // M416: stock, receiver, curved mag, handguard, barrel
+  // KESTREL: stock, receiver, curved mag, handguard, barrel
   "M2 15l14-4h14l4-3h34l4 3h18v3h10v3H86v3H58l-4 11h-8l3-11H38l-5 6H24l2-6H14L2 20z M50 22h8l-3 11h-8z M44 6h12v3H44z",
-  // KAR98K: wooden stock, bolt, long barrel, scope
+  // TALON: wooden stock, bolt, long barrel, scope
   "M2 17l18-5h20l4 2h56v4H44l-4 3H24l-8 7H6z M38 6h26v5H38z M42 11h4v3h-4z M56 11h4v3h-4z M56 18l4 6h-3l-3-5z",
   // marksman: skeleton stock, receiver, short straight mag, long barrel, low scope
   "M2 14h4l10 2h22l3-4h36v4h22v3H78v3H54l-3 10h-8l3-10H36l-6 5H22l-4-5H6l-4 4z M44 7h20v4H44z M46 22h7l-2 9h-7z",

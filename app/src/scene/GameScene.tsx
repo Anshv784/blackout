@@ -25,7 +25,7 @@ import { audio } from "../game/audio";
 const CONE_RAD = (7000 / 65536) * Math.PI * 2; // half-angle used on chain
 const VISION_TILES = 10;
 const LOOT_COLORS = ["#fff", "#06d6a0", "#4cc9f0", "#ff8c42", "#ef476f", "#f15bb5", "#ffd166", "#c77dff", "#ff3b3b", "#9ae64a", "#c9ccd1", "#ffffff", "#ffb347", "#38e1ff", "#3cff7a", "#ffcf6e", "#ff7a3d", "#b9f27c", "#7fd36b"];
-const LOOT_LABEL = ["", "MEDKIT", "ARMOR", "UMP", "S12K", "FLARE", "M416", "KAR98K", "SUPPLY DROP", "FRAG", "SMOKE", "FLASHBANG", "DECOY", "SENSOR", "NIGHT VISION", "MARKSMAN", "LMG", "CROSSBOW", "GHILLIE SUIT"];
+const LOOT_LABEL = ["", "MEDKIT", "ARMOR", "HORNET", "MAUL", "FLARE", "KESTREL", "TALON", "SUPPLY DROP", "FRAG", "SMOKE", "FLASHBANG", "DECOY", "SENSOR", "NIGHT VISION", "LANCE", "BULWARK", "WHISPER", "GHILLIE SUIT"];
 const COOLDOWN_MS = [350, 100, 800, 150, 1500, 450, 100, 1300];
 // crosshair kick per shot (vertical, horizontal jitter) — PUBG-style: you pull it back down
 const RECOIL = [[0.02, 0.004], [0.009, 0.006], [0.045, 0.01], [0.013, 0.005], [0.07, 0.002], [0.035, 0.003], [0.011, 0.011], [0.012, 0.001]];

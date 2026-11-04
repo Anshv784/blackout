@@ -15,7 +15,7 @@ export function Crosshair() {
       raf = requestAnimationFrame(loop);
       const el = ref.current;
       if (!el) return;
-      // aiming down sights tightens the reticle; the Kar98k looks through a scope
+      // aiming down sights tightens the reticle; the Talon looks through a scope
       const sniper = useStore.getState().view?.me.weapon === 4;
       const k = controls.adsK;
       el.style.transform = `translate(${controls.cursorX}px, ${controls.cursorY}px) scale(${prefs.xSize * (1 - k * 0.3)})`;

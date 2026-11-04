@@ -322,7 +322,7 @@ pub fn step_pickups(room: &Room, w: &mut World, loot_events: &mut [(i32, i32); 4
                 }
                 LOOT_FLARE => p.flare = FLARE_TICKS,
                 LOOT_DROP => {
-                    // the good stuff: a Kar98k, a full vest, patched up
+                    // the good stuff: a Talon, a full vest, patched up
                     p.weapon = W_SNIPER;
                     p.mag = WEAPONS[W_SNIPER as usize].mag;
                     p.reload = 0;

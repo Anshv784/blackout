@@ -56,11 +56,11 @@ const BOX_AT = 1.6;
 const BOX_DUR = 0.45;
 /** per gun: [push back, muzzle climb (rad), flash size, settle (lower = faster)] */
 const RECOIL: [number, number, number, number][] = [
-  [0.06, 0.16, 0.8, 0.0004], // P92: snappy flip
-  [0.035, 0.07, 0.7, 0.00002], // UMP: light, fast
-  [0.12, 0.3, 1.5, 0.002], // S12K: big shove
-  [0.05, 0.09, 1.0, 0.00005], // M416: tight climb
-  [0.14, 0.34, 1.4, 0.004], // KAR98K: heavy, slow to settle
+  [0.06, 0.16, 0.8, 0.0004], // VESPER: snappy flip
+  [0.035, 0.07, 0.7, 0.00002], // HORNET: light, fast
+  [0.12, 0.3, 1.5, 0.002], // MAUL: big shove
+  [0.05, 0.09, 1.0, 0.00005], // KESTREL: tight climb
+  [0.14, 0.34, 1.4, 0.004], // TALON: heavy, slow to settle
   [0.09, 0.22, 1.2, 0.0012], // marksman: firm, settles fast
   [0.04, 0.08, 0.9, 0.00003], // LMG: steady chatter
   [0.03, 0.05, 0, 0.0005], // crossbow: a nudge, no flash

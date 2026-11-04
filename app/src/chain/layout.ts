@@ -17,7 +17,8 @@ export const ST_REVEALED = 5;
 export const NO_SEAT = 255;
 
 export const STATUS_NAME = ["LOBBY", "SEEDING", "COUNTDOWN", "LIVE", "ENDED", "REVEALED"];
-export const WEAPON_NAME = ["P92", "UMP", "S12K", "M416", "KAR98K", "MARKSMAN", "LMG", "CROSSBOW"];
+/** original names (pistol, SMG, shotgun, assault rifle, bolt sniper, marksman, LMG, crossbow) */
+export const WEAPON_NAME = ["VESPER", "HORNET", "MAUL", "KESTREL", "TALON", "LANCE", "BULWARK", "WHISPER"];
 /** how each gun fires (HUD tag) */
 export const FIRE_MODE = ["SINGLE", "AUTO", "PUMP", "AUTO", "BOLT", "SEMI", "AUTO", "SILENT"];
 export const LOOT_NAME = ["", "MEDKIT", "ARMOR", "SMG", "SHOTGUN", "FLARE"];
@@ -263,7 +264,7 @@ export const NIGHT_MOD_SUB = [
   "",
   "vision is cut short tonight",
   "one kill makes you the bounty",
-  "every gun in the Yard is a Kar98k",
+  "every gun in the Yard is a Talon",
   "the street lamps are dead",
   "the crates are full of tricks",
   "one flashlight in the Yard: hunt by sound",

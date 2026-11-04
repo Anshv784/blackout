@@ -11,13 +11,13 @@ const pick = (kind: "bass" | "mid" | "high") => {
   return `hit_${kind}${1 + Math.floor(Math.random() * n)}`;
 };
 
-// each gun: [recording, pitch, loudness]. .308 for both rifles (the M416 a touch higher and lighter)
+// each gun: [recording, pitch, loudness]. .308 for both rifles (the KESTREL a touch higher and lighter)
 const GUN_SAMPLE: [string, number, number][] = [
-  ["shot_9mm", 1.0, 0.42], // P92
-  ["shot_9mm", 1.12, 0.36], // UMP
-  ["shot_20g", 1.0, 0.5], // S12K
-  ["shot_308", 1.14, 0.42], // M416
-  ["shot_308", 0.94, 0.52], // KAR98K
+  ["shot_9mm", 1.0, 0.42], // VESPER
+  ["shot_9mm", 1.12, 0.36], // HORNET
+  ["shot_20g", 1.0, 0.5], // MAUL
+  ["shot_308", 1.14, 0.42], // KESTREL
+  ["shot_308", 0.94, 0.52], // TALON
   ["shot_308", 1.04, 0.48], // marksman
   ["shot_308", 1.22, 0.38], // LMG: lighter round, fast
   ["", 1, 0], // crossbow: no gunshot (see shot())
@@ -628,11 +628,11 @@ class Audio {
     }
     // [crack freq, body freq, body len, thump f0, thump len, tail len, loudness]
     const P = [
-      [3600, 1100, 0.07, 150, 0.12, 0.7, 0.8], // P92: dry snap
-      [4200, 1500, 0.05, 130, 0.08, 0.5, 0.6], // UMP: tight, quick
-      [2600, 520, 0.14, 95, 0.26, 1.2, 1.1], // S12K: big boom
-      [3800, 900, 0.07, 120, 0.14, 0.9, 0.85], // M416: punchy crack
-      [3000, 700, 0.12, 80, 0.32, 2.2, 1.25], // KAR98K: thunderclap that rolls away
+      [3600, 1100, 0.07, 150, 0.12, 0.7, 0.8], // VESPER: dry snap
+      [4200, 1500, 0.05, 130, 0.08, 0.5, 0.6], // HORNET: tight, quick
+      [2600, 520, 0.14, 95, 0.26, 1.2, 1.1], // MAUL: big boom
+      [3800, 900, 0.07, 120, 0.14, 0.9, 0.85], // KESTREL: punchy crack
+      [3000, 700, 0.12, 80, 0.32, 2.2, 1.25], // TALON: thunderclap that rolls away
       [3300, 800, 0.1, 100, 0.22, 1.5, 1.05], // marksman: heavy crack
       [4000, 1200, 0.05, 125, 0.1, 0.8, 0.75], // LMG: quick, steady chatter
     ][weapon] ?? [3600, 1100, 0.07, 150, 0.12, 0.7, 0.8];
@@ -735,7 +735,7 @@ class Audio {
   /**
    * The reload, timed to the animation over `dur` seconds (the gun's real reload time):
    * mag guns: mag out, mag in, charging handle; the shotgun: shells one by one, then the pump;
-   * the Kar98k: bolt open, rounds pushed in, bolt home.
+   * the Talon: bolt open, rounds pushed in, bolt home.
    */
   reload(weapon = 0, dur = 2) {
     if (this.has("mag_out")) {

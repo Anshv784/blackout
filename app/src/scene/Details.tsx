@@ -15,7 +15,7 @@ import { feel } from "../game/feel";
 // ------------------------------------------------------------------ shell casings
 
 const MAX_CASINGS = TOUCH ? 24 : 48;
-/** brass for rifles and pistols, red plastic for the shotgun, a long round for the Kar98k */
+/** brass for rifles and pistols, red plastic for the shotgun, a long round for the Talon */
 const CASE_COLOR = ["#c9a14a", "#c9a14a", "#b8322a", "#c9a14a", "#d8b45a"];
 const CASE_LEN = [0.75, 0.9, 1.35, 0.95, 1.25];
 const REST_FOR = 9; // seconds a casing lies on the ground before it goes
@@ -146,7 +146,7 @@ function Casings({ session }: { session: Session }) {
 // ------------------------------------------------------------------ dropped magazines
 
 const MAX_MAGS = 12;
-/** size of the empty mag per gun (pistol, UMP, -, M416) */
+/** size of the empty mag per gun (pistol, HORNET, -, KESTREL) */
 const MAG_SIZE: [number, number, number][] = [
   [0.035, 0.11, 0.03],
   [0.042, 0.15, 0.038],
