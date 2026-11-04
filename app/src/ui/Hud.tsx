@@ -19,6 +19,16 @@ const PING_GLYPH = ["", "👣", "💥", "✦", "⟳", "📦", "🎯", "☁", "�
 
 export function Hud({ session }: { session: Session }) {
   const [wheel, setWheel] = useState(false);
+  // back into the game after the wheel: capture the mouse again (the click is the user gesture it needs)
+  const relock = () => {
+    if (!controls.wheelUnlock) return;
+    const c = document.querySelector(".game canvas, canvas") as HTMLCanvasElement | null;
+    try {
+      c?.requestPointerLock();
+    } catch {
+      /* the next click on the game captures it */
+    }
+  };
   const emoteLook = useLook((st) => st.look);
   const setEmoteLook = useLook((st) => st.set);
   useEffect(() => {
@@ -91,11 +101,15 @@ export function Hud({ session }: { session: Session }) {
           x={window.innerWidth / 2}
           y={window.innerHeight / 2}
           current={emoteLook.emote}
-          onClose={() => setWheel(false)}
+          onClose={() => {
+            setWheel(false);
+            relock();
+          }}
           onPick={(k) => {
             setEmoteLook({ emote: k });
             controls.emoteAt = performance.now();
             setWheel(false);
+            relock();
           }}
         />
       )}

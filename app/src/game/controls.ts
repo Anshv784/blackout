@@ -13,6 +13,7 @@ export const controls = {
   touchJump: false,
   fireUntil: 0, // a click always fires for >= 3 server ticks
   prone: false, // Ctrl toggles lying flat
+  wheelUnlock: false, // the emote wheel freed the mouse (not a pause: the settings menu stays shut)
   emoteAt: 0, // performance.now() the signature emote was asked for (B); moving or firing ends it
   throwTiles: 0, // ground distance from you to the crosshair / cursor, in tiles (aimed throws)
   gadgetHeld: 0, // performance.now() G (or the touch button) went down: aiming the throw; 0 = not held
@@ -146,7 +147,10 @@ export function installKeyboard() {
     }
     if (k === "b" && !e.repeat) {
       // open the emote wheel (the HUD draws it); the mouse is freed so you can pick
-      if (document.pointerLockElement) document.exitPointerLock();
+      if (document.pointerLockElement) {
+        controls.wheelUnlock = true;
+        document.exitPointerLock();
+      }
       window.dispatchEvent(new CustomEvent("bo-emote-wheel"));
     }
     if ((k === "shift" || k === " ") && !e.repeat) {

@@ -511,7 +511,8 @@ export function GameMenu({ session, room }: { session: Session; room: Room }) {
     let wasLocked = !!document.pointerLockElement;
     const change = () => {
       const locked = !!document.pointerLockElement;
-      if (wasLocked && !locked) setOpen((o) => o ?? "settings");
+      if (wasLocked && !locked && !controls.wheelUnlock) setOpen((o) => o ?? "settings");
+      if (locked) controls.wheelUnlock = false;
       wasLocked = locked;
     };
     document.addEventListener("pointerlockchange", change);
