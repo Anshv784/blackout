@@ -114,13 +114,16 @@ function GuestTag() {
   ) : null;
 }
 
-export function TopBar({ active }: { active?: "play" | "board" | "how" }) {
+export function TopBar({ active }: { active?: "play" | "board" | "how" | "chars" }) {
   return (
     <header className="topbar">
       <Logo />
       <nav>
         <a className={active === "play" ? "on" : ""} data-short="Play" onClick={() => go("/")}>
           Play
+        </a>
+        <a className={active === "chars" ? "on" : ""} data-short="Operator" onClick={() => go("/character")}>
+          Operator
         </a>
         <a className={active === "board" ? "on" : ""} data-short="Board" onClick={() => go("/board")}>
           Leaderboard

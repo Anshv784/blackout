@@ -7,6 +7,7 @@ import { installKeyboard } from "./game/controls";
 import { Home } from "./ui/Home";
 import { RoomPage } from "./ui/RoomPage";
 import { Board } from "./ui/Board";
+import { Characters } from "./ui/Characters";
 import { How } from "./ui/How";
 import { Toasts } from "./ui/Toasts";
 import { WalletGate } from "./ui/WalletGate";
@@ -18,6 +19,7 @@ function parseHash(): Route {
   if (m) return { page: "room", roomId: BigInt(m[1]) };
   if (h.startsWith("how")) return { page: "how" };
   if (h.startsWith("board")) return { page: "board" };
+  if (h.startsWith("character")) return { page: "chars" };
   return { page: "home" };
 }
 
@@ -70,6 +72,7 @@ export function App() {
       {route.page === "home" && <Home />}
       {route.page === "room" && <RoomPage key={route.roomId.toString()} roomId={route.roomId} />}
       {route.page === "board" && <Board />}
+      {route.page === "chars" && <Characters />}
       {route.page === "how" && <How />}
       <Toasts />
       <WalletGate />
