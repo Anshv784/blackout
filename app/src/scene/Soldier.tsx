@@ -624,9 +624,7 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
     const emotes = EMOTES.map((e) => {
       const a = clips[e.clip] ? mixer.clipAction(clips[e.clip]) : null;
       if (a) {
-        // a clap is over in under a second: give it a few beats
-        if (e.key === "clap") a.setLoop(THREE.LoopRepeat, 3);
-        else a.setLoop(THREE.LoopOnce, 1);
+        a.setLoop(THREE.LoopOnce, 1);
         a.clampWhenFinished = true;
         a.setEffectiveWeight(0);
       }
@@ -657,35 +655,6 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
   const diveAt = useRef(0);
   const raiseK = useRef(0);
   const holdDir = useRef(new THREE.Vector3());
-  // how far the chest (with its armour) sticks out in front of the chest bone, measured from the mesh
-  const chestDepth = useMemo(() => {
-    const ref = { current: 0.12 };
-    try {
-      model.updateMatrixWorld(true);
-      const sp = bones.spine;
-      const inv = new THREE.Matrix4().copy(model.matrixWorld).invert();
-      const spP = new THREE.Vector3().setFromMatrixPosition(sp.matrixWorld).applyMatrix4(inv);
-      let best = 0;
-      const v = new THREE.Vector3();
-      model.traverse((o: any) => {
-        if (!o.isSkinnedMesh) return;
-        const pos = o.geometry.attributes.position;
-        for (let i = 0; i < pos.count; i += 7) {
-          v.fromBufferAttribute(pos, i);
-          o.applyBoneTransform?.(i, v);
-          v.applyMatrix4(o.matrixWorld).applyMatrix4(inv);
-          // the band of the chest: near the chest bone's height, in front of it
-          if (Math.abs(v.y - spP.y) < 0.12 * (1 / Math.max(1e-3, scale)) && Math.abs(v.x - spP.x) < 0.3 / Math.max(1e-3, scale)) best = Math.max(best, v.z - spP.z);
-        }
-      });
-      // model space is pre-scale and faces +z; convert to the soldier's units
-      const d = best * scale;
-      if (d > 0.04 && d < 0.4) ref.current = d + 0.02;
-    } catch {
-      /* keep the default */
-    }
-    return ref;
-  }, [model, bones, scale]);
   const prevCrouch = useRef(false);
   const prevSpeed = useRef(0);
   const reachFix = useRef(0);
@@ -784,7 +753,7 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
     const dying = m.deadAt !== undefined;
     // emotes: only standing still with the gun quiet; moving or firing ends one
     const ed = m.emote !== undefined && m.emoteAt ? extra.emotes[m.emote] : null;
-    const edDur = ed ? ed.getClip().duration * 1000 * (ed.loop === THREE.LoopRepeat ? ed.repetitions : 1) : 0;
+    const edDur = ed ? ed.getClip().duration * 1000 : 0;
     const emoting = !!ed && !dying && !m.downed && m.speed === 0 && !m.firing && performance.now() - (m.emoteAt ?? 0) < edDur;
     if (emoting && (emoteRef.current.at !== m.emoteAt || emoteRef.current.idx !== m.emote)) {
       extra.emotes.forEach((a) => a && a !== ed && a.stop());
@@ -900,27 +869,6 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
       model.rotation.z = 0;
       model.position.y = 0;
       if (gunRef.current) gunRef.current.visible = false;
-      // a clap recorded on a narrow body leaves broad shoulders with hands that never meet: when the
-      // palms come near each other, bring them together
-      if (EMOTES[m.emote ?? -1]?.key === "clap" && grips.r && grips.l) {
-        g.updateMatrixWorld(true);
-        const ws = g.getWorldScale(sockV5).x;
-        const a = sockV6.setFromMatrixPosition(bones.rHand.matrixWorld);
-        const b2 = sockV7.setFromMatrixPosition(bones.lHand.matrixWorld);
-        const d = a.distanceTo(b2) / ws;
-        {
-          // keep the recording's rhythm, but narrow the gap so the palms meet on every beat
-          const gap = Math.max(0.035, d * 0.38 - 0.06) * ws;
-          const mid = sockV8.copy(a).add(b2).multiplyScalar(0.5);
-          const side = sockV9.copy(a).sub(b2).normalize().multiplyScalar(gap / 2);
-          const tr = sockV10.copy(mid).add(side);
-          const tl = sockV3.copy(mid).sub(side);
-          g.localToWorld(pole.set(-0.2, 0.5, 0.6));
-          reach(bones.rArm, bones.rFore, bones.rHand, tr, pole);
-          g.localToWorld(pole.set(-0.2, 0.5, -0.6));
-          reach(bones.lArm, bones.lFore, bones.lHand, tl, pole);
-        }
-      }
       return;
     }
 
@@ -1136,7 +1084,6 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
     const emoteW = extra.emotes.reduce((mx, a) => Math.max(mx, a ? a.getEffectiveWeight() : 0), 0);
     const socket = !def.camo && !!gr && !!inner && !throwing && !m.downed && !!grips.r && !!grips.l && emoteW < 0.04;
     let socketed = false;
-    let slid = false;
     let supportPart: THREE.Vector3 | null = null;
     if (socket && gr && inner && grips.r && grips.l) {
       g.updateMatrixWorld(true);
@@ -1190,21 +1137,6 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
       gr.translateX(-kick.current * K2[0]);
       gr.rotateZ(kick.current * K2[1]);
       gr.updateMatrixWorld(true);
-      // the stock must stay outside the chest (bulky armour sits further forward): if its end is
-      // inside, slide the whole gun forward along its own line; the right hand follows it
-      if (!pistolHold && gm) {
-        const rearW = inner.localToWorld(sockV11.set(gm.rear + 0.01, 0, 0));
-        const rearL = g.worldToLocal(rearW);
-        bones.spine.updateWorldMatrix(true, false);
-        const chest = g.worldToLocal(sockV3.setFromMatrixPosition(bones.spine.matrixWorld));
-        const minX = chest.x + chestDepth.current;
-        if (rearL.x < minX) {
-          const ax = sockV4.set(1, 0, 0).applyQuaternion(gr.quaternion);
-          gr.position.addScaledVector(ax, (minX - rearL.x) / Math.max(0.35, ax.x));
-          gr.updateMatrixWorld(true);
-          slid = true;
-        }
-      }
       // the support hand closes on this gun's handguard, as near as it can to where the recording
       // has it: projected onto the gun, kept between the mag well and the muzzle end
       if (!pistolHold) {
@@ -1336,7 +1268,7 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
     }
     void magFed;
     // the right hand always holds the grip; the left arm is the recording's through a mag reload
-    if ((!socketed || slid) && !(throwing && !def.camo)) {
+    if (!socketed && !(throwing && !def.camo)) {
       g.localToWorld(pole.set(-0.2, 0.7, 0.75));
       reach(bones.rArm, bones.rFore, bones.rHand, rightT, pole);
     }
