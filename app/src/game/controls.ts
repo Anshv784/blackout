@@ -144,7 +144,11 @@ export function installKeyboard() {
       controls.prone = !controls.prone;
       if (controls.prone) controls.crouch = false;
     }
-    if (k === "b" && !e.repeat) controls.emoteAt = performance.now();
+    if (k === "b" && !e.repeat) {
+      // open the emote wheel (the HUD draws it); the mouse is freed so you can pick
+      if (document.pointerLockElement) document.exitPointerLock();
+      window.dispatchEvent(new CustomEvent("bo-emote-wheel"));
+    }
     if ((k === "shift" || k === " ") && !e.repeat) {
       controls.crouch = false; // sprint / jump stands you up
       controls.prone = false;

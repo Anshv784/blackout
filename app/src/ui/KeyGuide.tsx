@@ -15,7 +15,7 @@ const MOVE: Row[] = [
   [["C"], "sneak", "silent"],
   [["Ctrl"], "prone", "crawl · hardest to spot"],
   [["Space"], "jump"],
-  [["B"], "emote", "your signature · Operator page"],
+  [["B"], "emote", "opens the emote wheel"],
 ];
 const FIGHT: Row[] = [
   [["Mouse"], "look", "or arrows"],

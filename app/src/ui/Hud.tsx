@@ -1,3 +1,5 @@
+import { EmoteWheel } from "./EmoteWheel";
+import { useLook } from "../game/look";
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../game/store";
 import { KeyGuide, ActionHints } from "./KeyGuide";
@@ -16,6 +18,14 @@ const MAX_MAG = [10, 30, 5, 30, 5];
 const PING_GLYPH = ["", "👣", "💥", "✦", "⟳", "📦", "🎯", "☁", "📡", "💣"];
 
 export function Hud({ session }: { session: Session }) {
+  const [wheel, setWheel] = useState(false);
+  const emoteLook = useLook((st) => st.look);
+  const setEmoteLook = useLook((st) => st.set);
+  useEffect(() => {
+    const open = () => setWheel(true);
+    window.addEventListener("bo-emote-wheel", open);
+    return () => window.removeEventListener("bo-emote-wheel", open);
+  }, []);
   const room = useStore((s) => s.room);
   const view = useStore((s) => s.view);
   const touch = useTouch();
@@ -75,6 +85,19 @@ export function Hud({ session }: { session: Session }) {
       {!countdown && room.nightMod > 0 && <div className="mod-chip">{NIGHT_MOD[room.nightMod]}</div>}
       {!countdown && room.nightMod === MOD_ONE_LIGHT && me.alive === 1 && (
         <div className="light-chip">{view.carriesLight ? "YOU CARRY THE LIGHT · everyone sees it" : "NO LIGHT · hunt by sound"}</div>
+      )}
+      {wheel && me.alive === 1 && (
+        <EmoteWheel
+          x={window.innerWidth / 2}
+          y={window.innerHeight / 2}
+          current={emoteLook.emote}
+          onClose={() => setWheel(false)}
+          onPick={(k) => {
+            setEmoteLook({ emote: k });
+            controls.emoteAt = performance.now();
+            setWheel(false);
+          }}
+        />
       )}
       {view.ghillie && me.alive === 1 && <div className="ghillie-chip">GHILLIE SUIT · crouch to vanish</div>}
       {watching && (

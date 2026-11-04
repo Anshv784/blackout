@@ -1,4 +1,5 @@
 import { MapPicker } from "./MapPicker";
+import { EmoteWheel } from "./EmoteWheel";
 import { EMOTES, useLook } from "../game/look";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { PublicKey } from "@solana/web3.js";
@@ -198,10 +199,11 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
   const myLook = useLook((st) => st.look);
   const setLook = useLook((st) => st.set);
   const [lobbyEmote, setLobbyEmote] = useState(0);
+  const [wheel, setWheel] = useState<{ x: number; y: number } | null>(null);
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.tagName === "INPUT") return;
-      if (e.key.toLowerCase() === "b" && !e.repeat) setLobbyEmote(performance.now());
+      if (e.key.toLowerCase() === "b" && !e.repeat) setWheel({ x: window.innerWidth / 2, y: window.innerHeight * 0.45 });
     };
     window.addEventListener("keydown", k);
     return () => window.removeEventListener("keydown", k);
@@ -284,7 +286,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
   return (
     <div className="lobby2">
       <Suspense fallback={<div className="backdrop" />}>
-        <LobbyStage seats={seats} onTake={(i) => mySeat === null && !locked && take(i)} onMakeHost={(i) => run("host", () => session.makeHost(i))} onKick={(i) => setAskKick(i)} />
+        <LobbyStage seats={seats} onTake={(i) => mySeat === null && !locked && take(i)} onMakeHost={(i) => run("host", () => session.makeHost(i))} onKick={(i) => setAskKick(i)} onSelf={(x, y) => setWheel({ x, y })} />
       </Suspense>
       <TopBar />
       <div className="lobby2-head">
@@ -582,22 +584,18 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
           )}
         </div>
       </div>
-      {mySeat !== null && (
-        <div className="lobby-emotes">
-          <label>EMOTE · B</label>
-          {EMOTES.map((e, k) => (
-            <button
-              key={e.key}
-              className={myLook.emote === k ? "on" : ""}
-              onClick={() => {
-                setLook({ emote: k });
-                setLobbyEmote(performance.now());
-              }}
-            >
-              {e.name}
-            </button>
-          ))}
-        </div>
+      {wheel && mySeat !== null && (
+        <EmoteWheel
+          x={wheel.x}
+          y={wheel.y}
+          current={myLook.emote}
+          onClose={() => setWheel(null)}
+          onPick={(k) => {
+            setLook({ emote: k });
+            setLobbyEmote(performance.now());
+            setWheel(null);
+          }}
+        />
       )}
       <div className="keys-hint">
         {[

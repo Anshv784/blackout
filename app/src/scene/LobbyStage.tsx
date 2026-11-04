@@ -45,7 +45,7 @@ const seatPos = (i: number, n: number, gap: number, rows: number): [number, numb
 };
 const WHITE = new THREE.Color("#ffffff");
 
-function Pedestal({ i, n, gap, rows, seat, onTake, onMakeHost, onKick }: { i: number; n: number; gap: number; rows: number; seat: SeatInfo; onTake: (i: number) => void; onMakeHost?: (i: number) => void; onKick?: (i: number) => void }) {
+function Pedestal({ i, n, gap, rows, seat, onTake, onMakeHost, onKick, onSelf }: { onSelf?: (x: number, y: number) => void; i: number; n: number; gap: number; rows: number; seat: SeatInfo; onTake: (i: number) => void; onMakeHost?: (i: number) => void; onKick?: (i: number) => void }) {
   const ring = useRef<THREE.Mesh>(null);
   const motion = useRef<Motion>(stillMotion());
   if (seat.emoteAt && motion.current.emoteAt !== seat.emoteAt) {
@@ -83,7 +83,18 @@ function Pedestal({ i, n, gap, rows, seat, onTake, onMakeHost, onKick }: { i: nu
         <meshBasicMaterial color={color} transparent toneMapped={false} />
       </mesh>
       {seat.taken ? (
-        <group ref={g} position={[0, 0.23, 0]} scale={1.3}>
+        <group
+          ref={g}
+          position={[0, 0.23, 0]}
+          scale={1.3}
+          onClick={(e) => {
+            if (!seat.me || !onSelf) return;
+            e.stopPropagation();
+            onSelf(e.nativeEvent.clientX, e.nativeEvent.clientY);
+          }}
+          onPointerOver={() => seat.me && (document.body.style.cursor = "pointer")}
+          onPointerOut={() => (document.body.style.cursor = "")}
+        >
           <Avatar color={color} me={seat.me} ring={false} look={seat.look} motion={motion} />
         </group>
       ) : (
@@ -101,7 +112,7 @@ function Pedestal({ i, n, gap, rows, seat, onTake, onMakeHost, onKick }: { i: nu
           <div className={`stage-tag ${seat.me ? "me" : ""}`} style={{ ["--c" as any]: color }}>
             <b>{seat.name || "SURVIVOR"}</b>
             <span>
-              {seat.me && "YOU"}
+              {seat.me && "YOU · CLICK TO EMOTE"}
               {seat.host && (seat.me ? " · HOST" : "HOST")}
               {seat.bot && "BOT"}
               {seat.away && " · AWAY"}
@@ -190,7 +201,7 @@ function Studio() {
   return null;
 }
 
-export const LobbyStage = memo(function LobbyStage({ seats, onTake, onMakeHost, onKick }: { seats: SeatInfo[]; onTake: (i: number) => void; onMakeHost?: (i: number) => void; onKick?: (i: number) => void }) {
+export const LobbyStage = memo(function LobbyStage({ seats, onTake, onMakeHost, onKick, onSelf }: { seats: SeatInfo[]; onTake: (i: number) => void; onMakeHost?: (i: number) => void; onKick?: (i: number) => void; onSelf?: (x: number, y: number) => void }) {
   const floor = useMemo(() => {
     const c = document.createElement("canvas");
     c.width = c.height = 512;
@@ -242,7 +253,7 @@ export const LobbyStage = memo(function LobbyStage({ seats, onTake, onMakeHost, 
           )}
         </mesh>
         {seats.map((s, i) => (
-          <Pedestal key={i} i={i} n={seats.length} gap={gap} rows={rows} seat={s} onTake={onTake} onMakeHost={onMakeHost} onKick={onKick} />
+          <Pedestal key={i} i={i} n={seats.length} gap={gap} rows={rows} onSelf={onSelf} seat={s} onTake={onTake} onMakeHost={onMakeHost} onKick={onKick} />
         ))}
         {!TOUCH && <EffectComposer multisampling={0}>
           <Bloom intensity={0.7} luminanceThreshold={0.55} mipmapBlur />

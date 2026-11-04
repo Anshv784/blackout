@@ -2488,8 +2488,6 @@ button {
 .cs-emotes button.on{border-color:var(--gold)}
 .cs-emotes b{color:var(--gold)}
 .cs-done{width:100%;padding:13px}
-@media (max-width:1100px){.cs-main{grid-template-columns:220px 1fr 280px;padding:80px 16px 20px;gap:14px}}
-@media (max-width:860px){.chars-page{overflow:auto}.cs-main{grid-template-columns:1fr;height:auto}.cs-center{height:62vh;order:-1}.cs-grid{grid-template-columns:repeat(3,1fr)}}
 .cs-skin{width:26px;height:26px;border-radius:50%;border:2px solid rgba(255,255,255,.15)}
 .lobby-emotes{position:absolute;right:24px;top:50%;transform:translateY(-58%);z-index:5;display:flex;flex-direction:column;gap:6px;padding:12px;border-radius:14px;background:rgba(8,10,16,.82);border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(12px);width:120px}
 .lobby-emotes label{font-size:9.5px;letter-spacing:.18em;font-weight:700;color:var(--dim);margin-bottom:2px}
@@ -2498,6 +2496,59 @@ button {
 .lobby-emotes button.on{border-color:var(--gold);color:var(--gold)}
 @media (max-width:1100px){.lobby-emotes{display:none}}
 .cs-card{position:relative;overflow:hidden;padding:0 0 10px!important;gap:2px!important}
-.cs-card img{display:block;width:100%;height:92px;object-fit:cover;object-position:50% 22%;background:radial-gradient(circle at 50% 70%,rgba(255,209,102,.16),transparent 70%);margin-bottom:6px}
+.cs-card img{display:block;width:100%;height:92px;object-fit:cover;object-position:50% 30%;background:radial-gradient(circle at 50% 70%,rgba(255,209,102,.16),transparent 70%);margin-bottom:6px}
 .cs-card b,.cs-card span{padding:0 12px}
 .cs-card.on img{background:radial-gradient(circle at 50% 70%,rgba(255,209,102,.32),transparent 70%)}
+
+/* radial emote wheel */
+.ew-veil{position:fixed;inset:0;z-index:40;background:radial-gradient(circle at center,rgba(0,0,0,.15),rgba(0,0,0,.45))}
+.ew{position:fixed;width:0;height:0;animation:ewin .18s cubic-bezier(.2,.9,.3,1.2) both}
+@keyframes ewin{from{transform:scale(.6);opacity:0}to{transform:none;opacity:1}}
+.ew-ring{position:absolute;left:-128px;top:-128px;width:256px;height:256px;border-radius:50%;background:radial-gradient(circle,rgba(8,10,16,.55) 34%,rgba(8,10,16,.88) 35%,rgba(8,10,16,.88) 62%,transparent 63%);border:1px solid rgba(255,209,102,.25);pointer-events:none}
+.ew-item{position:absolute;left:-36px;top:-30px;width:72px;height:60px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border-radius:14px;background:rgba(14,16,24,.92);border:1px solid rgba(255,255,255,.1);color:var(--fg);cursor:pointer;font:inherit;transition:border-color .12s,background .12s}
+.ew-item span{font-size:22px;line-height:1}
+.ew-item b{font-size:10.5px;letter-spacing:.06em;font-weight:600}
+.ew-item:hover{border-color:var(--gold);background:rgba(40,34,18,.95)}
+.ew-item.on{border-color:var(--gold);color:var(--gold)}
+.ew-center{position:absolute;left:-34px;top:-34px;width:68px;height:68px;border-radius:50%;background:rgba(255,209,102,.12);border:1px solid rgba(255,209,102,.4);color:var(--gold);font:inherit;font-size:10px;font-weight:700;letter-spacing:.16em;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.ew-center small{font-size:8.5px;color:var(--dim);letter-spacing:.1em;font-weight:400}
+
+/* Operator page: adapt to every screen */
+@media (max-height:820px) and (min-width:861px){
+  .cs-main{padding-top:72px;padding-bottom:16px}
+  .cs-title h1{font-size:clamp(32px,4vw,52px)}
+  .cs-card img{height:64px}
+  .cs-card{padding-bottom:8px!important}
+  .cs-panel{padding:10px 12px}
+  .cs-swatches button{padding:5px 2px}
+  .cs-swatches i,.cs-skin{width:22px!important;height:22px!important}
+  .cs-emotes button{padding:7px 10px}
+  .cs-kit{gap:8px}
+  .cs-done{padding:10px}
+}
+.chars-page{overflow-y:auto}
+.cs-kit{overflow-y:auto;max-height:100%;padding-right:2px}
+@media (max-width:1280px) and (min-width:861px){
+  .cs-main{grid-template-columns:236px minmax(0,1fr) 270px;gap:14px;padding-left:16px;padding-right:16px}
+  .cs-grid{grid-template-columns:1fr 1fr;gap:6px}
+  .cs-card img{height:62px;object-position:50% 30%}
+  .cs-card b{font-size:12px}
+  .cs-card span{display:none}
+  .cs-note{display:none}
+  .cs-swatches{grid-template-columns:repeat(4,1fr)}
+}
+@media (max-width:860px){
+  .chars-page{overflow-y:auto}
+  .cs-main{display:flex;flex-direction:column;height:auto;min-height:100%;padding:68px 14px 24px;gap:14px}
+  .cs-center{height:58vh;min-height:360px;order:-1}
+  .cs-roster,.cs-kit{justify-content:flex-start;overflow:visible;max-height:none}
+  .cs-grid{grid-template-columns:repeat(3,1fr)}
+  .cs-card img{height:70px}
+  .cs-guns button{width:52px}
+}
+@media (max-width:480px){
+  .cs-grid{grid-template-columns:repeat(2,1fr)}
+  .cs-swatches{grid-template-columns:repeat(4,1fr)}
+  .cs-title h1{font-size:34px}
+}
+.cs-kit,.cs-roster{justify-content:safe center}

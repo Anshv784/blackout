@@ -94,7 +94,7 @@ export function Characters() {
           </div>
           <div className="cs-panel">
             <label className="cs-label">
-              SIGNATURE EMOTE <em>press B in a match</em>
+              SIGNATURE EMOTE <em>B opens the wheel in a match</em>
             </label>
             <div className="cs-emotes">
               {EMOTES.map((e, i) => (
