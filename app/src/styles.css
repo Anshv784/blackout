@@ -983,10 +983,13 @@ button {
 .tb-cluster .reload { right: 36px; bottom: 156px; }
 .tb-cluster .swap { right: 40px; bottom: 216px; }
 .tb-cluster .gadget { right: 168px; bottom: 150px; }
+.tb-cluster .prone { right: 182px; bottom: 76px; }
+.tb-cluster .emote { right: 104px; bottom: 268px; }
 .tb.gadget .gadget-icon { width: 26px; height: 26px; }
 .tb.gadget.empty { opacity: 0.35; }
 @media (orientation: portrait) {
   .tb-cluster .gadget { right: 24px; bottom: 274px; }
+  .tb-cluster .emote { right: 24px; bottom: 336px; }
 }
 
 /* ---------- reveal ---------- */

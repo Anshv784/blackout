@@ -100,6 +100,8 @@ const sockM2 = new THREE.Matrix4();
 const sockM3 = new THREE.Matrix4();
 const sockV = new THREE.Vector3();
 const sockV2 = new THREE.Vector3();
+const sockQ = new THREE.Quaternion();
+const gripV = new THREE.Vector3();
 const tmpM2 = new THREE.Matrix4();
 const ikQ = new THREE.Quaternion();
 const [ikS, ikE, ikH, ikT, ikB, ikD, ikEl, ikF] = Array.from({ length: 8 }, () => new THREE.Vector3());
@@ -437,7 +439,7 @@ function clipsFor(key: string, src: THREE.AnimationClip[], animRoot: THREE.Objec
   const charHip = model.getObjectByName("mixamorigHips")?.position.y ?? animHip;
   void 0;
   const out: Record<string, THREE.AnimationClip> = {};
-  const inPlace = new Set(["idle", "walk", "run", "crouchwalk", "crouch", "aim", "walk_back", "run_back", "strafe_left", "strafe_right", "crouch_back", "crouch_strafe_left", "crouch_strafe_right", "pistol_idle", "pistol_walk", "pistol_run", "prone_idle", "prone_crawl", "prone_back", "reload_stand", "reload_walk", "reload_crouch", "reload_prone", "throw", "throw_crouch", "throw_prone", "jump"]);
+  const inPlace = new Set(["dive_roll", "idle", "walk", "run", "crouchwalk", "crouch", "aim", "walk_back", "run_back", "strafe_left", "strafe_right", "crouch_back", "crouch_strafe_left", "crouch_strafe_right", "pistol_idle", "pistol_walk", "pistol_run", "prone_idle", "prone_crawl", "prone_back", "reload_stand", "reload_walk", "reload_crouch", "reload_prone", "throw", "throw_crouch", "throw_prone", "jump"]);
   for (const c of src) {
     const tracks: THREE.KeyframeTrack[] = [];
     for (const t0 of c.tracks) {
@@ -639,14 +641,19 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
     const reloads = { stand: scrub("reload_stand_up"), walk: scrub("reload_walk_up"), crouch: scrub("reload_crouch_up"), prone: scrub("reload_prone") };
     const throws = { stand: scrub("throw_up"), crouch: scrub("throw_crouch_up"), prone: scrub("throw_prone") };
     const jump = scrub("jump");
+    const dive = scrub("dive_roll");
     const reload = reloads.stand;
-    return { emotes, reload, reloads, throws, jump };
+    return { emotes, reload, reloads, throws, jump, dive };
   }, [mixer, clips]);
   const emoteRef = useRef({ at: 0, idx: -1 });
   // the gun fitted to this body: moved with the shoulder, and in closer for shorter arms
   const gunBase = useMemo(() => GUN_POS.clone(), [def]);
   const fitted = useRef(false);
   const handAnchor = useRef<THREE.Matrix4 | null>(null);
+  const diveAt = useRef(0);
+  const raiseK = useRef(0);
+  const prevCrouch = useRef(false);
+  const prevSpeed = useRef(0);
   const reachFix = useRef(0);
 
   useEffect(() => () => void mixer.stopAllAction(), [mixer]);
@@ -1032,6 +1039,17 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
       a.setEffectiveWeight(on ? 20 * Math.min(1, throwT / 0.12, (thrDur - throwT) / 0.15) : 0);
       if (on) a.time = Math.min(a.getClip().duration - 1e-3, throwT * 1.4);
     }
+    // sprint, then drop to a crouch: a dive roll into cover (the recording, start to finish)
+    if (extra.dive && !def.camo) {
+      if (m.crouch && !prevCrouch.current && prevSpeed.current === 2 && !m.prone) diveAt.current = now;
+      prevCrouch.current = !!m.crouch;
+      if (!m.crouch) prevSpeed.current = m.speed;
+      const dd = extra.dive.getClip().duration / 1.3;
+      const dt2 = (now - diveAt.current) / 1000;
+      const on = diveAt.current > 0 && dt2 >= 0 && dt2 < dd;
+      extra.dive.setEffectiveWeight(on ? 20 * Math.min(1, dt2 / 0.08, (dd - dt2) / 0.25) : 0);
+      if (on) extra.dive.time = dt2 * 1.3;
+    }
     // jumps: the recording, scrubbed over the game's half-second hop
     if (extra.jump && !def.camo) {
       const jt = m.jumpAt ? (now - m.jumpAt) / 500 : 1;
@@ -1064,15 +1082,34 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
         const palmL = sockV.copy(grips.r.palm).applyQuaternion(tmpQ).normalize();
         // the grip sits in the closed hand: a little along the fingers, a little off the palm
         const palmPt = tmpA.clone().addScaledVector(fingerL, 0.045).addScaledVector(palmL, 0.022);
-        const anchor = new THREE.Matrix4().makeTranslation(palmPt.x, palmPt.y, palmPt.z);
+        // and the barrel runs the way the recording holds its rifle: from the right hand towards the
+        // left, angled across the body, not straight out from the wrist
+        bones.lHand.updateWorldMatrix(true, false);
+        const lh = new THREE.Vector3().setFromMatrixPosition(bones.lHand.matrixWorld);
+        g.worldToLocal(lh);
+        const along = lh.sub(palmPt);
+        along.y *= 0.35; // the support hand is held low: keep the muzzle near level, not at the floor
+        if (along.lengthSq() < 1e-6 || along.normalize().x < 0.35) along.set(1, -0.1, -0.15).normalize();
+        const upV = new THREE.Vector3(0, 1, 0).addScaledVector(along, -along.y).normalize();
+        const side = new THREE.Vector3().crossVectors(along, upV);
+        const anchor = new THREE.Matrix4().makeBasis(along, upV, side).setPosition(palmPt);
         handAnchor.current = new THREE.Matrix4().copy(handL).invert().multiply(anchor);
       }
       if (handAnchor.current) {
         // the grip frame this frame, then the gun placed so its grip point is in it
-        const gripLocal = sockV.copy(gm?.grip ? sockV2.fromArray(gm.grip) : sockV2.copy(GRIP_AT)).multiplyScalar(GUN_SCALE).add(GUN_INNER);
+        const gripLocal = gripV.copy(gm?.grip ? sockV2.fromArray(gm.grip) : sockV2.copy(GRIP_AT)).multiplyScalar(GUN_SCALE).add(GUN_INNER);
         const gunM = sockM2.copy(handL).multiply(handAnchor.current).multiply(sockM3.makeTranslation(-gripLocal.x, -gripLocal.y, -gripLocal.z));
         gunM.decompose(gr.position, gr.quaternion, tmpB);
         gr.scale.set(1, 1, 1);
+        // firing (or just fired): the gun comes up from the low-ready carry to point straight ahead,
+        // turning about the grip so the hand stays on it
+        const hot = m.firing || (m.shotAt !== undefined && now - m.shotAt < 700);
+        raiseK.current += ((hot ? 1 : 0) - raiseK.current) * Math.min(1, dt * (hot ? 14 : 3));
+        if (raiseK.current > 0.01) {
+          const gp = sockV2.copy(gripLocal).applyQuaternion(gr.quaternion).add(gr.position);
+          gr.quaternion.slerp(sockQ.identity(), raiseK.current);
+          gr.position.copy(gp).sub(sockV.copy(gripLocal).applyQuaternion(gr.quaternion));
+        }
         // the shot still kicks: back along the barrel, muzzle up
         const kk2 = kick.current;
         const K2 = RECOIL[weapon] ?? RECOIL[0];

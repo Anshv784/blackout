@@ -24,6 +24,7 @@ export function useTouch() {
 export function TouchControls({ session }: { session: Session }) {
   const touch = useTouch();
   const [crouch, setCrouch] = useState(false);
+  const [prone, setProne] = useState(false);
   const [ads, setAds] = useState(false);
   const [gadget, setGadget] = useState(0);
   const [count, setCount] = useState(0);
@@ -32,6 +33,7 @@ export function TouchControls({ session }: { session: Session }) {
     controls.view = "chase"; // top-down has no aim on a phone
     const t = setInterval(() => {
       setCrouch(controls.crouch);
+      setProne(controls.prone);
       setAds(controls.ads);
       setGadget(session.view?.inv?.count ? session.view.inv.gadget : 0);
       setCount(session.view?.inv?.count ?? 0);
@@ -66,6 +68,12 @@ export function TouchControls({ session }: { session: Session }) {
         </TapButton>
         <TapButton className={`tb crouch ${crouch ? "on" : ""}`} label="crouch" onTap={() => (controls.crouch = !controls.crouch)}>
           <svg viewBox="0 0 24 24"><circle cx="13" cy="5" r="2.2" /><path d="M12 8l-3 5 4 2-1 5M9 13l-3 3M13 15l4 1" /></svg>
+        </TapButton>
+        <TapButton className={`tb prone ${prone ? "on" : ""}`} label="prone" onTap={() => { controls.prone = !controls.prone; if (controls.prone) controls.crouch = false; }}>
+          <svg viewBox="0 0 24 24"><circle cx="19" cy="13" r="2" /><path d="M3 17h11l3-3M7 17l2-3h5" /></svg>
+        </TapButton>
+        <TapButton className="tb emote" label="emote" onTap={() => window.dispatchEvent(new CustomEvent("bo-emote-wheel"))}>
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" /><path d="M8.5 14.5c1.8 2 5.2 2 7 0M9 10h.01M15 10h.01" /></svg>
         </TapButton>
         <TapButton className="tb reload" label="reload" onTap={() => { controls.reload = true; controls.reloadUntil = performance.now() + 200; setTimeout(() => (controls.reload = false), 200); }}>
           <svg viewBox="0 0 24 24"><path d="M19 12a7 7 0 1 1-2.05-4.95M19 4v4h-4" /></svg>
