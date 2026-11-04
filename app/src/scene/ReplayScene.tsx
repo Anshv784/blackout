@@ -124,6 +124,11 @@ function Players({ rec, room, me, ctl }: { rec: Recording; room: Room; me: numbe
       const step = Math.hypot(f.x - back.x, f.y - back.y) / Math.max(1, rec.every); // units per tick
       const mo = motions[s].current;
       mo.speed = !f.alive || step < 8 ? 0 : step > 70 ? 2 : 1;
+      if (step >= 8) {
+        const mv = Math.atan2(f.y - back.y, f.x - back.x);
+        const face = ((f.aim & 0xffff) / 65536) * Math.PI * 2;
+        mo.dir = Math.atan2(Math.sin(mv - face), Math.cos(mv - face));
+      }
       mo.firing = f.firing;
       mo.downed = !f.alive;
       const seenByMe = s === me || !meF || !meF.alive ? true : wouldSee(meF, f);

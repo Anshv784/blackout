@@ -114,6 +114,12 @@ function MyPlayer({ session }: { session: Session }) {
     // what the soldier's body does this frame
     const mo = motion.current;
     mo.speed = gait.current < 0.5 ? 0 : session.sprinting ? 2 : 1;
+    // which way the legs go relative to the body (walk, back up, strafe): from the input you're giving
+    if (Math.hypot(session.input.dx, session.input.dy) > 20) {
+      const mv = Math.atan2(session.input.dy, session.input.dx);
+      const face = ((session.input.aim & 0xffff) / 65536) * Math.PI * 2;
+      mo.dir = Math.atan2(Math.sin(mv - face), Math.cos(mv - face));
+    }
     mo.firing = (session.input.buttons & 1) === 1 && alive && v.me.reload === 0 && v.me.mag > 0;
     mo.reloading = v.me.reload > 0;
     mo.reloadAt = feel.reloadAt;
@@ -350,6 +356,12 @@ function Others({ session }: { session: Session }) {
         g.rotation.y = aimToRotY(smp.aim);
         const mo = motions.current[s];
         mo.speed = gaits.current[s] < 0.5 ? 0 : spd > 1400 ? 2 : 1;
+        if (lp && moving) {
+          const mv = Math.atan2(smp.y - lp.y, smp.x - lp.x);
+          const face = ((smp.aim & 0xffff) / 65536) * Math.PI * 2;
+          const d = Math.atan2(Math.sin(mv - face), Math.cos(mv - face));
+          mo.dir = mo.dir === undefined ? d : Math.atan2(Math.sin(mo.dir) * 0.8 + Math.sin(d) * 0.2, Math.cos(mo.dir) * 0.8 + Math.cos(d) * 0.2);
+        }
         mo.firing = (smp.flags & 4) !== 0;
         if (mo.firing && now - (mo.shotAt ?? 0) > (COOLDOWN_MS[smp.weapon] ?? 300)) mo.shotAt = now;
         mo.downed = (smp.flags & 16) !== 0;

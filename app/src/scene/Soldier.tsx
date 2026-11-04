@@ -30,6 +30,8 @@ export interface Motion {
   reloadDur?: number; // and how long it takes, ms
   pickAt?: number; // performance.now() of a pickup: bend down and grab it
   prone?: boolean; // lying flat, crawling
+  /** which way the body is moving relative to where it faces (radians: 0 forward, PI back, +PI/2 right) */
+  dir?: number;
   emote?: number; // index into EMOTES while emoting
   emoteAt?: number; // performance.now() the emote started (moving or firing cancels it)
 }
@@ -419,6 +421,8 @@ ghillieMat.alphaMap = typeof document !== "undefined" ? juteTexture() : null;
 ghillieMat.map = ghillieMat.alphaMap;
 
 const animCache = new Map<string, Record<string, THREE.AnimationClip>>();
+const LOCO = ["idle", "walk", "run", "crouch", "crouchwalk", "walk_back", "run_back", "strafe_left", "strafe_right", "crouch_back", "crouch_strafe_left", "crouch_strafe_right", "pistol_idle", "pistol_walk", "pistol_run", "prone_idle", "prone_crawl", "prone_back"] as const;
+type Loco = (typeof LOCO)[number];
 const qa = new THREE.Quaternion();
 const qb = new THREE.Quaternion();
 /** The shared Mixamo clips fitted to one character. Same skeleton (the Mixamo characters): hip
@@ -431,9 +435,9 @@ function clipsFor(key: string, src: THREE.AnimationClip[], animRoot: THREE.Objec
   if (hit) return hit;
   const animHip = animRoot.getObjectByName("mixamorigHips")?.position.y ?? 1;
   const charHip = model.getObjectByName("mixamorigHips")?.position.y ?? animHip;
-  const k = charHip / (animHip || 1);
+  void 0;
   const out: Record<string, THREE.AnimationClip> = {};
-  const inPlace = new Set(["idle", "walk", "run", "crouchwalk", "crouch", "aim"]);
+  const inPlace = new Set(["idle", "walk", "run", "crouchwalk", "crouch", "aim", "walk_back", "run_back", "strafe_left", "strafe_right", "crouch_back", "crouch_strafe_left", "crouch_strafe_right", "pistol_idle", "pistol_walk", "pistol_run", "prone_idle", "prone_crawl", "prone_back", "reload_stand", "reload_walk", "reload_crouch", "reload_prone", "throw", "throw_crouch", "throw_prone", "jump"]);
   for (const c of src) {
     const tracks: THREE.KeyframeTrack[] = [];
     for (const t0 of c.tracks) {
@@ -443,15 +447,19 @@ function clipsFor(key: string, src: THREE.AnimationClip[], animRoot: THREE.Objec
       const [rawBone, prop] = t.name.split(".");
       const bone = rawBone.replace(/_\d+$/, "");
       t.name = `${bone}.${prop}`;
+      // each recording came from its own skeleton (the bundle keeps one per clip): scale its hips by
+      // that skeleton's height, not the first one's, or clips from a shorter body sink into the floor
+      const srcHip = prop === "position" && /Hips$/.test(bone) ? (animRoot.getObjectByName(rawBone)?.position.y ?? animHip) : animHip;
+      const kc = charHip / (srcHip || 1);
       if (prop === "position") {
         if (!/Hips$/.test(bone) || retarget) continue; // only the hips move, and only on a matching skeleton
         const v = t.values;
         const x0 = v[0];
         const z0 = v[2];
         for (let i = 0; i < v.length; i += 3) {
-          v[i] = inPlace.has(c.name) ? x0 * k : v[i] * k;
-          v[i + 1] *= k;
-          v[i + 2] = inPlace.has(c.name) ? z0 * k : v[i + 2] * k;
+          v[i] = inPlace.has(c.name) ? x0 * kc : v[i] * kc;
+          v[i + 1] *= kc;
+          v[i + 2] = inPlace.has(c.name) ? z0 * kc : v[i + 2] * kc;
         }
       } else if (prop === "quaternion" && retarget) {
         const ab = animRoot.getObjectByName(bone);
@@ -470,7 +478,11 @@ function clipsFor(key: string, src: THREE.AnimationClip[], animRoot: THREE.Objec
     }
     out[c.name] = new THREE.AnimationClip(c.name, c.duration, tracks);
   }
-  if (out.reload) out.reloadUpper = new THREE.AnimationClip("reloadUpper", out.reload.duration, out.reload.tracks.filter((t) => /Spine|Neck|Head/.test(t.name)));
+  // reloads while standing, walking or crouched: the arms, chest and head from the recording, the
+  // legs from whatever the body is doing (prone reloads use the whole body)
+  const upper = (t: THREE.KeyframeTrack) => /Spine|Neck|Head|Shoulder|Arm|Hand/.test(t.name);
+  for (const n of ["reload_stand", "reload_walk", "reload_crouch", "throw", "throw_crouch"])
+    if (out[n]) out[n + "_up"] = new THREE.AnimationClip(n + "_up", out[n].duration, out[n].tracks.filter(upper));
   animCache.set(key, out);
   return out;
 }
@@ -557,13 +569,27 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
     const clips = clipsFor(def.key, animsGltf.animations, animsGltf.scene, gltf.scene, !!def.camo);
     // the original keeps its own walk cycle (made for its rig); everyone else uses the recordings
     const own = (n: string) => gltf.animations.find((a: THREE.AnimationClip) => a.name === n);
-    const actions: Record<"idle" | "walk" | "run" | "crouch" | "crouchwalk", THREE.AnimationAction> = {
+    const pick = (n: string, fb: string) => mixer.clipAction(def.camo ? own(fb === "walk" ? "Walk" : fb === "run" ? "Run" : "Idle") : clips[n] ?? clips[fb]);
+    const actions: Record<Loco, THREE.AnimationAction> = {
       idle: mixer.clipAction(def.camo ? own("Idle") : clips.idle),
       walk: mixer.clipAction(def.camo ? own("Walk") : clips.walk),
       run: mixer.clipAction(def.camo ? own("Run") : clips.run),
       // the Mixamo bodies crouch with the recorded crouch (the original bends its own legs in code)
-      crouch: mixer.clipAction(def.camo ? own("Idle") : clips.crouch),
-      crouchwalk: mixer.clipAction(def.camo ? own("Walk") : clips.crouchwalk),
+      crouch: pick("crouch", "idle"),
+      crouchwalk: pick("crouchwalk", "walk"),
+      walk_back: pick("walk_back", "walk"),
+      run_back: pick("run_back", "run"),
+      strafe_left: pick("strafe_left", "walk"),
+      strafe_right: pick("strafe_right", "walk"),
+      crouch_back: pick("crouch_back", "walk"),
+      crouch_strafe_left: pick("crouch_strafe_left", "walk"),
+      crouch_strafe_right: pick("crouch_strafe_right", "walk"),
+      pistol_idle: pick("pistol_idle", "idle"),
+      pistol_walk: pick("pistol_walk", "walk"),
+      pistol_run: pick("pistol_run", "run"),
+      prone_idle: pick("prone_idle", "idle"),
+      prone_crawl: pick("prone_crawl", "walk"),
+      prone_back: pick("prone_back", "walk"),
     };
     Object.values(actions).forEach((a) => {
       a.play();
@@ -600,13 +626,21 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
       }
       return a;
     });
-    const reload = clips.reloadUpper ? mixer.clipAction(clips.reloadUpper) : null;
-    if (reload) {
-      reload.play();
-      reload.paused = true;
-      reload.setEffectiveWeight(0);
-    }
-    return { emotes, reload };
+    // scrubbed by hand (time set from the game's progress), so they always line up with the gun
+    const scrub = (n: string) => {
+      const c = clips[n];
+      if (!c) return null;
+      const a = mixer.clipAction(c);
+      a.play();
+      a.paused = true;
+      a.setEffectiveWeight(0);
+      return a;
+    };
+    const reloads = { stand: scrub("reload_stand_up"), walk: scrub("reload_walk_up"), crouch: scrub("reload_crouch_up"), prone: scrub("reload_prone") };
+    const throws = { stand: scrub("throw_up"), crouch: scrub("throw_crouch_up"), prone: scrub("throw_prone") };
+    const jump = scrub("jump");
+    const reload = reloads.stand;
+    return { emotes, reload, reloads, throws, jump };
   }, [mixer, clips]);
   const emoteRef = useRef({ at: 0, idx: -1 });
   // the gun fitted to this body: moved with the shoulder, and in closer for shorter arms
@@ -617,7 +651,7 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
 
   useEffect(() => () => void mixer.stopAllAction(), [mixer]);
 
-  const w = useRef({ idle: 1, walk: 0, run: 0, crouch: 0, crouchwalk: 0 });
+  const w = useRef<Record<Loco, number>>(Object.fromEntries(LOCO.map((n) => [n, n === "idle" ? 1 : 0])) as Record<Loco, number>);
   const kick = useRef(0);
   const roll = useRef(0);
   const lastShot = useRef(0);
@@ -662,12 +696,49 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
     // per-frame cost on phones with up to 17 soldiers in the scene
     for (let o: THREE.Object3D | null = g; o; o = o.parent) if (!o.visible) return;
     // locomotion blend
-    const crouchClip = !def.camo && !!m.crouch && !m.downed && !m.prone;
-    const want = m.downed
-      ? { idle: m.speed > 0 ? 0 : 1, walk: m.speed > 0 ? 1 : 0, run: 0, crouch: 0, crouchwalk: 0 } // never an empty pose (T-pose) while down
-      : crouchClip
-        ? { idle: 0, walk: 0, run: 0, crouch: m.speed === 0 ? 1 : 0, crouchwalk: m.speed > 0 ? 1 : 0 }
-        : { idle: m.speed === 0 ? 1 : 0, walk: m.speed === 1 ? 1 : 0, run: m.speed === 2 ? 1 : 0, crouch: 0, crouchwalk: 0 };
+    const want = Object.fromEntries(LOCO.map((n) => [n, 0])) as Record<Loco, number>;
+    if (def.camo) {
+      // the original: its own three clips (it bends for crouch and prone in code)
+      if (m.downed) want[m.speed > 0 ? "walk" : "idle"] = 1;
+      else want[m.speed === 2 ? "run" : m.speed === 1 ? "walk" : "idle"] = 1;
+    } else {
+      // which way the legs go, relative to where the body faces: forward, back, left, right
+      const d = m.dir ?? 0;
+      const fw = Math.max(0, Math.cos(d));
+      const bw = Math.max(0, -Math.cos(d));
+      const rt = Math.max(0, Math.sin(d));
+      const lt = Math.max(0, -Math.sin(d));
+      const sum = fw + bw + rt + lt || 1;
+      const moving = m.speed > 0;
+      const pistol = weapon === 0;
+      if (m.downed) want[moving ? "prone_crawl" : "prone_idle"] = 1;
+      else if (m.prone) {
+        if (!moving) want.prone_idle = 1;
+        else {
+          want.prone_crawl = (fw + rt + lt) / sum;
+          want.prone_back = bw / sum;
+        }
+      } else if (m.crouch) {
+        if (!moving) want.crouch = 1;
+        else {
+          want.crouchwalk = fw / sum;
+          want.crouch_back = bw / sum;
+          want.crouch_strafe_right = rt / sum;
+          want.crouch_strafe_left = lt / sum;
+        }
+      } else if (!moving) want[pistol ? "pistol_idle" : "idle"] = 1;
+      else if (m.speed === 2) {
+        want[pistol ? "pistol_run" : "run"] = fw / sum;
+        want.run_back = bw / sum;
+        want.strafe_right = rt / sum;
+        want.strafe_left = lt / sum;
+      } else {
+        want[pistol ? "pistol_walk" : "walk"] = fw / sum;
+        want.walk_back = bw / sum;
+        want.strafe_right = rt / sum;
+        want.strafe_left = lt / sum;
+      }
+    }
     const k = 1 - Math.pow(0.0005, dt);
     const dying = m.deadAt !== undefined;
     // emotes: only standing still with the gun quiet; moving or firing ends one
@@ -685,18 +756,14 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
       a.setEffectiveWeight(a.getEffectiveWeight() + (target - a.getEffectiveWeight()) * Math.min(1, dt * 10));
       if (!emoting && a.getEffectiveWeight() < 0.01 && a.isRunning()) a.stop();
     });
-    if (emoting) {
-      want.idle = 0;
-      want.walk = 0;
-      want.run = 0;
-      want.crouch = 0;
-      want.crouchwalk = 0;
-    }
-    (["idle", "walk", "run", "crouch", "crouchwalk"] as const).forEach((n) => {
-      if (dying) return; // the pose under a body stays exactly as it was when it fell
+    if (emoting) for (const n of LOCO) want[n] = 0;
+    for (const n of LOCO) {
+      if (dying) break; // the pose under a body stays exactly as it was when it fell
       w.current[n] += (want[n] - w.current[n]) * k;
       actions[n].setEffectiveWeight(w.current[n]);
-    });
+    }
+    // running strafes are the walking ones, quicker
+    actions.strafe_left.timeScale = actions.strafe_right.timeScale = m.speed === 2 ? 1.45 : 1;
     actions.walk.timeScale = m.downed ? 0.45 : 1.25;
     actions.run.timeScale = 1.15;
     // the dead stop breathing once they're down
@@ -797,7 +864,7 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
 
     // lying on the floor when downed (on your back), or prone (on your front, gun forward)
     // (the original rig faces the other way, so its forward tip is the opposite sign)
-    model.rotation.x += ((m.downed ? -1.35 : m.prone ? (def.camo ? -1.5 : 1.5) : 0) - model.rotation.x) * k;
+    model.rotation.x += ((!def.camo ? 0 : m.downed ? -1.35 : m.prone ? -1.5 : 0) - model.rotation.x) * k;
     model.rotation.z = 0;
     // crouch: sink the hips, bend hips and knees, lean in
     crouchK.current += ((m.crouch && !m.downed ? 1 : 0) - crouchK.current) * (1 - Math.pow(0.0001, dt));
@@ -809,8 +876,8 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
     const pk2 = proneK.current;
     // how far the whole body (and the gun with it) moves; prone brings the gun down to the grass
     const lift = (-0.26 * ck + 0.55 * jk) * (1 - pk2) - 0.74 * pk2;
-    model.position.y = m.downed ? 0.18 / scale : pk2 > 0.01 ? (0.06 * pk2) / scale : (def.camo ? lift : 0.55 * jk) / scale;
-    if (pk2 > 0.01 && !def.camo) {
+    model.position.y = !def.camo ? 0 : m.downed ? 0.18 / scale : pk2 > 0.01 ? (0.06 * pk2) / scale : lift / scale;
+    if (pk2 > 0.01 && false) {
       // flat on the belly: legs straight back, head up to look along the gun
       bones.neck.rotation.x -= 0.6 * pk2;
       bones.spine.rotation.x -= 0.12 * pk2;
@@ -955,7 +1022,23 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
     bones.spine.rotation.y -= kick.current * 0.03;
     bones.neck.rotation.x -= 0.1;
     const now = performance.now();
-    const throwing = now - m.throwAt < 450;
+    const thrA = !def.camo ? (m.prone ? extra.throws.prone : m.crouch ? extra.throws.crouch : extra.throws.stand) : null;
+    const thrDur = thrA ? thrA.getClip().duration / 1.4 : 0.45; // played a little quicker than recorded
+    const throwT = (now - m.throwAt) / 1000;
+    const throwing = throwT >= 0 && throwT < (thrA ? thrDur : 0.45);
+    for (const a of [extra.throws.stand, extra.throws.crouch, extra.throws.prone]) {
+      if (!a) continue;
+      const on = a === thrA && throwing;
+      a.setEffectiveWeight(on ? 20 * Math.min(1, throwT / 0.12, (thrDur - throwT) / 0.15) : 0);
+      if (on) a.time = Math.min(a.getClip().duration - 1e-3, throwT * 1.4);
+    }
+    // jumps: the recording, scrubbed over the game's half-second hop
+    if (extra.jump && !def.camo) {
+      const jt = m.jumpAt ? (now - m.jumpAt) / 500 : 1;
+      const on = jt >= 0 && jt < 1 && !m.prone && !m.downed;
+      extra.jump.setEffectiveWeight(on ? 20 * Math.min(1, jt / 0.1, (1 - jt) / 0.15) : 0);
+      if (on) extra.jump.time = (0.15 + jt * 0.7) * extra.jump.getClip().duration;
+    }
     const gr = gunRef.current;
     const rp = m.reloading && m.reloadAt ? clamp01((now - m.reloadAt) / Math.max(300, m.reloadDur ?? 2000)) : -1;
     // a pickup: bend at the waist and reach down for it (not while your hands are busy)
@@ -971,7 +1054,7 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
     // The way shooters are animated: the recording drives the right arm, and the gun sits in that
     // hand (a socket), so walk, run and crouch move it exactly as a real hand would. The socket is
     // measured once, in the standing idle pose: the palm, with the gun level and pointing forward.
-    const socket = !def.camo && !!gr && !!inner && !throwing && !m.downed && pk2 < 0.5 && !!grips.r;
+    const socket = !def.camo && !!gr && !!inner && !throwing && !m.downed && !!grips.r;
     if (socket && gr && inner && grips.r) {
       bones.rHand.updateWorldMatrix(true, false);
       const handL = sockM.copy(g.matrixWorld).invert().multiply(bones.rHand.matrixWorld); // hand in the soldier's frame
@@ -1106,17 +1189,24 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
     // magazine guns reload with the motion-captured clip: the arms are the recording's and the
     // gun rides in the right hand (held where it was when the reload began)
     const magFed = weapon === 0 || weapon === 1 || weapon === 3 || weapon === 5 || weapon === 6;
-    const mocap = !!extra.reload && magFed && rp >= 0 && !throwing && !m.downed;
-    const mb = mocap ? win(0, 0.08, 0.9, 1, rp) : 0;
-    if (extra.reload) {
-      extra.reload.setEffectiveWeight(mb * 3); // the body's weight shift and head, under our hands
-      if (mocap) extra.reload.time = rp * extra.reload.getClip().duration;
+    // every gun reloads with a recording: lying down, crouched, on the move or standing
+    const rlA = !def.camo ? (m.prone ? extra.reloads.prone : m.crouch ? extra.reloads.crouch : m.speed > 0 ? extra.reloads.walk : extra.reloads.stand) : null;
+    const mocap = !!rlA && rp >= 0 && !throwing && !m.downed;
+    const mb = mocap ? win(0, 0.06, 0.92, 1, rp) : 0;
+    for (const a of [extra.reloads.stand, extra.reloads.walk, extra.reloads.crouch, extra.reloads.prone]) {
+      if (!a) continue;
+      const on = mocap && a === rlA;
+      a.setEffectiveWeight(on ? 20 * mb : 0);
+      if (on) a.time = rp * a.getClip().duration;
     }
+    void magFed;
     // the right hand always holds the grip; the left arm is the recording's through a mag reload
-    if (!socketed) {
+    if (!socketed && !(throwing && !def.camo)) {
       g.localToWorld(pole.set(-0.2, 0.7, 0.75));
       reach(bones.rArm, bones.rFore, bones.rHand, rightT, pole);
     }
+    // throwing: both hands are the recording's; the gun is slung out of sight until it's over
+    if (gr && !def.camo) gr.visible = !throwing && !m.downed;
     // a short arm holds the gun further back: slide the support hand along the gun (towards the
     // grip) until it's within a comfortable bend, instead of locking the arm straight in mid-air
     if (socketed && rp < 0 && !picking) {
@@ -1139,8 +1229,11 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
         leftT = kp[7].copy(back).lerp(leftT, lo);
       }
     }
-    g.localToWorld(pole.set(0.35, 0.35, -0.32));
-    reach(bones.lArm, bones.lFore, bones.lHand, leftT, pole);
+    const leftFree = !def.camo && (mb > 0.4 || throwing);
+    if (!leftFree) {
+      g.localToWorld(pole.set(0.35, 0.35, -0.32));
+      reach(bones.lArm, bones.lFore, bones.lHand, leftT, pole);
+    }
     // hands set on the gun the way people hold one: right palm against the pistol grip with the
     // fingers wrapping its front, left palm up under the handguard. Measured in the gun's frame, so
     // they follow every tilt of the reload.
@@ -1155,7 +1248,7 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
       // full grip on the gun; relaxing as the hand travels away (to the belt and back)
       const away = Math.min(1, leftT.distanceTo(front) / 0.22);
       const handling = (1 - away) * (carry ? 0.6 : 1);
-      orientHand(grips.l, across, up, picking ? 1 - bendK : handling);
+      if (!leftFree) orientHand(grips.l, across, up, picking ? 1 - bendK : handling);
     }
     // hands close round the grip and the handguard (looser while the left hand fetches a mag)
     curl(grips.r, 0.95, true);
