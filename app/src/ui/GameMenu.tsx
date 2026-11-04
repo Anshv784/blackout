@@ -337,6 +337,8 @@ export function Settings({ onClose }: { onClose: () => void }) {
                   <span><b>Click / F</b> fire</span>
                   <span><b>Space</b> jump</span>
                   <span><b>C</b> crouch &amp; sneak (silent)</span>
+                  <span><b>Ctrl</b> go prone: crawl, very hard to spot</span>
+                  <span><b>B</b> emote (pick yours on the Operator page)</span>
                   <span><b>Right mouse / Z</b> aim down sights</span>
                   <span><b>Arrows</b> aim (no mouse)</span>
                   <span><b>Trackpad</b> two-finger swipe aims</span>

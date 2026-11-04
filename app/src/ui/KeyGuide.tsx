@@ -13,7 +13,9 @@ const MOVE: Row[] = [
   [["W", "A", "S", "D"], "move"],
   [["Shift"], "run", "tap · or W W"],
   [["C"], "sneak", "silent"],
+  [["Ctrl"], "prone", "crawl · hardest to spot"],
   [["Space"], "jump"],
+  [["B"], "emote", "your signature · Operator page"],
 ];
 const FIGHT: Row[] = [
   [["Mouse"], "look", "or arrows"],
@@ -123,7 +125,8 @@ export function ActionHints({ session, touch }: { session: Session; touch: boole
         out.push({ id: "gadget", key: k("G", "◉"), text: v.inv.gadget === 6 ? `${GADGET_NAME[6]}: press to switch on` : `${GADGET_NAME[v.inv.gadget]}: hold to aim, let go to throw`, icon: v.inv.gadget });
       if (v.inv.sec >= 0 && fresh(`s${v.inv.sec}`)) out.push({ id: "swap", key: k("X", "⇄"), text: `swap to ${WEAPON_NAME[v.inv.sec]}` });
       const pm = session.predMoved;
-      if (pm & 8) out.push({ id: "sneak", key: k("C", "↓"), text: "sneaking: silent, harder to see · press again to stand", tone: "dim" });
+      if (pm & (1 << 16)) out.push({ id: "prone", key: k("Ctrl", "↓"), text: "prone: crawling, very hard to spot · Ctrl to get up", tone: "dim" });
+      else if (pm & 8) out.push({ id: "sneak", key: k("C", "↓"), text: "sneaking: silent, harder to see · press again to stand · Ctrl to go prone", tone: "dim" });
       else if (pm & 4) out.push({ id: "winded", key: k("Shift", "»"), text: "out of breath: can't sprint yet", tone: "dim" });
       setHints((h) => (h.map((x) => x.id + x.text).join() === out.map((x) => x.id + x.text).join() ? h : out));
     }, 150);

@@ -1,5 +1,5 @@
 import { MapPicker } from "./MapPicker";
-import { getLook } from "../game/look";
+import { EMOTES, useLook } from "../game/look";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { PublicKey } from "@solana/web3.js";
 import { Session } from "../game/session";
@@ -195,11 +195,23 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
       toast(String(e?.message ?? e).replace(/\(.*\)$/, "").slice(0, 120));
     });
   };
+  const myLook = useLook((st) => st.look);
+  const setLook = useLook((st) => st.set);
+  const [lobbyEmote, setLobbyEmote] = useState(0);
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement)?.tagName === "INPUT") return;
+      if (e.key.toLowerCase() === "b" && !e.repeat) setLobbyEmote(performance.now());
+    };
+    window.addEventListener("keydown", k);
+    return () => window.removeEventListener("keydown", k);
+  }, []);
   const seats: SeatInfo[] = Array.from({ length: staked ? 8 : size }, (_, i) => {
     const taken = room.players[i].toBase58() !== EMPTY || room.isBot[i] === 1;
     return {
       name: room.names[i],
-      look: i === mySeat ? getLook() : room.looks[i],
+      look: i === mySeat ? myLook : room.looks[i],
+      emoteAt: i === mySeat ? lobbyEmote : undefined,
       taken,
       bot: room.isBot[i] === 1,
       me: i === mySeat,
@@ -570,6 +582,23 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
           )}
         </div>
       </div>
+      {mySeat !== null && (
+        <div className="lobby-emotes">
+          <label>EMOTE · B</label>
+          {EMOTES.map((e, k) => (
+            <button
+              key={e.key}
+              className={myLook.emote === k ? "on" : ""}
+              onClick={() => {
+                setLook({ emote: k });
+                setLobbyEmote(performance.now());
+              }}
+            >
+              {e.name}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="keys-hint">
         {[
           ["Mouse", "aim"],

@@ -2490,3 +2490,14 @@ button {
 .cs-done{width:100%;padding:13px}
 @media (max-width:1100px){.cs-main{grid-template-columns:220px 1fr 280px;padding:80px 16px 20px;gap:14px}}
 @media (max-width:860px){.chars-page{overflow:auto}.cs-main{grid-template-columns:1fr;height:auto}.cs-center{height:62vh;order:-1}.cs-grid{grid-template-columns:repeat(3,1fr)}}
+.cs-skin{width:26px;height:26px;border-radius:50%;border:2px solid rgba(255,255,255,.15)}
+.lobby-emotes{position:absolute;right:24px;top:50%;transform:translateY(-58%);z-index:5;display:flex;flex-direction:column;gap:6px;padding:12px;border-radius:14px;background:rgba(8,10,16,.82);border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(12px);width:120px}
+.lobby-emotes label{font-size:9.5px;letter-spacing:.18em;font-weight:700;color:var(--dim);margin-bottom:2px}
+.lobby-emotes button{padding:7px 10px;border-radius:8px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.07);color:var(--fg);cursor:pointer;font:inherit;font-size:12px;text-align:left}
+.lobby-emotes button:hover{border-color:#3a4260}
+.lobby-emotes button.on{border-color:var(--gold);color:var(--gold)}
+@media (max-width:1100px){.lobby-emotes{display:none}}
+.cs-card{position:relative;overflow:hidden;padding:0 0 10px!important;gap:2px!important}
+.cs-card img{display:block;width:100%;height:92px;object-fit:cover;object-position:50% 22%;background:radial-gradient(circle at 50% 70%,rgba(255,209,102,.16),transparent 70%);margin-bottom:6px}
+.cs-card b,.cs-card span{padding:0 12px}
+.cs-card.on img{background:radial-gradient(circle at 50% 70%,rgba(255,209,102,.32),transparent 70%)}

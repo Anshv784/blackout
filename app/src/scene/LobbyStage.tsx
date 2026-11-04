@@ -9,10 +9,13 @@ import { EffectComposer, Bloom, Vignette, Noise } from "@react-three/postprocess
 import * as THREE from "three";
 import { Avatar, SEAT_COLORS } from "./Avatar";
 import type { Look } from "../game/look";
+import { stillMotion, type Motion } from "./Soldier";
 
 export interface SeatInfo {
   name: string;
   look?: Look;
+  /** performance.now() you pressed an emote (your seat only) */
+  emoteAt?: number;
   taken: boolean;
   bot: boolean;
   me: boolean;
@@ -44,6 +47,11 @@ const WHITE = new THREE.Color("#ffffff");
 
 function Pedestal({ i, n, gap, rows, seat, onTake, onMakeHost, onKick }: { i: number; n: number; gap: number; rows: number; seat: SeatInfo; onTake: (i: number) => void; onMakeHost?: (i: number) => void; onKick?: (i: number) => void }) {
   const ring = useRef<THREE.Mesh>(null);
+  const motion = useRef<Motion>(stillMotion());
+  if (seat.emoteAt && motion.current.emoteAt !== seat.emoteAt) {
+    motion.current.emote = seat.look?.emote ?? 0;
+    motion.current.emoteAt = seat.emoteAt;
+  }
   const g = useRef<THREE.Group>(null);
   const key = useRef<THREE.SpotLight>(null);
   const rim = useRef<THREE.SpotLight>(null);
@@ -76,7 +84,7 @@ function Pedestal({ i, n, gap, rows, seat, onTake, onMakeHost, onKick }: { i: nu
       </mesh>
       {seat.taken ? (
         <group ref={g} position={[0, 0.23, 0]} scale={1.3}>
-          <Avatar color={color} me={seat.me} ring={false} look={seat.look} />
+          <Avatar color={color} me={seat.me} ring={false} look={seat.look} motion={motion} />
         </group>
       ) : (
         <group ref={g} position={[0, 0.23, 0]} scale={1.3}>
