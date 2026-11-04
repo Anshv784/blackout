@@ -1080,7 +1080,9 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
     // this gun's pistol grip in the right palm. Walk, run, crouch, prone and reload all carry it right,
     // and nothing passes through the chest, because the recording never did. The pistol keeps its own
     // two-handed stance (both hands on the grip, so the line between them means nothing there).
-    const socket = !def.camo && !!gr && !!inner && !throwing && !m.downed && !!grips.r && !!grips.l;
+    // while an emote is still on the body (fading in or out) the arms aren't holding anything
+    const emoteW = extra.emotes.reduce((mx, a) => Math.max(mx, a ? a.getEffectiveWeight() : 0), 0);
+    const socket = !def.camo && !!gr && !!inner && !throwing && !m.downed && !!grips.r && !!grips.l && emoteW < 0.04;
     let socketed = false;
     let supportPart: THREE.Vector3 | null = null;
     if (socket && gr && inner && grips.r && grips.l) {
@@ -1271,7 +1273,7 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
       reach(bones.rArm, bones.rFore, bones.rHand, rightT, pole);
     }
     // throwing: both hands are the recording's; the gun is slung out of sight until it's over
-    if (gr && !def.camo) gr.visible = !throwing && !m.downed;
+    if (gr && !def.camo) gr.visible = !throwing && !m.downed && emoteW < 0.04;
     // a short arm holds the gun further back: slide the support hand along the gun (towards the
     // grip) until it's within a comfortable bend, instead of locking the arm straight in mid-air
     if (socketed && rp < 0 && !picking) {
