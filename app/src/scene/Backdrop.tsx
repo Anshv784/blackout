@@ -8,6 +8,7 @@ import * as THREE from "three";
 import { MAP_W } from "../game/gen";
 const C = MAP_W / 2;
 import { Arena } from "./Arena";
+import { seatDefault } from "../game/look";
 import { Avatar, SEAT_COLORS } from "./Avatar";
 
 // wandering survivors walk loops through open lanes
@@ -52,7 +53,7 @@ function Walker({ idx }: { idx: number }) {
   return (
     <>
       <group ref={g}>
-        <Avatar color={SEAT_COLORS[(idx * 3) % 8]} />
+        <Avatar color={SEAT_COLORS[(idx * 3) % 8]} look={seatDefault(idx)} />
       </group>
       <spotLight ref={spot} angle={0.67} penumbra={0.4} distance={11} decay={1.1} color="#fff1d0" intensity={40} castShadow={idx === 1} shadow-mapSize={[1024, 1024]} />
     </>

@@ -9,6 +9,7 @@ import * as THREE from "three";
 import { Arena } from "./Arena";
 import { Meadow } from "./Meadow";
 import { setActiveMap } from "../game/maps";
+import { seatDefault } from "../game/look";
 import { clipAt, storyTime, type Clip } from "../game/trailer";
 import { Avatar, SEAT_COLORS } from "./Avatar";
 import { TORCH_X } from "./Gun";
@@ -295,7 +296,7 @@ function ActorView({ a, t }: { a: Actor; t: React.MutableRefObject<number> }) {
   return (
     <>
       <group ref={g} visible={false}>
-        <Avatar color={SEAT_COLORS[a.seat]} weapon={weapon} motion={motion} ring={false} />
+        <Avatar color={SEAT_COLORS[a.seat]} weapon={weapon} motion={motion} ring={false} look={seatDefault(a.seat)} />
       </group>
       <spotLight ref={spot} angle={0.55} penumbra={0.35} distance={13} decay={1.05} intensity={0} castShadow={a.name === "DUSK" || a.name === "NYX"} shadow-bias={-0.0006} shadow-normalBias={0.04} />
       <pointLight ref={flash} color="#ffb347" distance={9} decay={1.3} intensity={0} />

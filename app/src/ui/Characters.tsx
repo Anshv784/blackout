@@ -3,7 +3,8 @@
 import { lazy, Suspense, useState } from "react";
 import { TopBar } from "./TopBar";
 import { go } from "../App";
-import { CHARACTERS, OUTFITS, FINISHES, EMOTES, useLook } from "../game/look";
+import { CHARACTERS, ROSTER, OUTFITS, FINISHES, EMOTES, SKINS, useLook } from "../game/look";
+import { SkinSwatch } from "./SkinSwatch";
 import { WEAPON_NAME } from "../chain/layout";
 import { GunIcon } from "./Icons";
 import { useStore } from "../game/store";
@@ -28,8 +29,9 @@ export function Characters() {
         <section className="cs-roster">
           <label className="cs-label">OPERATORS</label>
           <div className="cs-grid">
-            {CHARACTERS.map((c) => (
+            {ROSTER.map((c) => (
               <button key={c.id} className={`cs-card ${look.char === c.id ? "on" : ""}`} onClick={() => set({ char: c.id })}>
+                <img src={`/models/chars/thumbs/${c.key}.png`} alt="" loading="lazy" />
                 <b>{c.name}</b>
                 <span>{c.role}</span>
               </button>
@@ -75,6 +77,17 @@ export function Characters() {
                 <button key={f.name} className={look.finish === i ? "on" : ""} onClick={() => set({ finish: i })}>
                   <i style={{ background: i === 0 ? "#3a3f4a" : f.tint }} />
                   <span>{f.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="cs-panel">
+            <label className="cs-label">GUN SKIN</label>
+            <div className="cs-swatches">
+              {SKINS.map((k, i) => (
+                <button key={k.key} className={(look.skin ?? 0) === i ? "on" : ""} onClick={() => set({ skin: i })}>
+                  <SkinSwatch i={i} />
+                  <span>{k.name}</span>
                 </button>
               ))}
             </div>

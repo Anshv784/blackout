@@ -139,7 +139,7 @@ export function decodeRoom(data: Uint8Array): Room {
   const payout = r.arr(MAXP, () => r.key());
   const rawNames = r.arr(MAXP, () => r.bytes(16));
   const names = rawNames.map(decodeName);
-  const looks = rawNames.map(decodeLook);
+  const looks = rawNames.map((b, i) => decodeLook(b, i));
   const status = r.u32();
   const matchNo = r.u32();
   const tick = r.u32();

@@ -159,7 +159,110 @@ export function partRest(weapon: number, name: string) {
   return (GUNS[weapon] ?? GUNS[0]).find((pt) => pt.n === name)?.p;
 }
 
-export function Gun({ weapon, ghost = false, display = false, torch = false, finish }: { weapon: number; ghost?: boolean; display?: boolean; torch?: boolean; finish?: string }) {
+/** Gun skin patterns, drawn once each (tileable, light: the part colour multiplies over them). */
+const skinTex = new Map<number, THREE.Texture>();
+export function skinTexture(i: number): THREE.Texture | null {
+  if (!i) return null;
+  const hit = skinTex.get(i);
+  if (hit) return hit;
+  const c = document.createElement("canvas");
+  c.width = c.height = 128;
+  const g = c.getContext("2d")!;
+  let seed = i * 977;
+  const r = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
+  const blob = (col: string, n: number, rad: number) => {
+    g.fillStyle = col;
+    for (let k = 0; k < n; k++) {
+      const x = r() * 128, y = r() * 128, w = rad * (0.5 + r()), h = rad * (0.4 + r() * 0.8);
+      for (const [dx, dy] of [[0, 0], [128, 0], [-128, 0], [0, 128], [0, -128]]) {
+        g.beginPath();
+        g.ellipse(x + dx, y + dy, w, h, r() * 3, 0, Math.PI * 2);
+        g.fill();
+      }
+    }
+  };
+  if (i === 1) {
+    // woodland: olive, brown, black, khaki blotches
+    g.fillStyle = "#b9b48a";
+    g.fillRect(0, 0, 128, 128);
+    blob("#6f7a45", 14, 16);
+    blob("#6b4f33", 10, 13);
+    blob("#2a2a24", 9, 8);
+  } else if (i === 2) {
+    // digital: square pixels in three greys/blues
+    const cols = ["#9aa3ad", "#6b7480", "#3e454f", "#c7ced6"];
+    for (let y = 0; y < 128; y += 8) for (let x = 0; x < 128; x += 8) {
+      g.fillStyle = cols[Math.floor(r() * r() * 4)];
+      g.fillRect(x, y, 8, 8);
+    }
+  } else if (i === 3) {
+    // tiger: dark slashing stripes over sand
+    g.fillStyle = "#d8c08a";
+    g.fillRect(0, 0, 128, 128);
+    g.fillStyle = "#2b261c";
+    for (let k = 0; k < 9; k++) {
+      const y = k * 15 + r() * 6;
+      g.beginPath();
+      g.moveTo(0, y);
+      g.bezierCurveTo(40, y - 8 + r() * 16, 80, y + 6 - r() * 12, 128, y);
+      g.lineTo(128, y + 4 + r() * 4);
+      g.bezierCurveTo(80, y + 10, 40, y + 2, 0, y + 6);
+      g.fill();
+    }
+  } else if (i === 4) {
+    // carbon fibre weave
+    g.fillStyle = "#1a1c20";
+    g.fillRect(0, 0, 128, 128);
+    for (let y = 0; y < 128; y += 8) for (let x = 0; x < 128; x += 8) {
+      const v = ((x + y) / 8) % 2 ? 0.18 : 0.08;
+      const grad = g.createLinearGradient(x, y, x + 8, y + 8);
+      grad.addColorStop(0, `rgba(255,255,255,${v})`);
+      grad.addColorStop(1, "rgba(255,255,255,0)");
+      g.fillStyle = grad;
+      g.fillRect(x, y, 8, 8);
+    }
+  } else if (i === 5) {
+    // hex: honeycomb lines over gunmetal
+    g.fillStyle = "#5a6070";
+    g.fillRect(0, 0, 128, 128);
+    g.strokeStyle = "#9aa6bf";
+    g.lineWidth = 1.5;
+    const s = 10;
+    for (let row = -1; row < 9; row++) for (let col = -1; col < 9; col++) {
+      const cx = col * s * 1.5, cy = row * s * 1.732 + (col % 2 ? s * 0.866 : 0);
+      g.beginPath();
+      for (let a = 0; a < 7; a++) g.lineTo(cx + s * Math.cos((a * Math.PI) / 3), cy + s * Math.sin((a * Math.PI) / 3));
+      g.stroke();
+    }
+  } else {
+    // ember: black with glowing orange cracks
+    g.fillStyle = "#1c1612";
+    g.fillRect(0, 0, 128, 128);
+    g.strokeStyle = "#ff7a2e";
+    g.lineWidth = 1.6;
+    for (let k = 0; k < 14; k++) {
+      let x = r() * 128, y = r() * 128;
+      g.beginPath();
+      g.moveTo(x, y);
+      for (let j = 0; j < 5; j++) {
+        x += (r() - 0.5) * 30;
+        y += (r() - 0.5) * 30;
+        g.lineTo(x, y);
+      }
+      g.stroke();
+    }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.magFilter = i === 2 ? THREE.NearestFilter : THREE.LinearFilter;
+  t.repeat.set(2, 2);
+  skinTex.set(i, t);
+  return t;
+}
+
+export function Gun({ weapon, ghost = false, display = false, torch = false, finish, skin = 0 }: { weapon: number; ghost?: boolean; display?: boolean; torch?: boolean; finish?: string; skin?: number }) {
+  const skinMap = skinTexture(skin);
   // on a loot crate the gun is shown off: lighter steel so you can tell what it is in the dark
   // in hand: gunmetal and polymer that still read in the dark (pure black metal renders as a hole)
   const fin = finish && finish !== "#ffffff" ? new THREE.Color(finish) : null;
@@ -180,12 +283,12 @@ export function Gun({ weapon, ghost = false, display = false, torch = false, fin
         ) : pt.cyl ? (
           <mesh key={i} name={pt.n} position={pt.p} rotation={[0, pt.ry ?? 0, Math.PI / 2]}>
             <cylinderGeometry args={[pt.s[1], pt.s[1], pt.s[0], 12]} />
-            <meshStandardMaterial color={tint(pt.c)} roughness={0.35} metalness={display ? 0.6 : 0.35} transparent={ghost} opacity={op} />
+            <meshStandardMaterial map={skinMap && pt.c !== R ? skinMap : null} color={skinMap && pt.c !== R ? "#ffffff" : tint(pt.c)} emissive={skin === 6 && pt.c !== R ? "#ff6a1a" : "#000000"} emissiveIntensity={skin === 6 ? 0.06 : 0} emissiveMap={skin === 6 && pt.c !== R ? skinMap : null} roughness={0.35} metalness={display ? 0.6 : 0.35} transparent={ghost} opacity={op} />
           </mesh>
         ) : (
           <mesh key={i} name={pt.n} position={pt.p} rotation={[0, pt.ry ?? 0, pt.r ?? 0]}>
             <boxGeometry args={pt.s} />
-            <meshStandardMaterial color={tint(pt.c)} roughness={pt.c === W ? 0.6 : pt.c === P || pt.c === R ? 0.75 : 0.38} metalness={pt.c === W || pt.c === P || pt.c === R ? 0.05 : display ? 0.6 : 0.55} transparent={ghost} opacity={op} />
+            <meshStandardMaterial map={skinMap && pt.c !== R ? skinMap : null} color={skinMap && pt.c !== R ? (fin ? "#" + fin.clone().multiplyScalar(0.62).getHexString() : "#9a9a9a") : tint(pt.c)} emissive={skin === 6 && pt.c !== R ? "#ff6a1a" : "#000000"} emissiveIntensity={skin === 6 ? 0.55 : 0} emissiveMap={skin === 6 && pt.c !== R ? skinMap : null} roughness={pt.c === W ? 0.6 : pt.c === P || pt.c === R ? 0.75 : 0.38} metalness={skinMap ? 0.25 : pt.c === W || pt.c === P || pt.c === R ? 0.05 : display ? 0.6 : 0.55} transparent={ghost} opacity={op} />
           </mesh>
         ),
       )}
