@@ -2510,8 +2510,8 @@ button {
 .ew-slice.on{stroke:rgba(255,209,102,.55)}
 .ew-slice.hot{fill:rgba(255,209,102,.16);stroke:var(--gold)}
 .ew-label{position:absolute;left:0;top:0;display:flex;flex-direction:column;align-items:center;gap:2px;color:#aab2c6;pointer-events:none;transition:color .12s,transform .12s}
-.ew-label .ew-glyph{width:30px;height:30px}
-.ew-label i{font-style:normal;font-family:var(--mono);font-size:9px;color:#5f677c}
+.ew-label .ew-glyph{width:26px;height:26px}
+.ew-label b{font-size:11px;letter-spacing:.08em;font-weight:600;text-transform:uppercase}
 .ew-label.on{color:#e9d9ad}
 .ew-label.hot{color:var(--gold)}
 .ew-core{position:absolute;left:0;top:0;transform:translate(-50%,-50%);width:96px;height:96px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;background:radial-gradient(circle,rgba(30,26,14,.95),rgba(10,12,18,.95));border:1px solid rgba(255,209,102,.4);pointer-events:none;text-align:center}

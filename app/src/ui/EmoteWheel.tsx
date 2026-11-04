@@ -114,7 +114,7 @@ export function EmoteWheel({ x, y, current, onPick, onClose }: { x: number; y: n
           return (
             <div key={em.key} className={`ew-label ${hover === i ? "hot" : ""} ${current === i ? "on" : ""}`} style={{ transform: `translate(calc(${Math.cos(a) * r}px - 50%), calc(${Math.sin(a) * r}px - 50%))` }}>
               <EmoteGlyph k={em.key} />
-              <i>{i + 1}</i>
+              <b>{em.name}</b>
             </div>
           );
         })}
