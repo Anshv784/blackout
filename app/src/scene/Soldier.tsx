@@ -6,7 +6,7 @@ import { useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
-import { Gun, MUZZLE_FWD } from "./Gun";
+import { Gun, MUZZLE_FWD, GUN_MODELS } from "./Gun";
 import { dropMag } from "./Details";
 import { ANIMS_URL, CHARACTERS, OUTFITS, FINISHES, EMOTES, DEFAULT_LOOK, type Look } from "../game/look";
 
@@ -960,14 +960,15 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
     // hands on the gun: right on the grip, left on the handguard (and through the reload)
     g.updateWorldMatrix(true, true);
     const inner = innerRef.current;
-    const grip = gr && inner ? inner.localToWorld(target.copy(GRIP_AT)) : target.set(0, 0, 0);
+    const gm = GUN_MODELS[weapon];
+    const grip = gr && inner ? inner.localToWorld(gm?.grip ? target.fromArray(gm.grip) : target.copy(GRIP_AT)) : target.set(0, 0, 0);
     let rightT: THREE.Vector3 = grip;
     if (throwing) {
       // overhand throw with the right arm
       const p = (now - m.throwAt) / 450;
       rightT = g.localToWorld(kp[7].set(0.1 + p * 0.5, 1.45 - p * 0.35, 0.18));
     }
-    const front = gr && inner ? inner.localToWorld(ikF.copy(weapon === 0 ? PISTOL_FRONT : FRONT_AT)) : grip;
+    const front = gr && inner ? inner.localToWorld(gm?.front ? ikF.fromArray(gm.front) : ikF.copy(weapon === 0 ? PISTOL_FRONT : FRONT_AT)) : grip;
     let leftT: THREE.Vector3 = front;
     let carry = 0; // what the left hand holds: 1 a magazine, 2 a shell, 3 a rifle round
     if (rp >= 0 && gr && !throwing) {

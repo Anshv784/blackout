@@ -1,4 +1,6 @@
 import * as THREE from "three";
+import { useMemo } from "react";
+import { useGLTF } from "@react-three/drei";
 /** `n` names a moving part the reload animates: the magazine, the shotgun's pump, the Talon's bolt */
 type Part = { p: [number, number, number]; s: [number, number, number]; c?: string; r?: number; ry?: number; cyl?: boolean; glow?: string; n?: string };
 
@@ -147,7 +149,7 @@ const GUNS: Part[][] = [
 
 // where the under-barrel torch sits on each gun (x along the barrel, from the hand)
 /** where the barrel ends, relative to the player (forward, height): shots and flashes start here */
-export const MUZZLE_FWD = [0.28, 0.47, 0.67, 0.61, 0.82, 0.71, 0.72, 0.53]; // = 0.05 - 0.17 + 0.72 x each barrel's end
+export const MUZZLE_FWD = [0.254, 0.312, 0.679, 0.542, 0.83, 0.71, 0.629, 0.571]; // = 0.05 - 0.17 + 0.72 x each barrel's end
 export const MUZZLE_Y = 1.0;
 export function muzzleAt(x: number, y: number, aimRad: number, weapon: number, crouch = false) {
   const f = MUZZLE_FWD[weapon] ?? 0.6;
@@ -261,6 +263,110 @@ export function skinTexture(i: number): THREE.Texture | null {
   return t;
 }
 
+/** Real gun models (CC-BY, credits in CREDITS.md). Each is turned so its barrel runs along +x,
+ *  scaled to `len` in part space and placed with its rear end at `rear`; `flip` fixes models
+ *  that point the other way or sit upside down; `y` lifts it so the grip meets the right hand. */
+export interface GunModel {
+  url: string;
+  len: number;
+  rear: number;
+  y: number;
+  flip?: [boolean, boolean];
+  /** extra turn about the barrel (radians), for models lying on their side */
+  roll?: number;
+  /** where this model's pistol grip and handguard are, in part space (hands go here) */
+  grip?: [number, number, number];
+  front?: [number, number, number];
+}
+export const GUN_MODELS: Partial<Record<number, GunModel>> = {
+  0: { url: "/models/guns/pistol.glb", len: 0.27, rear: 0.25, y: -0.02, flip: [true, false] },
+  1: { url: "/models/guns/smg.glb", len: 0.55, rear: 0.05, y: -0.01, grip: [0.42, -0.07, 0.045], front: [0.55, -0.065, -0.045] },
+  2: { url: "/models/guns/shotgun.glb", len: 1.0, rear: 0.11, y: -0.01 },
+  3: { url: "/models/guns/rifle.glb", len: 0.95, rear: -0.03, y: -0.01, flip: [true, false] },
+  4: { url: "/models/guns/sniper.glb", len: 1.2, rear: 0.12, y: 0.0 },
+  6: { url: "/models/guns/lmg.glb", len: 1.08, rear: -0.04, y: -0.01, front: [0.7, -0.065, -0.045] },
+  7: { url: "/models/guns/crossbow.glb", len: 0.86, rear: 0.1, y: 0.0, roll: Math.PI / 2 },
+};
+for (const m of Object.values(GUN_MODELS)) if (m) useGLTF.preload(m.url);
+
+/** the transform that lays a model along +x at its slot's size (cached per url) */
+const fitCache = new Map<string, THREE.Matrix4>();
+function fitFor(scene: THREE.Object3D, m: GunModel) {
+  const hit = fitCache.get(m.url + JSON.stringify(m.flip ?? []) + (m.roll ?? 0) + m.len + m.rear + m.y);
+  if (hit) return hit;
+  scene.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(scene);
+  const size = box.getSize(new THREE.Vector3());
+  const centre = box.getCenter(new THREE.Vector3());
+  // longest axis -> x (the barrel), next longest -> y (the height)
+  const ax = [0, 1, 2].sort((a, b) => size.getComponent(b) - size.getComponent(a));
+  const basis = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)];
+  const X = basis[ax[0]].clone().multiplyScalar(m.flip?.[0] ? -1 : 1);
+  const Y = basis[ax[1]].clone().multiplyScalar(m.flip?.[1] ? -1 : 1);
+  const Z = new THREE.Vector3().crossVectors(X, Y);
+  // rows of the rotation = the model axes that become x, y, z
+  const rot = new THREE.Matrix4().set(X.x, X.y, X.z, 0, Y.x, Y.y, Y.z, 0, Z.x, Z.y, Z.z, 0, 0, 0, 0, 1);
+  const k = m.len / size.getComponent(ax[0]);
+  const mat = new THREE.Matrix4()
+    .makeTranslation(m.rear + m.len / 2, m.y, 0)
+    .multiply(new THREE.Matrix4().makeRotationX(m.roll ?? 0))
+    .multiply(new THREE.Matrix4().makeScale(k, k, k))
+    .multiply(rot)
+    .multiply(new THREE.Matrix4().makeTranslation(-centre.x, -centre.y, -centre.z));
+  fitCache.set(m.url + JSON.stringify(m.flip ?? []) + (m.roll ?? 0) + m.len + m.rear + m.y, mat);
+  return mat;
+}
+
+const modelMats = new Map<string, THREE.Material>();
+function ModelGun({ m, finish, skin, ghost }: { m: GunModel; finish?: string; skin: number; ghost: boolean }) {
+  const gltf = useGLTF(m.url) as any;
+  const obj = useMemo(() => {
+    const root = gltf.scene.clone(true) as THREE.Object3D;
+    const fit = fitFor(gltf.scene, m);
+    const holder = new THREE.Group();
+    holder.add(root);
+    root.matrixAutoUpdate = false;
+    root.matrix.copy(fit);
+    const tint = finish && finish !== "#ffffff" ? new THREE.Color(finish) : null;
+    const skinMap = skinTexture(skin);
+    root.traverse((o: any) => {
+      if (!o.isMesh) return;
+      o.castShadow = true;
+      o.frustumCulled = false;
+      const key = `${m.url}:${o.material.uuid}:${finish}:${skin}:${ghost}`;
+      let mat = modelMats.get(key) as THREE.MeshStandardMaterial | undefined;
+      if (!mat) {
+        mat = (o.material as THREE.MeshStandardMaterial).clone();
+        if (!mat.map && !skinMap) {
+          mat.color = new THREE.Color("#3b3f46");
+          mat.metalness = 0.6;
+          mat.roughness = 0.45;
+        }
+        if (tint) mat.color = (mat.color ?? new THREE.Color(1, 1, 1)).clone().lerp(tint, 0.55);
+        if (skinMap) {
+          // the pattern replaces the paint; the model's own normal and roughness maps keep the detail
+          mat.map = skinMap;
+          mat.color = tint ? tint.clone().multiplyScalar(0.7) : new THREE.Color(0.62, 0.62, 0.62);
+          if (skin === 6) {
+            mat.emissive = new THREE.Color("#ff6a1a");
+            mat.emissiveMap = skinMap;
+            mat.emissiveIntensity = 0.5;
+          }
+        }
+        if (ghost) {
+          mat.transparent = true;
+          mat.opacity = 0.35;
+        }
+        mat.needsUpdate = true;
+        modelMats.set(key, mat);
+      }
+      o.material = mat;
+    });
+    return holder;
+  }, [gltf, m, finish, skin, ghost]);
+  return <primitive object={obj} />;
+}
+
 export function Gun({ weapon, ghost = false, display = false, torch = false, finish, skin = 0 }: { weapon: number; ghost?: boolean; display?: boolean; torch?: boolean; finish?: string; skin?: number }) {
   const skinMap = skinTexture(skin);
   // on a loot crate the gun is shown off: lighter steel so you can tell what it is in the dark
@@ -272,9 +378,11 @@ export function Gun({ weapon, ghost = false, display = false, torch = false, fin
   const tx = TORCH_X[weapon] ?? 0.5;
   const parts = GUNS[weapon] ?? GUNS[0];
   const op = ghost ? 0.35 : 1;
+  const model = GUN_MODELS[weapon];
   return (
     <>
-      {parts.map((pt, i) =>
+      {model && <ModelGun m={model} finish={finish} skin={skin} ghost={ghost} />}
+      {(model ? [] : parts).map((pt, i) =>
         pt.glow ? (
           <mesh key={i} position={pt.p}>
             <boxGeometry args={pt.s} />
@@ -292,7 +400,7 @@ export function Gun({ weapon, ghost = false, display = false, torch = false, fin
           </mesh>
         ),
       )}
-      {!display && (
+      {!display && !model && (
         // the torch under the barrel: body, and a lens that glows when it's on
         <group position={[tx, -0.075, 0]}>
           <mesh rotation-z={Math.PI / 2}>

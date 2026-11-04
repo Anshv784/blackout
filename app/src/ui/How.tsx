@@ -382,6 +382,12 @@ export function How() {
           ENTER THE YARD
         </button>
       </div>
+      <section className="how-credits">
+        <b>3D GUN MODELS</b>
+        <p>
+          Licensed CC BY 4.0, resized and recoloured for BLACKOUT: "9mm Pistol" and "SMG_90" by TORI106 · "Jolly the Shotgun" by Csaba Baity (tsabszy) · "SG553 Assault Rifle" by wburton · "Sniper" and "LMG" by DJMaesen · "Crossbow" by Pieter Ferreira · all on Sketchfab.
+        </p>
+      </section>
     </div>
   );
 }
