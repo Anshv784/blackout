@@ -95,11 +95,11 @@ function Pedestal({ i, n, gap, rows, seat, onTake, onMakeHost, onKick, onSelf }:
           onPointerOver={() => seat.me && (document.body.style.cursor = "pointer")}
           onPointerOut={() => (document.body.style.cursor = "")}
         >
-          <Avatar color={color} me={seat.me} ring={false} look={seat.look} motion={motion} />
+          <Avatar color={color} me={seat.me} ring={false} weapon={3} look={seat.look} motion={motion} />
         </group>
       ) : (
         <group ref={g} position={[0, 0.23, 0]} scale={1.3}>
-          <Avatar color={color} ghost ring={false} />
+          <Avatar color={color} ghost ring={false} weapon={3} />
         </group>
       )}
             <object3D ref={aimAt} position={[0, 1.1, 0]} />
