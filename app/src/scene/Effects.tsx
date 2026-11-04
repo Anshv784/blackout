@@ -336,65 +336,6 @@ function Nades({ session }: { session: Session }) {
   );
 }
 
-/** Holding G: a dotted arc to where the throw lands, and a ring for what it'll cover. */
-function ThrowPreview({ session }: { session: Session }) {
-  const dots = useRef<THREE.InstancedMesh>(null);
-  const ring = useRef<THREE.Mesh>(null);
-  const tmp = useMemo(() => new THREE.Object3D(), []);
-  const wasHeld = useRef(0);
-  useFrame(() => {
-    const d = dots.current;
-    const r = ring.current;
-    if (!d || !r) return;
-    const v = session.view;
-    const p = session.myPos();
-    const kind = v?.inv?.gadget ?? 0;
-    const show = !!controls.gadgetHeld && !!p && v?.me.alive === 1 && (v?.inv?.count ?? 0) > 0 && kind >= 1 && kind <= 5 && session.room?.status === ST_LIVE;
-    if (controls.gadgetHeld && controls.gadgetHeld !== wasHeld.current && show) audio.fuse();
-    wasHeld.current = controls.gadgetHeld;
-    const path = show ? flightPath(p!.x, p!.y, session.input.aim) : null;
-    if (!path) {
-      d.count = 0;
-      r.visible = false;
-      return;
-    }
-    // dots every half tick along the lob
-    let n = 0;
-    for (let t = 0; t < NADE_TTL && n < 36; t += 0.5) {
-      const a = path[Math.floor(t)];
-      const b = path[Math.min(NADE_TTL, Math.floor(t) + 1)];
-      const f = t - Math.floor(t);
-      tmp.position.set((a[0] + (b[0] - a[0]) * f) / 256, nadeY(t), (a[1] + (b[1] - a[1]) * f) / 256);
-      const s = 1 - (t / NADE_TTL) * 0.5;
-      tmp.scale.set(s, s, s);
-      tmp.updateMatrix();
-      d.setMatrixAt(n++, tmp.matrix);
-    }
-    d.count = n;
-    d.instanceMatrix.needsUpdate = true;
-    const end = path[NADE_TTL];
-    r.visible = true;
-    r.position.set(end[0] / 256, 0.04, end[1] / 256);
-    const rad = BLAST_R[kind] ?? 1;
-    r.scale.set(rad, rad, 1);
-    (r.material as THREE.MeshBasicMaterial).color.set(kind === 1 ? "#ff5a3c" : kind === 3 ? "#ffffff" : "#ffd84a");
-  });
-  return (
-    <>
-      <instancedMesh ref={dots} args={[undefined, undefined, 36]} frustumCulled={false}>
-        <sphereGeometry args={[0.055, 6, 6]} />
-        <meshBasicMaterial color="#ffd84a" transparent opacity={0.9} toneMapped={false} depthWrite={false} />
-      </instancedMesh>
-      <mesh ref={ring} rotation-x={-Math.PI / 2} visible={false}>
-        <ringGeometry args={[0.94, 1, 48]} />
-        <meshBasicMaterial transparent opacity={0.55} toneMapped={false} depthWrite={false} side={THREE.DoubleSide} />
-      </mesh>
-    </>
-  );
-}
-
-// ------------------------------------------------------------------ rain
-
 function Rain({ session }: { session: Session }) {
   const N = TOUCH ? 350 : 1400;
   const geo = useMemo(() => {
@@ -793,7 +734,6 @@ export function Effects({ session }: { session: Session }) {
       <DropBeacon session={session} />
       <SmokeAndBooms session={session} />
       <Nades session={session} />
-      <ThrowPreview session={session} />
       {p.weather && <Lightning session={session} />}
       {p.weather && rich && <Rain session={session} />}
       {rich && <DustMotes session={session} />}

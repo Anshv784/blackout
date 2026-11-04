@@ -2501,17 +2501,22 @@ button {
 .cs-card.on img{background:radial-gradient(circle at 50% 70%,rgba(255,209,102,.32),transparent 70%)}
 
 /* radial emote wheel */
-.ew-veil{position:fixed;inset:0;z-index:40;background:radial-gradient(circle at center,rgba(0,0,0,.15),rgba(0,0,0,.45))}
-.ew{position:fixed;width:0;height:0;animation:ewin .18s cubic-bezier(.2,.9,.3,1.2) both}
-@keyframes ewin{from{transform:scale(.6);opacity:0}to{transform:none;opacity:1}}
-.ew-ring{position:absolute;left:-128px;top:-128px;width:256px;height:256px;border-radius:50%;background:radial-gradient(circle,rgba(8,10,16,.55) 34%,rgba(8,10,16,.88) 35%,rgba(8,10,16,.88) 62%,transparent 63%);border:1px solid rgba(255,209,102,.25);pointer-events:none}
-.ew-item{position:absolute;left:-36px;top:-30px;width:72px;height:60px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border-radius:14px;background:rgba(14,16,24,.92);border:1px solid rgba(255,255,255,.1);color:var(--fg);cursor:pointer;font:inherit;transition:border-color .12s,background .12s}
-.ew-item span{font-size:22px;line-height:1}
-.ew-item b{font-size:10.5px;letter-spacing:.06em;font-weight:600}
-.ew-item:hover{border-color:var(--gold);background:rgba(40,34,18,.95)}
-.ew-item.on{border-color:var(--gold);color:var(--gold)}
-.ew-center{position:absolute;left:-34px;top:-34px;width:68px;height:68px;border-radius:50%;background:rgba(255,209,102,.12);border:1px solid rgba(255,209,102,.4);color:var(--gold);font:inherit;font-size:10px;font-weight:700;letter-spacing:.16em;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
-.ew-center small{font-size:8.5px;color:var(--dim);letter-spacing:.1em;font-weight:400}
+.ew-veil{position:fixed;inset:0;z-index:40;background:radial-gradient(circle at center,rgba(0,0,0,.2),rgba(0,0,0,.5))}
+.ew{position:fixed;width:0;height:0;animation:ewin .2s cubic-bezier(.2,.9,.3,1.15) both}
+@keyframes ewin{from{transform:scale(.7) rotate(-12deg);opacity:0}to{transform:none;opacity:1}}
+.ew-svg{position:absolute;left:0;top:0;transform:translate(-50%,-50%);overflow:visible}
+.ew-halo{fill:none;stroke:rgba(255,209,102,.18);stroke-width:1}
+.ew-slice{fill:rgba(10,12,18,.88);stroke:rgba(255,255,255,.08);stroke-width:1;cursor:pointer;transition:fill .12s,stroke .12s}
+.ew-slice.on{stroke:rgba(255,209,102,.55)}
+.ew-slice.hot{fill:rgba(255,209,102,.16);stroke:var(--gold)}
+.ew-label{position:absolute;left:0;top:0;display:flex;flex-direction:column;align-items:center;gap:2px;color:#aab2c6;pointer-events:none;transition:color .12s,transform .12s}
+.ew-label .ew-glyph{width:30px;height:30px}
+.ew-label i{font-style:normal;font-family:var(--mono);font-size:9px;color:#5f677c}
+.ew-label.on{color:#e9d9ad}
+.ew-label.hot{color:var(--gold)}
+.ew-core{position:absolute;left:0;top:0;transform:translate(-50%,-50%);width:96px;height:96px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;background:radial-gradient(circle,rgba(30,26,14,.95),rgba(10,12,18,.95));border:1px solid rgba(255,209,102,.4);pointer-events:none;text-align:center}
+.ew-core b{font-size:12px;letter-spacing:.16em;color:var(--gold)}
+.ew-core small{font-size:8.5px;letter-spacing:.08em;color:var(--dim)}
 
 /* Operator page: adapt to every screen */
 @media (max-height:820px) and (min-width:861px){
