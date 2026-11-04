@@ -120,7 +120,6 @@ export function EmoteWheel({ x, y, current, onPick, onClose }: { x: number; y: n
         })}
         <div className="ew-core">
           <b>{EMOTES[shown]?.name.toUpperCase()}</b>
-          <small>{hover === null ? "pick an emote" : "click to play"}</small>
         </div>
       </div>
     </div>
