@@ -141,7 +141,9 @@ pub const JUMP_COST: u32 = 15;
 /// `moved` packs: bit 1 sprinting, bit 2 winded, bit 3 crouched, bits 4-7 jump ticks left,
 /// bits 8-15 fatigue. Mirrored in sim.ts moveStep.
 pub fn move_step(moved: u32, buttons: u32, dx: i32, dy: i32, downed: bool) -> (i32, bool, u32) {
-    let crouch = !downed && buttons & BTN_CROUCH != 0;
+    let prone = !downed && buttons & BTN_PRONE != 0;
+    // prone counts as crouched too (quiet steps, no sprint, no jump), only lower and slower
+    let crouch = prone || (!downed && buttons & BTN_CROUCH != 0);
     let btn = if downed { 0 } else if crouch { buttons & !BTN_SPRINT } else { buttons };
     let (sprinting, mut fatigue, winded) = sprint_step(moved, btn, dx, dy);
     let mut jt = (moved >> 4) & 0xf;
@@ -151,8 +153,8 @@ pub fn move_step(moved: u32, buttons: u32, dx: i32, dy: i32, downed: bool) -> (i
         jt = JUMP_TICKS;
         fatigue += JUMP_COST;
     }
-    let speed = if downed { CRAWL_SPEED } else if crouch { SNEAK_SPEED } else if sprinting { SPRINT_SPEED } else { SPEED };
-    let word = (sprinting as u32) << 1 | (winded as u32) << 2 | (crouch as u32) << 3 | jt << 4 | (fatigue & 0xff) << 8;
+    let speed = if downed || prone { CRAWL_SPEED } else if crouch { SNEAK_SPEED } else if sprinting { SPRINT_SPEED } else { SPEED };
+    let word = (sprinting as u32) << 1 | (winded as u32) << 2 | (crouch as u32) << 3 | jt << 4 | (fatigue & 0xff) << 8 | if prone { PRONE_BIT } else { 0 };
     (speed, sprinting, word)
 }
 

@@ -116,13 +116,16 @@ export const packMoved = (moved: boolean, sprinting: boolean, winded: boolean, f
 // crouch + jump (mirror of the program's sim/ move_step)
 export const BTN_CROUCH = 32;
 export const BTN_JUMP = 64;
+export const BTN_PRONE = 128;
+export const PRONE_BIT = 1 << 16;
 export const SNEAK_SPEED = 28;
 export const JUMP_TICKS = 10;
 export const JUMP_COST = 15;
 
 /** One tick of movement state: [speed, sprinting, word without the moved bit]. */
 export function moveStep(moved: number, buttons: number, dx: number, dy: number, downed: boolean): [number, boolean, number] {
-  const crouch = !downed && (buttons & BTN_CROUCH) !== 0;
+  const prone = !downed && (buttons & BTN_PRONE) !== 0;
+  const crouch = prone || (!downed && (buttons & BTN_CROUCH) !== 0);
   const btn = downed ? 0 : crouch ? buttons & ~BTN_SPRINT : buttons;
   const [sprinting, fat0, winded] = sprintStep(moved, btn, dx, dy);
   let fatigue = fat0;
@@ -132,8 +135,8 @@ export function moveStep(moved: number, buttons: number, dx: number, dy: number,
     jt = JUMP_TICKS;
     fatigue += JUMP_COST;
   }
-  const speed = downed ? CRAWL_SPEED : crouch ? SNEAK_SPEED : sprinting ? SPRINT_SPEED : SPEED;
-  const word = ((sprinting ? 1 : 0) << 1) | ((winded ? 1 : 0) << 2) | ((crouch ? 1 : 0) << 3) | (jt << 4) | ((fatigue & 0xff) << 8);
+  const speed = downed || prone ? CRAWL_SPEED : crouch ? SNEAK_SPEED : sprinting ? SPRINT_SPEED : SPEED;
+  const word = ((sprinting ? 1 : 0) << 1) | ((winded ? 1 : 0) << 2) | ((crouch ? 1 : 0) << 3) | (jt << 4) | ((fatigue & 0xff) << 8) | (prone ? PRONE_BIT : 0);
   return [speed, sprinting, word];
 }
 

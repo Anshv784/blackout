@@ -853,3 +853,17 @@ mod ghillie {
         assert!(seen(true, true, true), "firing gives you away even in the suit");
     }
 }
+
+#[cfg(test)]
+mod prone {
+    use super::*;
+
+    #[test]
+    fn prone_is_a_slow_silent_crawl() {
+        let (speed, sprint, word) = move_step(0, BTN_PRONE | BTN_SPRINT | BTN_JUMP, 127, 0, false);
+        assert_eq!(speed, CRAWL_SPEED);
+        assert!(!sprint, "no sprinting flat on your belly");
+        assert!(word & PRONE_BIT != 0 && word & 8 != 0, "prone also counts as crouched (quiet)");
+        assert_eq!((word >> 4) & 0xf, 0, "no jumping while prone");
+    }
+}

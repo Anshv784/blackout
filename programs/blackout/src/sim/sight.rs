@@ -29,6 +29,15 @@ pub fn push_ping(v: &mut View, tick: u32, angle: u32, kind: u32, dist: u32) {
     v.ping_head = v.ping_head.wrapping_add(1);
 }
 
+/// The emote a player is showing: the input's spare byte (when no throw is being aimed).
+fn emote_flag(p: &PlayerState) -> u32 {
+    if p.buttons & BTN_GADGET != 0 || p.moved & 1 != 0 {
+        return 0;
+    }
+    ((p.buttons >> 8) & 0xf).min(EMOTE_COUNT) << VIS_EMOTE_SHIFT
+}
+const EMOTE_COUNT: u32 = 6;
+
 pub fn compute_sight(room: &Room, w: &World, live: bool, t: u32, tick: u32) -> Sight {
     let m = map_of(room);
     // BLACKOUT: halfway through the night every flashlight dies for 10 s
@@ -113,7 +122,7 @@ pub fn compute_sight(room: &Room, w: &World, live: bool, t: u32, tick: u32) -> S
                 && (!one_light || v == carrier)
                 // crouched in a ghillie suit and not firing: torches and eyes slide past you
                 && !(wears_ghillie(room, w, q) && pq.moved & 8 != 0 && pq.last_shot + 2 < tick + 1 && d2 > (GHILLIE_R as i64).pow(2))
-                && d2 <= (if pq.moved & 8 != 0 { vr * 7 / 10 } else { vr } as i64).pow(2)
+                && d2 <= (if pq.moved & PRONE_BIT != 0 { vr * 45 / 100 } else if pq.moved & 8 != 0 { vr * 7 / 10 } else { vr } as i64).pow(2)
                 && angle_diff(pv.aim, atan2(pq.y - pv.y, pq.x - pv.x)) <= cone
                 && line_of_sight(m, pv.x, pv.y, pq.x, pq.y)
                 && !smoked(smokes, pv.x, pv.y, pq.x, pq.y)
@@ -272,7 +281,7 @@ pub fn write_view(room: &Room, w: &World, view: &mut View, v: usize, sight: &Sig
             continue;
         }
         let pq = w.players[q];
-        view.players[n] = VisPlayer { seat: q as u32, x: pq.x, y: pq.y, aim: pq.aim, hp: pq.hp, weapon: pq.weapon, flags: f | if wears_ghillie(room, w, q) { VIS_GHILLIE } else { 0 } };
+        view.players[n] = VisPlayer { seat: q as u32, x: pq.x, y: pq.y, aim: pq.aim, hp: pq.hp, weapon: pq.weapon, flags: f | if wears_ghillie(room, w, q) { VIS_GHILLIE } else { 0 } | if pq.moved & PRONE_BIT != 0 { VIS_PRONE } else { 0 } | emote_flag(&pq) };
         n += 1;
     }
     view.n_players = n as u32;

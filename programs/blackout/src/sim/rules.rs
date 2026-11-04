@@ -79,6 +79,12 @@ pub const PING_SMOKE: u32 = 7;
 pub const PING_SENSOR: u32 = 8;
 pub const PING_BOOM: u32 = 9;
 pub const CRAWL_SPEED: i32 = 18;
+/// lying prone: a slow crawl, silent, and seen at under half the usual range
+pub const BTN_PRONE: u32 = 128;
+pub const PRONE_BIT: u32 = 1 << 16;
+pub const VIS_PRONE: u32 = 1 << 16;
+/// bits 12-15 of a seen player's flags: the emote they're doing (1-based, 0 = none)
+pub const VIS_EMOTE_SHIFT: u32 = 12;
 pub const BLEED_TICKS: u32 = 300;
 pub const REVIVE_TICKS: u32 = 60;
 pub const REVIVE_R: i32 = 5 * UNIT / 4;

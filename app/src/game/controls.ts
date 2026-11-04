@@ -12,6 +12,8 @@ export const controls = {
   touchCrouch: false,
   touchJump: false,
   fireUntil: 0, // a click always fires for >= 3 server ticks
+  prone: false, // Ctrl toggles lying flat
+  emoteAt: 0, // performance.now() the signature emote was asked for (B); moving or firing ends it
   throwTiles: 0, // ground distance from you to the crosshair / cursor, in tiles (aimed throws)
   gadgetHeld: 0, // performance.now() G (or the touch button) went down: aiming the throw; 0 = not held
   gadgetUntil: 0, // released: the throw goes out for a few ticks
@@ -134,8 +136,19 @@ export function installKeyboard() {
       controls.reloadUntil = performance.now() + 200;
     }
     if (k === "g" && !e.repeat) gadgetDown();
-    if (k === "c" && !e.repeat) controls.crouch = !controls.crouch;
-    if ((k === "shift" || k === " ") && !e.repeat) controls.crouch = false; // sprint / jump stands you up
+    if (k === "c" && !e.repeat) {
+      controls.crouch = !controls.crouch;
+      controls.prone = false;
+    }
+    if (k === "control" && !e.repeat) {
+      controls.prone = !controls.prone;
+      if (controls.prone) controls.crouch = false;
+    }
+    if (k === "b" && !e.repeat) controls.emoteAt = performance.now();
+    if ((k === "shift" || k === " ") && !e.repeat) {
+      controls.crouch = false; // sprint / jump stands you up
+      controls.prone = false;
+    }
     // running without holding Shift: tap Shift, or double-tap W
     if (!e.repeat && !prefs.sprintHold) {
       if (k === "shift") controls.running = !controls.running;
