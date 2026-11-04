@@ -45,14 +45,11 @@ export function KeyGuide({ session, touch }: { session: Session; touch: boolean 
   const live = session.room?.status === ST_LIVE;
   const match = session.room?.matchNo ?? 0;
   const shownFor = useRef(-1);
-  // opens by itself once per night
-  useEffect(() => {
-    if (!live || shownFor.current === match) return;
-    shownFor.current = match;
-    setOpen(true);
-    const t = setTimeout(() => setOpen(false), OPEN_FOR);
-    return () => clearTimeout(t);
-  }, [live, match]);
+  // closed when a night starts: the small "H controls" chip is there; H (or a click) opens it
+  void live;
+  void match;
+  void shownFor;
+  void OPEN_FOR;
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if (controls.menu || (e.target as HTMLElement)?.tagName === "INPUT") return;

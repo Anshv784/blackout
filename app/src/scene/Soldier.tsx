@@ -1105,7 +1105,13 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
         // straight out of the shooting hand, both hands round the grip
         dir.set(1, 0, 0);
       } else dir.normalize();
-      if (dir.x < 0.2) dir.set(1, Math.max(-0.5, dir.y), dir.z).normalize(); // never pointing back into the body
+      // never pointing back or across the body: when the recording's hands cross (crouch walk, mid-step)
+      // fall back towards straight ahead, keeping some of the tilt
+      if (dir.x < 0.6) {
+        const k = THREE.MathUtils.clamp((0.6 - dir.x) / 0.8, 0, 1);
+        dir.lerp(sockV9.set(1, dir.y * 0.4, dir.z * 0.3).normalize(), k).normalize();
+        if (dir.x < 0.5) dir.set(1, Math.max(-0.4, Math.min(0.3, dir.y)), Math.max(-0.4, Math.min(0.4, dir.z))).normalize();
+      }
       // smooth out frame-to-frame wobble in the recording
       if (holdDir.current.lengthSq() < 0.5) holdDir.current.copy(dir);
       holdDir.current.lerp(dir, Math.min(1, dt * 18)).normalize();
