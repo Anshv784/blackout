@@ -477,6 +477,20 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
               POST
             </a>
           </div>
+          <div className="dock-facts">
+            <span>
+              <i>ROOM</i>
+              {room.roomId.toString()}
+            </span>
+            <span>
+              <i>TYPE</i>
+              {isPrivate ? "Private" : staked ? "Staked" : "Public"}
+            </span>
+            <span>
+              <i>MAP</i>
+              {room.map === 1 ? "Meadow" : "Yard"}
+            </span>
+          </div>
         </div>
 
         <div className="dock-cell main">
@@ -522,6 +536,13 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
               </div>
             </div>
           )}
+          <div className="dock-seats">
+            {Array.from({ length: size }, (_, i) => {
+              const taken = room.players[i].toBase58() !== EMPTY;
+              return <i key={i} className={taken ? (i === mySeat ? "me" : "on") : ""} />;
+            })}
+            <span>{size - humans > 0 ? `${size - humans} ${size - humans === 1 ? "bot" : "bots"} fill the empty seats` : "every seat is taken"}</span>
+          </div>
           {mySeat !== null && (
             <a className="dock-leave" onClick={exit}>
               {canStart ? "close room" : "exit room"}
