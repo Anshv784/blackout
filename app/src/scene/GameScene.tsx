@@ -11,6 +11,7 @@ import { Arena, occlusion } from "./Arena";
 import { Avatar, Gun, SEAT_COLORS, aimToRotY } from "./Avatar";
 import { stillMotion, SOLDIER_URL, type Motion } from "./Soldier";
 import type { Session } from "../game/session";
+import { getLook, useLook } from "../game/look";
 import { ST_COUNTDOWN, ST_LIVE, ST_ENDED, MOD_ONE_LIGHT, VIS_LIGHT, VIS_WATCHED, VIS_GHILLIE } from "../chain/layout";
 import { controls, wheelInput, gadgetCancel } from "../game/controls";
 import { prefs, usePrefs, gfx, setPref } from "../game/prefs";
@@ -61,6 +62,7 @@ function MyPlayer({ session }: { session: Session }) {
   const lastPos = useRef({ x: 0, y: 0 });
   const myWeapon = useStore((s) => s.view?.me.weapon ?? 0);
   const myGhillie = useStore((s) => !!s.view?.ghillie);
+  const myLook = useLook((s) => s.look);
   const myAlive = useStore((s) => (s.view?.me.alive ?? 1) !== 0);
   const lastWeaponSound = useRef(myWeapon);
   useEffect(() => {
@@ -129,6 +131,12 @@ function MyPlayer({ session }: { session: Session }) {
     // crouch / jump come from the predicted movement word (bit 3, bits 4-7)
     const pm = session.predMoved;
     mo.crouch = (pm & 8) !== 0;
+    mo.prone = controls.prone && !mo.downed;
+    // your own emote plays the moment you press B (the others see it from the chain)
+    if (controls.emoteAt && mo.emoteAt !== controls.emoteAt) {
+      mo.emote = getLook().emote;
+      mo.emoteAt = controls.emoteAt;
+    } else if (!controls.emoteAt) mo.emoteAt = 0;
     const air = (pm >> 4) & 15;
     if (air > lastAir.current) mo.jumpAt = performance.now();
     lastAir.current = air;
@@ -214,7 +222,7 @@ function MyPlayer({ session }: { session: Session }) {
   return (
     <group ref={group}>
       <group ref={aimGroup}>
-        <Avatar color={SEAT_COLORS[session.mySeat ?? 0]} me weapon={myWeapon} motion={motion} ring={myAlive} ghillie={myGhillie} />
+        <Avatar color={SEAT_COLORS[session.mySeat ?? 0]} me weapon={myWeapon} motion={motion} ring={myAlive} ghillie={myGhillie} look={myLook} />
         {/* volumetric beam: a cone lying along +x */}
         <mesh position={[VISION_TILES / 2 + 0.3, 0.75, 0]} rotation-z={Math.PI / 2} material={beam}>
           <coneGeometry args={[Math.tan(CONE_RAD) * VISION_TILES, VISION_TILES, 48, 1, true]} />
@@ -275,7 +283,7 @@ function Corpses({ session }: { session: Session }) {
     <>
       {bodies.map((b) => (
         <group key={`${b.seat}-${b.motion.current.deadAt}`} position={[b.x / 256, 0, b.y / 256]} rotation-y={aimToRotY(b.aim)}>
-          <Avatar color={SEAT_COLORS[b.seat]} weapon={b.weapon} motion={b.motion} ring={false} />
+          <Avatar color={SEAT_COLORS[b.seat]} weapon={b.weapon} motion={b.motion} ring={false} look={b.seat === session.mySeat ? getLook() : session.room?.looks[b.seat]} />
         </group>
       ))}
     </>
@@ -346,6 +354,12 @@ function Others({ session }: { session: Session }) {
         if (mo.firing && now - (mo.shotAt ?? 0) > (COOLDOWN_MS[smp.weapon] ?? 300)) mo.shotAt = now;
         mo.downed = (smp.flags & 16) !== 0;
         mo.crouch = (smp.flags & 256) !== 0;
+        mo.prone = (smp.flags & (1 << 16)) !== 0;
+        const em = (smp.flags >> 12) & 15;
+        if (em && (mo.emote !== em - 1 || !mo.emoteAt)) {
+          mo.emote = em - 1;
+          mo.emoteAt = now;
+        } else if (!em) mo.emoteAt = 0;
         // One Light nights: only the carrier's torch burns, and it's how you find them
         mo.torch = session.room?.nightMod !== MOD_ONE_LIGHT || (smp.flags & VIS_LIGHT) !== 0;
         const inAir = (smp.flags & 128) !== 0;
@@ -382,7 +396,7 @@ function Others({ session }: { session: Session }) {
       {Array.from({ length: 8 }, (_, s) => (
         <group key={s}>
           <group ref={(el) => (refs.current[s] = el)} visible={false}>
-            <Avatar color={SEAT_COLORS[s]} weapon={weapons[s]} motion={motionRefs[s]} ghillie={lastGhillie.current[s]} />
+            <Avatar color={SEAT_COLORS[s]} weapon={weapons[s]} motion={motionRefs[s]} ghillie={lastGhillie.current[s]} look={session.room?.looks[s]} />
             <Html position={[0, 1.6, 0]} center zIndexRange={[4, 0]} style={{ pointerEvents: "none" }}>
               <div className="tag" ref={(el) => (labels.current[s] = el)} style={{ ["--c" as any]: SEAT_COLORS[s] }}>
                 <span>{room?.names[s] || `#${s}`}</span>
@@ -1151,15 +1165,20 @@ function InputController({ session }: { session: Session }) {
       // gadgets throw on release (night vision just switches on)
       (now < controls.gadgetUntil || (controls.gadgetHeld && session.view?.inv?.gadget === 6) ? 8 : 0) |
       (controls.crouch || controls.touchCrouch ? 32 : 0) |
+      (controls.prone ? 128 : 0) |
       (controls.keys.has(" ") || controls.touchJump ? 64 : 0) |
       (controls.keys.has("x") || controls.keys.has("1") || controls.keys.has("2") || now < controls.swapUntil ? 16 : 0);
     const throwing = controls.gadgetHeld || now < controls.gadgetUntil;
-    session.setInput(dx * 127, dy * 127, aim, buttons | (throwing ? throwByte() << 8 : 0));
+    // your signature emote (B): shown to everyone who can see you, until you move or fire
+    if (controls.emoteAt && (m > 0.1 || (buttons & 1) !== 0 || now - controls.emoteAt > EMOTE_MS)) controls.emoteAt = 0;
+    const emoteByte = controls.emoteAt ? getLook().emote + 1 : 0;
+    session.setInput(dx * 127, dy * 127, aim, buttons | (throwing ? throwByte() << 8 : emoteByte << 8));
     session.frame();
   });
   return null;
 }
 
+const EMOTE_MS = 4500;
 /** The throw byte for where the crosshair is on the ground (touch: a mid-range lob). */
 function throwByte() {
   const tiles = controls.touchAim !== null ? 5 : Math.min(THROW_MAX_TILES, Math.max(1, controls.throwTiles || THROW_MAX_TILES));

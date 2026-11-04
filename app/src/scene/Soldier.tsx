@@ -8,9 +8,11 @@ import * as THREE from "three";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { Gun, MUZZLE_FWD } from "./Gun";
 import { dropMag } from "./Details";
+import { ANIMS_URL, CHARACTERS, OUTFITS, FINISHES, EMOTES, DEFAULT_LOOK, type Look } from "../game/look";
 
 export const SOLDIER_URL = "/models/soldier-v2.glb";
 useGLTF.preload(SOLDIER_URL);
+useGLTF.preload(ANIMS_URL);
 
 /** What the body should be doing this frame. Parents write it, the soldier reads it. */
 export interface Motion {
@@ -27,6 +29,9 @@ export interface Motion {
   reloadAt?: number; // performance.now() the reload started (your own soldier only)
   reloadDur?: number; // and how long it takes, ms
   pickAt?: number; // performance.now() of a pickup: bend down and grab it
+  prone?: boolean; // lying flat, crawling
+  emote?: number; // index into EMOTES while emoting
+  emoteAt?: number; // performance.now() the emote started (moving or firing cancels it)
 }
 
 const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
@@ -82,6 +87,8 @@ const tmpB = new THREE.Vector3();
 const tmpC = new THREE.Vector3();
 const tmpQ = new THREE.Quaternion();
 const tmpQ2 = new THREE.Quaternion();
+const tmpM = new THREE.Matrix4();
+const tmpM2 = new THREE.Matrix4();
 const ikQ = new THREE.Quaternion();
 const [ikS, ikE, ikH, ikT, ikB, ikD, ikEl, ikF] = Array.from({ length: 8 }, () => new THREE.Vector3());
 
@@ -342,8 +349,68 @@ function ghillieGeometry() {
 }
 const ghillieMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0, side: THREE.DoubleSide });
 
-export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, motion }: { color: string; weapon?: number; ghost?: boolean; ghillie?: boolean; motion?: React.MutableRefObject<Motion> }) {
-  const gltf = useGLTF(SOLDIER_URL) as any;
+const animCache = new Map<string, Record<string, THREE.AnimationClip>>();
+const qa = new THREE.Quaternion();
+const qb = new THREE.Quaternion();
+/** The shared Mixamo clips fitted to one character. Same skeleton (the Mixamo characters): hip
+ *  height scaled to its legs. A skeleton with other rest orientations (the Blender-exported
+ *  original): every rotation is applied as a change from the recording's rest pose onto this
+ *  character's rest pose, and the hips stay put. Locomotion is pinned in place (the game moves
+ *  the body); the reload is trimmed to the upper body. */
+function clipsFor(key: string, src: THREE.AnimationClip[], animRoot: THREE.Object3D, model: THREE.Object3D, retarget: boolean) {
+  const hit = animCache.get(key);
+  if (hit) return hit;
+  const animHip = animRoot.getObjectByName("mixamorigHips")?.position.y ?? 1;
+  const charHip = model.getObjectByName("mixamorigHips")?.position.y ?? animHip;
+  const k = charHip / (animHip || 1);
+  const out: Record<string, THREE.AnimationClip> = {};
+  const inPlace = new Set(["idle", "walk", "run", "crouchwalk", "crouch", "aim"]);
+  for (const c of src) {
+    const tracks: THREE.KeyframeTrack[] = [];
+    for (const t0 of c.tracks) {
+      const t = t0.clone();
+      // the bundle holds one skeleton per clip and the loader renames duplicates (Hips_3...):
+      // point every track back at the real bone name
+      const [rawBone, prop] = t.name.split(".");
+      const bone = rawBone.replace(/_\d+$/, "");
+      t.name = `${bone}.${prop}`;
+      if (prop === "position") {
+        if (!/Hips$/.test(bone) || retarget) continue; // only the hips move, and only on a matching skeleton
+        const v = t.values;
+        const x0 = v[0];
+        const z0 = v[2];
+        for (let i = 0; i < v.length; i += 3) {
+          v[i] = inPlace.has(c.name) ? x0 * k : v[i] * k;
+          v[i + 1] *= k;
+          v[i + 2] = inPlace.has(c.name) ? z0 * k : v[i + 2] * k;
+        }
+      } else if (prop === "quaternion" && retarget) {
+        const ab = animRoot.getObjectByName(bone);
+        const cb = model.getObjectByName(bone);
+        if (!ab || !cb) continue;
+        const restA = ab.quaternion.clone().invert();
+        const restC = cb.quaternion;
+        const v = t.values;
+        for (let i = 0; i < v.length; i += 4) {
+          qa.fromArray(v, i);
+          qb.copy(restC).multiply(restA.clone().multiply(qa)); // this rig's rest, plus the recorded change
+          qb.toArray(v, i);
+        }
+      } else if (prop === "scale") continue;
+      tracks.push(t);
+    }
+    out[c.name] = new THREE.AnimationClip(c.name, c.duration, tracks);
+  }
+  if (out.reload) out.reloadUpper = new THREE.AnimationClip("reloadUpper", out.reload.duration, out.reload.tracks.filter((t) => /Spine|Neck|Head/.test(t.name)));
+  animCache.set(key, out);
+  return out;
+}
+const matCache = new Map<string, THREE.Material>();
+
+export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, look = DEFAULT_LOOK, motion }: { color: string; weapon?: number; ghost?: boolean; ghillie?: boolean; look?: Look; motion?: React.MutableRefObject<Motion> }) {
+  const def = CHARACTERS[look.char] ?? CHARACTERS[0];
+  const gltf = useGLTF(def.url) as any;
+  const animsGltf = useGLTF(ANIMS_URL) as any;
   const root = useRef<THREE.Group>(null);
   const gunRef = useRef<THREE.Group>(null);
   const cloak = useMemo(() => {
@@ -354,8 +421,9 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, mot
     return m;
   }, []);
   const innerRef = useRef<THREE.Group>(null);
-  const { model, mixer, actions, bones, scale, grips } = useMemo(() => {
+  const { model, mixer, actions, bones, scale, grips, clips } = useMemo(() => {
     const model = cloneSkinned(gltf.scene) as THREE.Group;
+    const tint = new THREE.Color(OUTFITS[look.outfit]?.tint ?? "#ffffff");
     const box = new THREE.Box3().setFromObject(gltf.scene);
     const scale = HEIGHT / Math.max(0.01, box.max.y - box.min.y);
     model.traverse((o: any) => {
@@ -374,9 +442,31 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, mot
           o.material.transparent = true;
           o.material.opacity = 0.42;
           o.material.depthWrite = false;
-        } else if (!o.material.userData.real) {
+        } else if (!def.camo) {
+          // the Mixamo characters: their own textures, the chosen outfit tone over them
+          const ck = `${def.key}:${look.outfit}:${o.material.uuid}`;
+          let mat = matCache.get(ck);
+          if (!mat) {
+            const m2 = o.material.clone();
+            m2.color = (m2.color ?? new THREE.Color(1, 1, 1)).clone().multiply(tint);
+            m2.roughness = Math.max(0.55, m2.roughness ?? 0.8);
+            m2.metalness = Math.min(0.3, m2.metalness ?? 0);
+            m2.envMapIntensity = 0.7;
+            mat = m2;
+            matCache.set(ck, mat!);
+          }
+          o.material = mat;
+        } else if (!o.material.userData.real || look.outfit) {
           // the file ships fully matte (roughness 1), which flattens the kit into plastic;
           // a little sheen on the fabric and a glassy visor read as real gear under the lights
+          const ck = `vanguard:${look.outfit}:${o.material.name}`;
+          const cached = matCache.get(ck);
+          if (cached) {
+            o.material = cached;
+            return;
+          }
+          o.material = o.material.clone();
+          matCache.set(ck, o.material);
           const visor = /visor/i.test(o.material.name);
           if (!visor && o.material.map) o.material.map = camo(o.material.map);
           if (visor) o.material.color = new THREE.Color("#3a4048"); // smoked goggles
@@ -384,23 +474,27 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, mot
           o.material.metalness = visor ? 0.7 : 0.05;
           o.material.envMapIntensity = visor ? 1.6 : 0.7;
           o.material.needsUpdate = true;
+          if (!visor) o.material.color = new THREE.Color(1, 1, 1).multiply(tint);
           o.material.userData.real = true;
         }
       }
     });
     const mixer = new THREE.AnimationMixer(model);
-    const clip = (n: string) => gltf.animations.find((a: THREE.AnimationClip) => a.name === n);
+    const b = (n: string) => model.getObjectByName(`mixamorig${n}`)!;
+    // motion-captured clips, shared by every character (same Mixamo skeleton)
+    const clips = clipsFor(def.key, animsGltf.animations, animsGltf.scene, gltf.scene, !!def.camo);
+    // the original keeps its own walk cycle (made for its rig); everyone else uses the recordings
+    const own = (n: string) => gltf.animations.find((a: THREE.AnimationClip) => a.name === n);
     const actions = {
-      idle: mixer.clipAction(clip("Idle")),
-      walk: mixer.clipAction(clip("Walk")),
-      run: mixer.clipAction(clip("Run")),
+      idle: mixer.clipAction(def.camo ? own("Idle") : clips.idle),
+      walk: mixer.clipAction(def.camo ? own("Walk") : clips.walk),
+      run: mixer.clipAction(def.camo ? own("Run") : clips.run),
     };
     Object.values(actions).forEach((a) => {
       a.play();
       a.setEffectiveWeight(0);
     });
     actions.idle.setEffectiveWeight(1);
-    const b = (n: string) => model.getObjectByName(`mixamorig${n}`)!;
     model.updateMatrixWorld(true);
     const grips = { r: gripFor(model, "Right"), l: gripFor(model, "Left") };
     const bones = {
@@ -418,8 +512,28 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, mot
       rUp: b("RightUpLeg"),
       rLeg: b("RightLeg"),
     };
-    return { model, mixer, actions, bones, scale, grips };
-  }, [gltf, ghost, color]);
+    return { model, mixer, actions, bones, scale, grips, clips };
+  }, [gltf, animsGltf, ghost, color, def, look.outfit]);
+  // emotes and the recorded reload: built once per soldier
+  const extra = useMemo(() => {
+    const emotes = EMOTES.map((e) => {
+      const a = clips[e.clip] ? mixer.clipAction(clips[e.clip]) : null;
+      if (a) {
+        a.setLoop(THREE.LoopOnce, 1);
+        a.clampWhenFinished = true;
+        a.setEffectiveWeight(0);
+      }
+      return a;
+    });
+    const reload = clips.reloadUpper ? mixer.clipAction(clips.reloadUpper) : null;
+    if (reload) {
+      reload.play();
+      reload.paused = true;
+      reload.setEffectiveWeight(0);
+    }
+    return { emotes, reload };
+  }, [mixer, clips]);
+  const emoteRef = useRef({ at: 0, idx: -1 });
 
   useEffect(() => () => void mixer.stopAllAction(), [mixer]);
 
@@ -430,6 +544,7 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, mot
   const flashAt = useRef(-1e9);
   const flash = useRef<THREE.Group>(null);
   const crouchK = useRef(0);
+  const proneK = useRef(0);
   const landed = useRef(false); // the fallen pose has been drawn at least once
   const [torchOn, setTorchOn] = useState(false);
   // swapping guns: the old one drops away, the new one comes up (shown gun lags the real one)
@@ -470,6 +585,26 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, mot
     const want = m.downed ? { idle: 0, walk: m.speed > 0 ? 1 : 0, run: 0 } : { idle: m.speed === 0 ? 1 : 0, walk: m.speed === 1 ? 1 : 0, run: m.speed === 2 ? 1 : 0 };
     const k = 1 - Math.pow(0.0005, dt);
     const dying = m.deadAt !== undefined;
+    // emotes: only standing still with the gun quiet; moving or firing ends one
+    const ed = m.emote !== undefined && m.emoteAt ? extra.emotes[m.emote] : null;
+    const edDur = ed ? ed.getClip().duration * 1000 : 0;
+    const emoting = !!ed && !dying && !m.downed && m.speed === 0 && !m.firing && performance.now() - (m.emoteAt ?? 0) < edDur;
+    if (emoting && (emoteRef.current.at !== m.emoteAt || emoteRef.current.idx !== m.emote)) {
+      extra.emotes.forEach((a) => a && a !== ed && a.stop());
+      ed!.reset().play();
+      emoteRef.current = { at: m.emoteAt!, idx: m.emote! };
+    }
+    extra.emotes.forEach((a) => {
+      if (!a) return;
+      const target = emoting && a === ed ? 1 : 0;
+      a.setEffectiveWeight(a.getEffectiveWeight() + (target - a.getEffectiveWeight()) * Math.min(1, dt * 10));
+      if (!emoting && a.getEffectiveWeight() < 0.01 && a.isRunning()) a.stop();
+    });
+    if (emoting) {
+      want.idle = 0;
+      want.walk = 0;
+      want.run = 0;
+    }
     (["idle", "walk", "run"] as const).forEach((n) => {
       if (dying) return; // the pose under a body stays exactly as it was when it fell
       w.current[n] += (want[n] - w.current[n]) * k;
@@ -549,9 +684,18 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, mot
       return;
     }
     if (pool.current) pool.current.visible = false;
+    if (emoting) {
+      // the whole body is the recording's: stand tall, put the gun away
+      model.rotation.x = 0;
+      model.rotation.z = 0;
+      model.position.y = 0;
+      if (gunRef.current) gunRef.current.visible = false;
+      return;
+    }
 
-    // lying on the floor when downed
-    model.rotation.x += ((m.downed ? -1.35 : 0) - model.rotation.x) * k;
+    // lying on the floor when downed (on your back), or prone (on your front, gun forward)
+    // (the original rig faces the other way, so its forward tip is the opposite sign)
+    model.rotation.x += ((m.downed ? -1.35 : m.prone ? (def.camo ? -1.38 : 1.38) : 0) - model.rotation.x) * k;
     model.rotation.z = 0;
     // crouch: sink the hips, bend hips and knees, lean in
     crouchK.current += ((m.crouch && !m.downed ? 1 : 0) - crouchK.current) * (1 - Math.pow(0.0001, dt));
@@ -559,9 +703,17 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, mot
     // jump: a half-second arc with the legs tucked
     const jp = m.jumpAt ? (performance.now() - m.jumpAt) / 500 : 1;
     const jk = jp >= 0 && jp < 1 ? Math.sin(jp * Math.PI) : 0;
-    const lift = -0.26 * ck + 0.55 * jk; // how far the whole body (and the gun with it) moves
-    model.position.y = m.downed ? 0.18 / scale : lift / scale;
-    if (ck > 0.01 || jk > 0.01) {
+    proneK.current += ((m.prone && !m.downed ? 1 : 0) - proneK.current) * (1 - Math.pow(0.002, dt));
+    const pk2 = proneK.current;
+    // how far the whole body (and the gun with it) moves; prone brings the gun down to the grass
+    const lift = (-0.26 * ck + 0.55 * jk) * (1 - pk2) - 0.74 * pk2;
+    model.position.y = m.downed ? 0.18 / scale : pk2 > 0.01 ? (0.12 * pk2) / scale : lift / scale;
+    if (pk2 > 0.01 && !def.camo) {
+      // flat on the belly: legs straight back, head up to look along the gun
+      bones.neck.rotation.x -= 0.9 * pk2;
+      bones.spine.rotation.x -= 0.35 * pk2;
+    }
+    if ((ck > 0.01 || jk > 0.01) && pk2 < 0.5) {
       const bend = Math.max(ck, jk * 0.7);
       bones.lUp.rotation.x -= 0.95 * bend;
       bones.rUp.rotation.x -= 0.95 * bend;
@@ -586,7 +738,8 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, mot
     kick.current *= Math.pow(K[3], dt);
     const kk = kick.current;
     if (gunRef.current) {
-      gunRef.current.position.set(GUN_POS.x - kk * K[0], GUN_POS.y + kk * K[0] * 0.3 + (m.downed ? 0 : lift), GUN_POS.z + kk * 0.012 * roll.current);
+      // prone: the gun goes out in front with the arms, just off the ground
+      gunRef.current.position.set(GUN_POS.x - kk * K[0] + 0.95 * pk2, GUN_POS.y + kk * K[0] * 0.3 + (m.downed ? 0 : lift), GUN_POS.z + kk * 0.012 * roll.current);
       gunRef.current.rotation.set(kk * 0.04 * roll.current, 0, kk * K[1]);
       if (flash.current) {
         const fa = (performance.now() - flashAt.current) / 55;
@@ -816,6 +969,16 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, mot
       }
     }
     if (picking) leftT = kp[8].copy(leftT).lerp(g.localToWorld(kp[5].set(0.5, 0.26, -0.12)), bendK);
+    // magazine guns reload with the motion-captured clip: the arms are the recording's and the
+    // gun rides in the right hand (held where it was when the reload began)
+    const magFed = weapon === 0 || weapon === 1 || weapon === 3 || weapon === 5 || weapon === 6;
+    const mocap = !!extra.reload && magFed && rp >= 0 && !throwing && !m.downed;
+    const mb = mocap ? win(0, 0.08, 0.9, 1, rp) : 0;
+    if (extra.reload) {
+      extra.reload.setEffectiveWeight(mb * 3); // the body's weight shift and head, under our hands
+      if (mocap) extra.reload.time = rp * extra.reload.getClip().duration;
+    }
+    // the right hand always holds the grip; the left arm is the recording's through a mag reload
     g.localToWorld(pole.set(-0.2, 0.7, 0.75));
     reach(bones.rArm, bones.rFore, bones.rHand, rightT, pole);
     g.localToWorld(pole.set(0.25, 0.55, -0.55));
@@ -882,8 +1045,8 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, mot
 
   return (
     <group ref={root}>
-      {/* the mesh faces +z; our players face +x */}
-      <group rotation-y={-Math.PI / 2} scale={scale}>
+      {/* the original mesh faces -z, the Mixamo exports face +z; our players face +x */}
+      <group rotation-y={def.camo ? -Math.PI / 2 : Math.PI / 2} scale={scale}>
         <primitive object={model} />
       </group>
       {/* the death box a body turns into: a compact olive supply case (its footprint matches the
@@ -947,7 +1110,7 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, mot
       </group>
       <group ref={gunRef} position={GUN_POS.toArray()}>
         <group ref={innerRef} position={GUN_INNER.toArray()} scale={GUN_SCALE}>
-          <Gun weapon={shown} ghost={ghost} torch={torchOn} />
+          <Gun weapon={shown} ghost={ghost} torch={torchOn} finish={FINISHES[look.finish]?.tint} />
         </group>
         {/* muzzle flash: two crossed bright cards at the barrel tip, for ~55 ms per shot */}
         <group ref={flash} position={[(MUZZLE_FWD[shown] ?? 0.6) - 0.1, 0, -0.11]} visible={false}>

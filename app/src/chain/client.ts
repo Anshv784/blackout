@@ -1,3 +1,4 @@
+import { encodeLook, getLook } from "../game/look";
 // Blackout chain client: base layer + Private ER (TEE) connections for one identity.
 // Shared by the browser app and the node scripts.
 import * as anchorNs from "@coral-xyz/anchor";
@@ -425,7 +426,8 @@ export class BlackoutClient {
   joinIx(roomId: bigint, seat: number, name: string, payout: PublicKey | null, code = 0, ticket?: PublicKey) {
     const view = viewPda(roomId, seat);
     const nm = new Uint8Array(16);
-    nm.set(new TextEncoder().encode(name.slice(0, 16)).slice(0, 16));
+    nm.set(new TextEncoder().encode(name.slice(0, 12)).slice(0, 12));
+    encodeLook(nm, getLook()); // your character and kit, for everyone at the table
     return ix("join", { seat, name: Array.from(nm), payout: payout ?? PublicKey.default, code }, [
       w(roomPda(roomId)),
       w(view),

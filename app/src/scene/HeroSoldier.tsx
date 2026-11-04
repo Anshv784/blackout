@@ -7,6 +7,7 @@ import * as THREE from "three";
 import { Avatar } from "./Avatar";
 import { stillMotion, type Motion } from "./Soldier";
 import { TOUCH } from "../game/device";
+import { useLook } from "../game/look";
 
 function Studio() {
   const { gl, scene } = useThree();
@@ -28,6 +29,15 @@ function Studio() {
 function Operator({ color }: { color: string }) {
   const g = useRef<THREE.Group>(null);
   const motion = useRef<Motion>({ ...stillMotion(), torch: true });
+  const myLook = useLook((s) => s.look);
+  // say hello: your signature emote once, a moment after the menu opens (and when you change it)
+  useEffect(() => {
+    const t = setTimeout(() => {
+      motion.current.emote = myLook.emote;
+      motion.current.emoteAt = performance.now();
+    }, 1600);
+    return () => clearTimeout(t);
+  }, [myLook.emote, myLook.char]);
   const look = useRef(0);
   useEffect(() => {
     const f = (e: PointerEvent) => (look.current = (e.clientX / window.innerWidth - 0.5) * 0.9);
@@ -43,7 +53,7 @@ function Operator({ color }: { color: string }) {
   });
   return (
     <group ref={g} scale={1.55}>
-      <Avatar color={color} me ring={false} weapon={3} motion={motion} />
+      <Avatar color={color} me ring={false} weapon={3} motion={motion} look={myLook} />
     </group>
   );
 }

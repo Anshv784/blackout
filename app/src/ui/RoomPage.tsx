@@ -1,4 +1,5 @@
 import { MapPicker } from "./MapPicker";
+import { getLook } from "../game/look";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { PublicKey } from "@solana/web3.js";
 import { Session } from "../game/session";
@@ -198,6 +199,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
     const taken = room.players[i].toBase58() !== EMPTY || room.isBot[i] === 1;
     return {
       name: room.names[i],
+      look: i === mySeat ? getLook() : room.looks[i],
       taken,
       bot: room.isBot[i] === 1,
       me: i === mySeat,
@@ -575,6 +577,8 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
           ["Shift", "run"],
           ["Space", "jump"],
           ["C", "sneak"],
+          ["Ctrl", "prone"],
+          ["B", "emote"],
           ["RMB", "scope"],
           ["G", "throw"],
           ["Wheel", "swap"],

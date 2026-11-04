@@ -8,9 +8,11 @@ import { Html, MeshReflectorMaterial } from "@react-three/drei";
 import { EffectComposer, Bloom, Vignette, Noise } from "@react-three/postprocessing";
 import * as THREE from "three";
 import { Avatar, SEAT_COLORS } from "./Avatar";
+import type { Look } from "../game/look";
 
 export interface SeatInfo {
   name: string;
+  look?: Look;
   taken: boolean;
   bot: boolean;
   me: boolean;
@@ -74,7 +76,7 @@ function Pedestal({ i, n, gap, rows, seat, onTake, onMakeHost, onKick }: { i: nu
       </mesh>
       {seat.taken ? (
         <group ref={g} position={[0, 0.23, 0]} scale={1.3}>
-          <Avatar color={color} me={seat.me} ring={false} />
+          <Avatar color={color} me={seat.me} ring={false} look={seat.look} />
         </group>
       ) : (
         <group ref={g} position={[0, 0.23, 0]} scale={1.3}>

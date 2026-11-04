@@ -178,7 +178,7 @@ function Players({ rec, room, me, ctl }: { rec: Recording; room: Room; me: numbe
       {Array.from({ length: 8 }, (_, s) => (
         <group key={s}>
           <group ref={(el) => (groups.current[s] = el)} visible={false}>
-            <Avatar color={SEAT_COLORS[s]} me={s === me} motion={motions[s]} />
+            <Avatar color={SEAT_COLORS[s]} me={s === me} motion={motions[s]} look={room.looks[s]} />
             <Html position={[0, 1.6, 0]} center zIndexRange={[4, 0]} style={{ pointerEvents: "none" }}>
               <div className="tag" ref={(el) => (tags.current[s] = el)} style={{ ["--c" as any]: SEAT_COLORS[s] }}>
                 <span>

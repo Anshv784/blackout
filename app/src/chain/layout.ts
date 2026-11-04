@@ -1,3 +1,4 @@
+import { decodeLook, type Look } from "../game/look";
 // Byte-exact decoders for the on-chain layouts in programs/blackout/src/state.rs.
 import { PublicKey } from "@solana/web3.js";
 
@@ -80,6 +81,8 @@ export interface Room {
   players: PublicKey[];
   payout: PublicKey[];
   names: string[];
+  /** each seat's character and kit (see game/look.ts) */
+  looks: Look[];
   status: number;
   matchNo: number;
   tick: number;
@@ -134,7 +137,9 @@ export function decodeRoom(data: Uint8Array): Room {
   const host = r.key();
   const players = r.arr(MAXP, () => r.key());
   const payout = r.arr(MAXP, () => r.key());
-  const names = r.arr(MAXP, () => decodeName(r.bytes(16)));
+  const rawNames = r.arr(MAXP, () => r.bytes(16));
+  const names = rawNames.map(decodeName);
+  const looks = rawNames.map(decodeLook);
   const status = r.u32();
   const matchNo = r.u32();
   const tick = r.u32();
@@ -158,7 +163,7 @@ export function decodeRoom(data: Uint8Array): Room {
   const readyMask = r.u32();
   const lastSeen = r.arr(MAXP, () => r.u32());
   return {
-    roomId, stake, pot, startSlot, lastTickSlot, taskId, host, players, payout, names, status, matchNo, tick,
+    roomId, stake, pot, startSlot, lastTickSlot, taskId, host, players, payout, names, looks, status, matchNo, tick,
     endTick, nPlayers, nBots, isBot, alive, kills, place, winner, aliveCount, feedHead, feed, zone, next, zonePhase,
     privateCode, seedRevealed, readyMask, lastSeen,
     maxPlayers: cfg & 0xff ? Math.min(8, Math.max(2, cfg & 0xff)) : 8,

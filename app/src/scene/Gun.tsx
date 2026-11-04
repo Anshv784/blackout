@@ -1,3 +1,4 @@
+import * as THREE from "three";
 /** `n` names a moving part the reload animates: the magazine, the shotgun's pump, the Talon's bolt */
 type Part = { p: [number, number, number]; s: [number, number, number]; c?: string; r?: number; ry?: number; cyl?: boolean; glow?: string; n?: string };
 
@@ -158,10 +159,12 @@ export function partRest(weapon: number, name: string) {
   return (GUNS[weapon] ?? GUNS[0]).find((pt) => pt.n === name)?.p;
 }
 
-export function Gun({ weapon, ghost = false, display = false, torch = false }: { weapon: number; ghost?: boolean; display?: boolean; torch?: boolean }) {
+export function Gun({ weapon, ghost = false, display = false, torch = false, finish }: { weapon: number; ghost?: boolean; display?: boolean; torch?: boolean; finish?: string }) {
   // on a loot crate the gun is shown off: lighter steel so you can tell what it is in the dark
   // in hand: gunmetal and polymer that still read in the dark (pure black metal renders as a hole)
-  const tint = (c?: string) =>
+  const fin = finish && finish !== "#ffffff" ? new THREE.Color(finish) : null;
+  const tint = (c?: string) => (fin && c !== W && c !== R ? "#" + new THREE.Color(tint0(c)).lerp(fin, 0.55).getHexString() : tint0(c));
+  const tint0 = (c?: string) =>
     display ? (c === "#3a2a1c" ? "#8a6a48" : !c || c === "#16181e" ? "#6c727e" : "#9aa1ad") : c === "#3a2a1c" ? "#5a4029" : c === "#2a2d35" ? "#4a4f5a" : c === "#16181e" ? "#2a2d34" : c === R ? "#1c1d20" : c ?? "#33373f";
   const tx = TORCH_X[weapon] ?? 0.5;
   const parts = GUNS[weapon] ?? GUNS[0];
