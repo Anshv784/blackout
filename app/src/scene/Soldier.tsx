@@ -83,7 +83,7 @@ export const GUN_SCALE = 0.72;
 /** where the hands go, in the gun's own part space (see Gun.tsx): the right wrist just behind and
  *  outside the pistol grip, the left wrist under and left of the handguard */
 const GRIP_AT = new THREE.Vector3(0.3, -0.075, 0.045);
-const FRONT_AT = new THREE.Vector3(0.62, -0.08, -0.05);
+const FRONT_AT = new THREE.Vector3(0.62, -0.065, -0.045);
 /** a pistol is held two-handed: the support hand cups the shooting hand under the grip */
 const PISTOL_FRONT = new THREE.Vector3(0.36, -0.13, -0.06);
 
@@ -217,6 +217,7 @@ interface Grip {
   axis: THREE.Vector3; // local axis that closes the fingers towards the palm
   hand: THREE.Object3D;
   rest: THREE.Quaternion[][]; // each finger segment's rest rotation (curl starts from here)
+  axes: THREE.Vector3[][]; // each segment's own axis that closes it towards the palm
   finger: THREE.Vector3; // hand-local: wrist -> knuckles
   palm: THREE.Vector3; // hand-local: out of the palm
 }
@@ -228,42 +229,39 @@ const hd = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new T
 function gripFor(model: THREE.Object3D, side: "Left" | "Right"): Grip | null {
   const b = (n: string) => model.getObjectByName(`mixamorig${side}Hand${n}`);
   const chains = ["Index", "Middle", "Ring", "Pinky"].map((f) => [1, 2, 3].map((k) => b(`${f}${k}`)).filter(Boolean) as THREE.Object3D[]);
-  const tip = b("Middle4");
   const wrist = model.getObjectByName(`mixamorig${side}Hand`);
-  if (!tip || !wrist || chains.some((c) => c.length !== 3)) return null;
-  const mid = chains[1];
-  const saved = mid.map((o) => o.quaternion.clone());
-  let best: THREE.Vector3 | null = null;
-  let bestD = Infinity;
-  const w = new THREE.Vector3();
-  const t = new THREE.Vector3();
-  for (const axis of [new THREE.Vector3(1, 0, 0), new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, -1, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -1)]) {
-    mid.forEach((o, i) => o.quaternion.copy(saved[i]).multiply(curlQ.setFromAxisAngle(axis, 0.9)));
-    wrist.updateMatrixWorld(true);
-    const d = w.setFromMatrixPosition(wrist.matrixWorld).distanceTo(t.setFromMatrixPosition(tip.matrixWorld));
-    if (d < bestD) {
-      bestD = d;
-      best = axis;
-    }
-  }
-  mid.forEach((o, i) => o.quaternion.copy(saved[i]));
-  wrist.updateMatrixWorld(true);
-  if (!best) return null;
-  // the hand's own axes, measured: fingers point from the wrist to the middle knuckle, and the
-  // palm faces the way a fingertip moves as the hand closes
-  const knuckle = new THREE.Vector3().setFromMatrixPosition(chains[1][0].matrixWorld);
-  const wristP = new THREE.Vector3().setFromMatrixPosition(wrist.matrixWorld);
-  const fingerW = knuckle.sub(wristP).normalize();
-  const tip0 = new THREE.Vector3().setFromMatrixPosition(tip.matrixWorld);
-  mid.forEach((o, i) => o.quaternion.copy(saved[i]).multiply(curlQ.setFromAxisAngle(best!, 0.5)));
-  wrist.updateMatrixWorld(true);
-  const tip1 = new THREE.Vector3().setFromMatrixPosition(tip.matrixWorld);
-  mid.forEach((o, i) => o.quaternion.copy(saved[i]));
-  wrist.updateMatrixWorld(true);
-  const palmW = tip1.sub(tip0);
-  palmW.addScaledVector(fingerW, -palmW.dot(fingerW)).normalize();
+  const thumbTip = b("Thumb3") ?? b("Thumb2");
+  if (!wrist || !thumbTip || chains.some((c) => c.length !== 3)) return null;
+  model.updateMatrixWorld(true);
+  const W = (o: THREE.Object3D) => new THREE.Vector3().setFromMatrixPosition(o.matrixWorld);
+  // the hand's geometry: fingers run wrist -> middle knuckle; the knuckle line runs index -> pinky;
+  // the palm faces the side the thumb sits on
+  const wristP = W(wrist);
+  const knuckle = W(chains[1][0]);
+  const fingerW = knuckle.clone().sub(wristP).normalize();
+  const across = W(chains[0][0]).sub(W(chains[3][0])).normalize();
+  const palmW = new THREE.Vector3().crossVectors(fingerW, across).normalize();
+  // Mixamo builds its characters in a T-pose with the palms facing the floor
+  if (palmW.y > 0) palmW.negate();
+  void thumbTip;
+  // curling turns each segment about the knuckle line, the way that moves the tip towards the palm
+  const axisW = new THREE.Vector3().crossVectors(palmW, fingerW).normalize(); // tip goes fingerW -> palmW
+  const axes = chains.map((c) =>
+    c.map((o) => {
+      const q = o.getWorldQuaternion(new THREE.Quaternion()).invert();
+      return axisW.clone().applyQuaternion(q).normalize();
+    }),
+  );
   const inv = wrist.getWorldQuaternion(new THREE.Quaternion()).invert();
-  return { chains, rest: chains.map((c) => c.map((o) => o.quaternion.clone())), axis: best, hand: wrist, finger: fingerW.applyQuaternion(inv), palm: palmW.applyQuaternion(inv) };
+  return {
+    chains,
+    rest: chains.map((c) => c.map((o) => o.quaternion.clone())),
+    axis: axes[1][0],
+    axes,
+    hand: wrist,
+    finger: fingerW.applyQuaternion(inv),
+    palm: palmW.applyQuaternion(inv),
+  };
 }
 
 const basisM = new THREE.Matrix4();
@@ -295,65 +293,124 @@ function curl(g: Grip | null, amount: number, trigger = false) {
   if (!g || amount <= 0) return;
   g.chains.forEach((chain, f) => {
     const k = trigger && f === 0 ? 0.55 : 1;
-    chain.forEach((o, seg) => o.quaternion.copy(g.rest[f][seg]).multiply(curlQ.setFromAxisAngle(g.axis, amount * k * [0.95, 1.05, 0.7][seg])));
+    chain.forEach((o, seg) => o.quaternion.copy(g.rest[f][seg]).multiply(curlQ.setFromAxisAngle(g.axes[f][seg], amount * k * [0.95, 1.05, 0.7][seg])));
   });
 }
 
-/** A ghillie suit: hundreds of burlap and leaf strands hanging from a hood and shoulders. One
- *  mesh, built once and shared; placed on the chest bone so it moves (and crouches) with you. */
-let ghillieGeo: THREE.BufferGeometry | null = null;
-function ghillieGeometry() {
-  if (ghillieGeo) return ghillieGeo;
+/** A ghillie suit: thousands of frayed jute strands in layered tufts, in dry-grass, moss, olive
+ *  and dead-leaf tones, with see-through fibre tips (alpha-tested texture). Two pieces: the hood,
+ *  shoulders and back ride the chest bone; a skirt rides the hips so it moves with the legs. */
+let ghillieGeos: { upper: THREE.BufferGeometry; lower: THREE.BufferGeometry } | null = null;
+function strandsGeometry(anchors: [number, number, number, number, number][], seed0: number) {
   const pos: number[] = [];
+  const uv: number[] = [];
   const col: number[] = [];
-  let seed = 7;
+  let seed = seed0;
   const r = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
-  const tones = [[0.24, 0.3, 0.14], [0.32, 0.36, 0.18], [0.36, 0.3, 0.18], [0.18, 0.24, 0.1], [0.42, 0.4, 0.22]];
-  // anchor points: a hood over the head, a ring round the shoulders, the back and the hips
-  const anchors: [number, number, number, number][] = []; // x (fwd), y (up), z (side), strand length
-  for (let i = 0; i < 70; i++) {
-    const a = r() * Math.PI * 2;
-    anchors.push([Math.cos(a) * 0.12, 0.42 + r() * 0.08, Math.sin(a) * 0.12, 0.16 + r() * 0.14]); // hood
-  }
-  for (let i = 0; i < 140; i++) {
-    const a = r() * Math.PI * 2;
-    anchors.push([Math.cos(a) * 0.17 - 0.03, 0.2 + r() * 0.08, Math.sin(a) * 0.24, 0.24 + r() * 0.26]); // shoulders
-  }
-  for (let i = 0; i < 120; i++) {
-    anchors.push([-0.14 - r() * 0.05, -0.2 + r() * 0.4, (r() - 0.5) * 0.4, 0.2 + r() * 0.3]); // back
-  }
-  for (let i = 0; i < 70; i++) {
-    const a = r() * Math.PI * 2;
-    anchors.push([Math.cos(a) * 0.15, -0.3 + r() * 0.06, Math.sin(a) * 0.2, 0.2 + r() * 0.22]); // hips
-  }
-  for (const [x, y, z, len] of anchors) {
-    // a strand: a thin twisted quad hanging down, kinked a little at the middle
-    const w = 0.012 + r() * 0.018;
-    const tw = r() * Math.PI;
-    const dx = Math.cos(tw) * w;
-    const dz = Math.sin(tw) * w;
-    const kx = (r() - 0.5) * 0.05;
-    const kz = (r() - 0.5) * 0.05;
-    const mid = [x + kx, y - len * 0.5, z + kz];
-    const end = [x + kx * 1.6 - 0.02, y - len, z + kz * 1.6];
-    const quad = (a: number[], b: number[]) => {
-      pos.push(a[0] - dx, a[1], a[2] - dz, a[0] + dx, a[1], a[2] + dz, b[0] - dx, b[1], b[2] - dz);
-      pos.push(a[0] + dx, a[1], a[2] + dz, b[0] + dx, b[1], b[2] + dz, b[0] - dx, b[1], b[2] - dz);
-    };
-    quad([x, y, z], mid);
-    quad(mid, end);
-    const t = tones[Math.floor(r() * tones.length)];
-    const k = 0.5 + r() * 0.35; // dusk-dark, like the grass at night
-    for (let v = 0; v < 12; v++) col.push(t[0] * k, t[1] * k, t[2] * k);
+  // jute, dead grass, moss, olive, dry leaf, near-black shadow strands
+  const tones = [[0.42, 0.36, 0.22], [0.5, 0.44, 0.27], [0.27, 0.32, 0.15], [0.34, 0.37, 0.19], [0.4, 0.3, 0.17], [0.16, 0.17, 0.11]];
+  for (const [x, y, z, len, spread] of anchors) {
+    // a tuft: 3-5 strands from one knot, fanned
+    const n = 3 + Math.floor(r() * 3);
+    const t = tones[Math.floor(r() * r() * tones.length * 1.2) % tones.length];
+    for (let k = 0; k < n; k++) {
+      const w = 0.018 + r() * 0.03;
+      const tw = r() * Math.PI;
+      const dx = Math.cos(tw) * w;
+      const dz = Math.sin(tw) * w;
+      const l = len * (0.7 + r() * 0.5);
+      const fx = (r() - 0.5) * spread - 0.01;
+      const fz = (r() - 0.5) * spread;
+      const segs = 3;
+      for (let sgi = 0; sgi < segs; sgi++) {
+        const a = sgi / segs;
+        const b = (sgi + 1) / segs;
+        // hangs down, droops outward a little more towards the tip
+        const P = (u: number) => [x + fx * u * 1.6, y - l * u, z + fz * u * 1.6];
+        const p0 = P(a);
+        const p1 = P(b);
+        pos.push(p0[0] - dx, p0[1], p0[2] - dz, p0[0] + dx, p0[1], p0[2] + dz, p1[0] - dx, p1[1], p1[2] - dz);
+        pos.push(p0[0] + dx, p0[1], p0[2] + dz, p1[0] + dx, p1[1], p1[2] + dz, p1[0] - dx, p1[1], p1[2] - dz);
+        const u0 = (k % 4) / 4;
+        const u1 = u0 + 0.25;
+        uv.push(u0, 1 - a, u1, 1 - a, u0, 1 - b, u1, 1 - a, u1, 1 - b, u0, 1 - b);
+        const kk = 0.5 + r() * 0.35; // dusk-dark, so it melts into the grass at night
+        for (let v = 0; v < 6; v++) col.push(t[0] * kk, t[1] * kk, t[2] * kk);
+      }
+    }
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
   g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
   g.computeVertexNormals();
-  ghillieGeo = g;
   return g;
 }
-const ghillieMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0, side: THREE.DoubleSide });
+function ghillieGeometry() {
+  if (ghillieGeos) return ghillieGeos;
+  let seed = 11;
+  const r = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
+  const up: [number, number, number, number, number][] = [];
+  // hood: a dome over the head, longer at the back and sides, a fringe over the brow
+  for (let i = 0; i < 160; i++) {
+    const a = r() * Math.PI * 2;
+    const e = r() * 0.9;
+    const back = Math.cos(a) < 0 ? 1 : 0.55;
+    up.push([Math.cos(a) * 0.13 * Math.cos(e), 0.38 + Math.sin(e) * 0.14, Math.sin(a) * 0.13 * Math.cos(e), (0.1 + r() * 0.16) * back, 0.12]);
+  }
+  // shoulders and upper arms: a thick mantle
+  for (let i = 0; i < 260; i++) {
+    const a = r() * Math.PI * 2;
+    up.push([Math.cos(a) * (0.15 + r() * 0.05) - 0.02, 0.2 + r() * 0.12, Math.sin(a) * (0.24 + r() * 0.05), 0.22 + r() * 0.3, 0.16]);
+  }
+  // back and chest: layered rows
+  for (let i = 0; i < 300; i++) {
+    const front = r() < 0.35;
+    up.push([front ? 0.13 + r() * 0.03 : -0.15 - r() * 0.04, -0.25 + r() * 0.48, (r() - 0.5) * 0.42, 0.18 + r() * 0.3, 0.12]);
+  }
+  const low: [number, number, number, number, number][] = [];
+  // skirt round the hips and the backs of the thighs
+  for (let i = 0; i < 260; i++) {
+    const a = r() * Math.PI * 2;
+    const backish = Math.cos(a) < 0.2;
+    low.push([Math.cos(a) * 0.16, 0.08 + r() * 0.08, Math.sin(a) * 0.19, (backish ? 0.38 : 0.24) + r() * 0.2, 0.14]);
+  }
+  ghillieGeos = { upper: strandsGeometry(up, 3), lower: strandsGeometry(low, 9) };
+  return ghillieGeos;
+}
+/** a jute fibre strip: twisted threads, gaps between them, frayed thin at the tip */
+function juteTexture() {
+  const c = document.createElement("canvas");
+  c.width = 64;
+  c.height = 128;
+  const g = c.getContext("2d")!;
+  g.clearRect(0, 0, 64, 128);
+  let seed = 5;
+  const r = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
+  for (let q = 0; q < 4; q++) {
+    // four strand variants side by side (uv picks one)
+    for (let f = 0; f < 9; f++) {
+      const x0 = q * 16 + 1 + r() * 14;
+      const end = 70 + r() * 58; // how far down this fibre reaches before it frays out
+      g.strokeStyle = `rgba(255,255,255,${0.75 + r() * 0.25})`;
+      g.lineWidth = 0.8 + r() * 1.4;
+      g.beginPath();
+      g.moveTo(x0, 0);
+      let x = x0;
+      for (let y = 0; y < end; y += 8) {
+        x += (r() - 0.5) * 2.2;
+        g.lineTo(Math.max(q * 16, Math.min(q * 16 + 16, x)), y);
+      }
+      g.stroke();
+    }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const ghillieMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0, side: THREE.DoubleSide, alphaTest: 0.35, transparent: false });
+ghillieMat.alphaMap = typeof document !== "undefined" ? juteTexture() : null;
+ghillieMat.map = ghillieMat.alphaMap;
 
 const animCache = new Map<string, Record<string, THREE.AnimationClip>>();
 const qa = new THREE.Quaternion();
@@ -420,11 +477,14 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
   const root = useRef<THREE.Group>(null);
   const gunRef = useRef<THREE.Group>(null);
   const cloak = useMemo(() => {
-    const m = new THREE.Mesh(ghillieGeometry(), ghillieMat);
-    m.castShadow = true;
-    m.frustumCulled = false;
-    m.visible = false;
-    return m;
+    const mk = (geo: THREE.BufferGeometry) => {
+      const m = new THREE.Mesh(geo, ghillieMat);
+      m.castShadow = true;
+      m.frustumCulled = false;
+      m.visible = false;
+      return m;
+    };
+    return { upper: mk(ghillieGeometry().upper), lower: mk(ghillieGeometry().lower) };
   }, []);
   const innerRef = useRef<THREE.Group>(null);
   const { model, mixer, actions, bones, scale, grips, clips } = useMemo(() => {
@@ -546,6 +606,7 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
   // the gun fitted to this body: moved with the shoulder, and in closer for shorter arms
   const gunBase = useMemo(() => GUN_POS.clone(), [def]);
   const fitted = useRef(false);
+  const reachFix = useRef(0);
 
   useEffect(() => () => void mixer.stopAllAction(), [mixer]);
 
@@ -662,15 +723,20 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
       model.visible = true;
     }
     mixer.update(deadT > 0.9 ? 0 : dt);
-    if (!fitted.current && deadT < 0) {
-      fitted.current = true;
+    if (deadT < 0) {
+      // the gun rides the shoulder: every frame it follows where the walk / run / crouch put the
+      // right shoulder (so it bobs, leans and dips with the body instead of floating level)
       g.updateMatrixWorld(true);
       const sh = g.worldToLocal(tmpA.setFromMatrixPosition(bones.rArm.matrixWorld));
-      const el = g.worldToLocal(tmpB.setFromMatrixPosition(bones.rFore.matrixWorld));
-      const wr = g.worldToLocal(tmpC.setFromMatrixPosition(bones.rHand.matrixWorld));
-      const reach = sh.distanceTo(el) + el.distanceTo(wr);
-      gunBase.copy(GUN_POS).add(sh.sub(REF_SHOULDER));
-      gunBase.x += THREE.MathUtils.clamp((reach - REF_REACH) * 0.9, -0.08, 0.06);
+      if (!fitted.current) {
+        fitted.current = true;
+        const el = g.worldToLocal(tmpB.setFromMatrixPosition(bones.rFore.matrixWorld));
+        const wr = g.worldToLocal(tmpC.setFromMatrixPosition(bones.rHand.matrixWorld));
+        reachFix.current = THREE.MathUtils.clamp((sh.distanceTo(el) + el.distanceTo(wr) - REF_REACH) * 0.9, -0.08, 0.06);
+      }
+      tmpB.copy(GUN_POS).add(sh.sub(REF_SHOULDER));
+      tmpB.x += reachFix.current;
+      gunBase.lerp(tmpB, Math.min(1, dt * 18));
     }
     if (deadT < 0) landed.current = false;
     if (deadT >= 0) {
@@ -768,7 +834,7 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
     const kk = kick.current;
     if (gunRef.current) {
       // prone: the gun goes out in front with the arms, just off the ground
-      gunRef.current.position.set(gunBase.x - kk * K[0] + 0.95 * pk2, gunBase.y + kk * K[0] * 0.3 + (m.downed ? 0 : lift), gunBase.z + kk * 0.012 * roll.current);
+      gunRef.current.position.set(gunBase.x - kk * K[0], Math.max(0.1, gunBase.y + kk * K[0] * 0.3 + 0.07 * pk2), gunBase.z + kk * 0.012 * roll.current);
       gunRef.current.rotation.set(kk * 0.04 * roll.current, 0, kk * K[1]);
       if (flash.current) {
         const fa = (performance.now() - flashAt.current) / 55;
@@ -877,7 +943,7 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
     if (m.downed) return;
 
     // shoulder into the stock, head up behind the sights
-    bones.spine.rotation.y += 0.12;
+    bones.spine.rotation.y += def.camo ? 0.12 : 0.04;
     bones.spine.rotation.z -= kick.current * 0.08; // the shoulder takes the hit
     bones.spine.rotation.y -= kick.current * 0.03;
     bones.neck.rotation.x -= 0.1;
@@ -1010,7 +1076,7 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
     // the right hand always holds the grip; the left arm is the recording's through a mag reload
     g.localToWorld(pole.set(-0.2, 0.7, 0.75));
     reach(bones.rArm, bones.rFore, bones.rHand, rightT, pole);
-    g.localToWorld(pole.set(0.25, 0.55, -0.55));
+    g.localToWorld(pole.set(0.35, 0.35, -0.32));
     reach(bones.lArm, bones.lFore, bones.lHand, leftT, pole);
     // hands set on the gun the way people hold one: right palm against the pistol grip with the
     // fingers wrapping its front, left palm up under the handguard. Measured in the gun's frame, so
@@ -1021,8 +1087,8 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
       const inward = hd[1].set(0, 0, -1).applyQuaternion(qGun);
       orientHand(grips.r, fwd, inward, rightT === grip ? 1 : 0.35);
       // left: across under the handguard; while carrying, the palm turns to hold what it brings
-      const across = hd[2].set(0.35, 0, 1).applyQuaternion(qGun);
-      const up = hd[3].set(0, 1, 0).applyQuaternion(qGun);
+      const across = hd[2].set(0.3, 0.2, 1).applyQuaternion(qGun);
+      const up = hd[3].set(0, 1, 0.75).applyQuaternion(qGun); // palm up and in, against the handguard
       // full grip on the gun; relaxing as the hand travels away (to the belt and back)
       const away = Math.min(1, leftT.distanceTo(front) / 0.22);
       const handling = (1 - away) * (carry ? 0.6 : 1);
@@ -1054,23 +1120,26 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
     }
   });
 
-  // the suit rides on the chest bone: oriented and scaled once, in the soldier's own frame
+  // the suit rides the chest (hood, mantle, back) and the hips (skirt), oriented in the soldier's frame
   useEffect(() => {
-    const spine = bones.spine;
-    if (!spine || !root.current) return;
+    if (!root.current) return;
     root.current.updateMatrixWorld(true);
     const rq = root.current.getWorldQuaternion(new THREE.Quaternion());
     const rs = root.current.getWorldScale(new THREE.Vector3());
-    const bq = spine.getWorldQuaternion(new THREE.Quaternion());
-    const bs = spine.getWorldScale(new THREE.Vector3());
-    cloak.quaternion.copy(bq.invert().multiply(rq));
-    cloak.scale.set(rs.x / bs.x, rs.y / bs.y, rs.z / bs.z);
-    spine.add(cloak);
+    const pairs: [THREE.Object3D | undefined, THREE.Mesh][] = [[bones.spine, cloak.upper], [bones.hips, cloak.lower]];
+    for (const [bone, mesh] of pairs) {
+      if (!bone) continue;
+      const bq = bone.getWorldQuaternion(new THREE.Quaternion());
+      const bs = bone.getWorldScale(new THREE.Vector3());
+      mesh.quaternion.copy(bq.invert().multiply(rq));
+      mesh.scale.set(rs.x / bs.x, rs.y / bs.y, rs.z / bs.z);
+      bone.add(mesh);
+    }
     return () => {
-      spine.remove(cloak);
+      for (const [bone, mesh] of pairs) bone?.remove(mesh);
     };
   }, [bones, cloak]);
-  cloak.visible = ghillie && !ghost;
+  cloak.upper.visible = cloak.lower.visible = ghillie && !ghost;
 
   return (
     <group ref={root}>
