@@ -74,6 +74,9 @@ const HEIGHT = 1.38; // world units (a tile is 1)
 // the stock at the right shoulder (+x forward, +z right), pulled in so the left hand really reaches
 // the handguard (this rig's arms are short: at the old 0.85 scale the support hand stopped in mid-air)
 const GUN_POS = new THREE.Vector3(0.05, 1.0, 0.09);
+/** the original's right shoulder and arm reach (its own frame) that GUN_POS was tuned for */
+const REF_SHOULDER = new THREE.Vector3(-0.022, 1.04, 0.137);
+const REF_REACH = 0.356;
 const GUN_INNER = new THREE.Vector3(-0.17, 0, -0.12);
 /** real proportions: a rifle is about half a person's height */
 export const GUN_SCALE = 0.72;
@@ -81,6 +84,8 @@ export const GUN_SCALE = 0.72;
  *  outside the pistol grip, the left wrist under and left of the handguard */
 const GRIP_AT = new THREE.Vector3(0.3, -0.075, 0.045);
 const FRONT_AT = new THREE.Vector3(0.62, -0.08, -0.05);
+/** a pistol is held two-handed: the support hand cups the shooting hand under the grip */
+const PISTOL_FRONT = new THREE.Vector3(0.36, -0.13, -0.06);
 
 const tmpA = new THREE.Vector3();
 const tmpB = new THREE.Vector3();
@@ -211,6 +216,7 @@ interface Grip {
   chains: Chain[]; // index, middle, ring, pinky: segments 1..3
   axis: THREE.Vector3; // local axis that closes the fingers towards the palm
   hand: THREE.Object3D;
+  rest: THREE.Quaternion[][]; // each finger segment's rest rotation (curl starts from here)
   finger: THREE.Vector3; // hand-local: wrist -> knuckles
   palm: THREE.Vector3; // hand-local: out of the palm
 }
@@ -231,7 +237,7 @@ function gripFor(model: THREE.Object3D, side: "Left" | "Right"): Grip | null {
   let bestD = Infinity;
   const w = new THREE.Vector3();
   const t = new THREE.Vector3();
-  for (const axis of [new THREE.Vector3(1, 0, 0), new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -1)]) {
+  for (const axis of [new THREE.Vector3(1, 0, 0), new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, -1, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -1)]) {
     mid.forEach((o, i) => o.quaternion.copy(saved[i]).multiply(curlQ.setFromAxisAngle(axis, 0.9)));
     wrist.updateMatrixWorld(true);
     const d = w.setFromMatrixPosition(wrist.matrixWorld).distanceTo(t.setFromMatrixPosition(tip.matrixWorld));
@@ -257,7 +263,7 @@ function gripFor(model: THREE.Object3D, side: "Left" | "Right"): Grip | null {
   const palmW = tip1.sub(tip0);
   palmW.addScaledVector(fingerW, -palmW.dot(fingerW)).normalize();
   const inv = wrist.getWorldQuaternion(new THREE.Quaternion()).invert();
-  return { chains, axis: best, hand: wrist, finger: fingerW.applyQuaternion(inv), palm: palmW.applyQuaternion(inv) };
+  return { chains, rest: chains.map((c) => c.map((o) => o.quaternion.clone())), axis: best, hand: wrist, finger: fingerW.applyQuaternion(inv), palm: palmW.applyQuaternion(inv) };
 }
 
 const basisM = new THREE.Matrix4();
@@ -289,7 +295,7 @@ function curl(g: Grip | null, amount: number, trigger = false) {
   if (!g || amount <= 0) return;
   g.chains.forEach((chain, f) => {
     const k = trigger && f === 0 ? 0.55 : 1;
-    chain.forEach((o, seg) => o.quaternion.multiply(curlQ.setFromAxisAngle(g.axis, amount * k * [0.95, 1.05, 0.7][seg])));
+    chain.forEach((o, seg) => o.quaternion.copy(g.rest[f][seg]).multiply(curlQ.setFromAxisAngle(g.axis, amount * k * [0.95, 1.05, 0.7][seg])));
   });
 }
 
@@ -485,10 +491,13 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
     const clips = clipsFor(def.key, animsGltf.animations, animsGltf.scene, gltf.scene, !!def.camo);
     // the original keeps its own walk cycle (made for its rig); everyone else uses the recordings
     const own = (n: string) => gltf.animations.find((a: THREE.AnimationClip) => a.name === n);
-    const actions = {
+    const actions: Record<"idle" | "walk" | "run" | "crouch" | "crouchwalk", THREE.AnimationAction> = {
       idle: mixer.clipAction(def.camo ? own("Idle") : clips.idle),
       walk: mixer.clipAction(def.camo ? own("Walk") : clips.walk),
       run: mixer.clipAction(def.camo ? own("Run") : clips.run),
+      // the Mixamo bodies crouch with the recorded crouch (the original bends its own legs in code)
+      crouch: mixer.clipAction(def.camo ? own("Idle") : clips.crouch),
+      crouchwalk: mixer.clipAction(def.camo ? own("Walk") : clips.crouchwalk),
     };
     Object.values(actions).forEach((a) => {
       a.play();
@@ -534,10 +543,13 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
     return { emotes, reload };
   }, [mixer, clips]);
   const emoteRef = useRef({ at: 0, idx: -1 });
+  // the gun fitted to this body: moved with the shoulder, and in closer for shorter arms
+  const gunBase = useMemo(() => GUN_POS.clone(), [def]);
+  const fitted = useRef(false);
 
   useEffect(() => () => void mixer.stopAllAction(), [mixer]);
 
-  const w = useRef({ idle: 1, walk: 0, run: 0 });
+  const w = useRef({ idle: 1, walk: 0, run: 0, crouch: 0, crouchwalk: 0 });
   const kick = useRef(0);
   const roll = useRef(0);
   const lastShot = useRef(0);
@@ -582,7 +594,12 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
     // per-frame cost on phones with up to 17 soldiers in the scene
     for (let o: THREE.Object3D | null = g; o; o = o.parent) if (!o.visible) return;
     // locomotion blend
-    const want = m.downed ? { idle: 0, walk: m.speed > 0 ? 1 : 0, run: 0 } : { idle: m.speed === 0 ? 1 : 0, walk: m.speed === 1 ? 1 : 0, run: m.speed === 2 ? 1 : 0 };
+    const crouchClip = !def.camo && !!m.crouch && !m.downed && !m.prone;
+    const want = m.downed
+      ? { idle: m.speed > 0 ? 0 : 1, walk: m.speed > 0 ? 1 : 0, run: 0, crouch: 0, crouchwalk: 0 } // never an empty pose (T-pose) while down
+      : crouchClip
+        ? { idle: 0, walk: 0, run: 0, crouch: m.speed === 0 ? 1 : 0, crouchwalk: m.speed > 0 ? 1 : 0 }
+        : { idle: m.speed === 0 ? 1 : 0, walk: m.speed === 1 ? 1 : 0, run: m.speed === 2 ? 1 : 0, crouch: 0, crouchwalk: 0 };
     const k = 1 - Math.pow(0.0005, dt);
     const dying = m.deadAt !== undefined;
     // emotes: only standing still with the gun quiet; moving or firing ends one
@@ -604,8 +621,10 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
       want.idle = 0;
       want.walk = 0;
       want.run = 0;
+      want.crouch = 0;
+      want.crouchwalk = 0;
     }
-    (["idle", "walk", "run"] as const).forEach((n) => {
+    (["idle", "walk", "run", "crouch", "crouchwalk"] as const).forEach((n) => {
       if (dying) return; // the pose under a body stays exactly as it was when it fell
       w.current[n] += (want[n] - w.current[n]) * k;
       actions[n].setEffectiveWeight(w.current[n]);
@@ -643,6 +662,16 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
       model.visible = true;
     }
     mixer.update(deadT > 0.9 ? 0 : dt);
+    if (!fitted.current && deadT < 0) {
+      fitted.current = true;
+      g.updateMatrixWorld(true);
+      const sh = g.worldToLocal(tmpA.setFromMatrixPosition(bones.rArm.matrixWorld));
+      const el = g.worldToLocal(tmpB.setFromMatrixPosition(bones.rFore.matrixWorld));
+      const wr = g.worldToLocal(tmpC.setFromMatrixPosition(bones.rHand.matrixWorld));
+      const reach = sh.distanceTo(el) + el.distanceTo(wr);
+      gunBase.copy(GUN_POS).add(sh.sub(REF_SHOULDER));
+      gunBase.x += THREE.MathUtils.clamp((reach - REF_REACH) * 0.9, -0.08, 0.06);
+    }
     if (deadT < 0) landed.current = false;
     if (deadT >= 0) {
       if (deadT > 1.1) landed.current = true;
@@ -669,7 +698,7 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
         // the gun leaves the hands and clatters down beside the body
         const gt = Math.min(1, deadT / 0.6);
         gunRef.current.visible = true;
-        gunRef.current.position.set(GUN_POS.x + 0.35 * gt, Math.max(0.04, GUN_POS.y * (1 - gt * gt)), GUN_POS.z + 0.25 * gt);
+        gunRef.current.position.set(gunBase.x + 0.35 * gt, Math.max(0.04, gunBase.y * (1 - gt * gt)), gunBase.z + 0.25 * gt);
         gunRef.current.rotation.set(Math.PI / 2 * gt, 0, 0);
       }
       if (pool.current) {
@@ -695,7 +724,7 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
 
     // lying on the floor when downed (on your back), or prone (on your front, gun forward)
     // (the original rig faces the other way, so its forward tip is the opposite sign)
-    model.rotation.x += ((m.downed ? -1.35 : m.prone ? (def.camo ? -1.38 : 1.38) : 0) - model.rotation.x) * k;
+    model.rotation.x += ((m.downed ? -1.35 : m.prone ? (def.camo ? -1.5 : 1.5) : 0) - model.rotation.x) * k;
     model.rotation.z = 0;
     // crouch: sink the hips, bend hips and knees, lean in
     crouchK.current += ((m.crouch && !m.downed ? 1 : 0) - crouchK.current) * (1 - Math.pow(0.0001, dt));
@@ -707,13 +736,13 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
     const pk2 = proneK.current;
     // how far the whole body (and the gun with it) moves; prone brings the gun down to the grass
     const lift = (-0.26 * ck + 0.55 * jk) * (1 - pk2) - 0.74 * pk2;
-    model.position.y = m.downed ? 0.18 / scale : pk2 > 0.01 ? (0.12 * pk2) / scale : lift / scale;
+    model.position.y = m.downed ? 0.18 / scale : pk2 > 0.01 ? (0.06 * pk2) / scale : (def.camo ? lift : 0.55 * jk) / scale;
     if (pk2 > 0.01 && !def.camo) {
       // flat on the belly: legs straight back, head up to look along the gun
-      bones.neck.rotation.x -= 0.9 * pk2;
-      bones.spine.rotation.x -= 0.35 * pk2;
+      bones.neck.rotation.x -= 0.6 * pk2;
+      bones.spine.rotation.x -= 0.12 * pk2;
     }
-    if ((ck > 0.01 || jk > 0.01) && pk2 < 0.5) {
+    if (def.camo && (ck > 0.01 || jk > 0.01) && pk2 < 0.5) {
       const bend = Math.max(ck, jk * 0.7);
       bones.lUp.rotation.x -= 0.95 * bend;
       bones.rUp.rotation.x -= 0.95 * bend;
@@ -739,7 +768,7 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
     const kk = kick.current;
     if (gunRef.current) {
       // prone: the gun goes out in front with the arms, just off the ground
-      gunRef.current.position.set(GUN_POS.x - kk * K[0] + 0.95 * pk2, GUN_POS.y + kk * K[0] * 0.3 + (m.downed ? 0 : lift), GUN_POS.z + kk * 0.012 * roll.current);
+      gunRef.current.position.set(gunBase.x - kk * K[0] + 0.95 * pk2, gunBase.y + kk * K[0] * 0.3 + (m.downed ? 0 : lift), gunBase.z + kk * 0.012 * roll.current);
       gunRef.current.rotation.set(kk * 0.04 * roll.current, 0, kk * K[1]);
       if (flash.current) {
         const fa = (performance.now() - flashAt.current) / 55;
@@ -872,7 +901,7 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
       const p = (now - m.throwAt) / 450;
       rightT = g.localToWorld(kp[7].set(0.1 + p * 0.5, 1.45 - p * 0.35, 0.18));
     }
-    const front = gr && inner ? inner.localToWorld(ikF.copy(FRONT_AT)) : grip;
+    const front = gr && inner ? inner.localToWorld(ikF.copy(weapon === 0 ? PISTOL_FRONT : FRONT_AT)) : grip;
     let leftT: THREE.Vector3 = front;
     let carry = 0; // what the left hand holds: 1 a magazine, 2 a shell, 3 a rifle round
     if (rp >= 0 && gr && !throwing) {
@@ -1108,9 +1137,9 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
           <meshStandardMaterial color="#d8b45a" metalness={0.85} roughness={0.3} emissive="#3a2a08" />
         </mesh>
       </group>
-      <group ref={gunRef} position={GUN_POS.toArray()}>
+      <group ref={gunRef} position={gunBase.toArray()}>
         <group ref={innerRef} position={GUN_INNER.toArray()} scale={GUN_SCALE}>
-          <Gun weapon={shown} ghost={ghost} torch={torchOn} finish={FINISHES[look.finish]?.tint} />
+          <Gun key={`${shown}-${look.skin ?? 0}-${look.finish}`} weapon={shown} ghost={ghost} torch={torchOn} finish={FINISHES[look.finish]?.tint} skin={look.skin ?? 0} />
         </group>
         {/* muzzle flash: two crossed bright cards at the barrel tip, for ~55 ms per shot */}
         <group ref={flash} position={[(MUZZLE_FWD[shown] ?? 0.6) - 0.1, 0, -0.11]} visible={false}>
