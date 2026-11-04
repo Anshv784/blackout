@@ -5,6 +5,7 @@ import { TopBar } from "./TopBar";
 import { go } from "../App";
 import { CHARACTERS, ROSTER, OUTFITS, FINISHES, EMOTES, SKINS, useLook } from "../game/look";
 import { SkinSwatch } from "./SkinSwatch";
+import { EmoteGlyph } from "./EmoteWheel";
 import { WEAPON_NAME } from "../chain/layout";
 import { GunIcon } from "./Icons";
 import { useStore } from "../game/store";
@@ -16,6 +17,7 @@ export function Characters() {
   const { look, set } = useLook();
   const [weapon, setWeapon] = useState(3);
   const [emoteAt, setEmoteAt] = useState(0);
+  const [tab, setTab] = useState<"outfit" | "finish" | "skin" | "emote">("outfit");
   const name = useStore((s) => s.name);
   const ch = CHARACTERS[look.char];
   const play = (i: number) => {
@@ -59,50 +61,49 @@ export function Characters() {
         </section>
 
         <section className="cs-kit">
-          <div className="cs-panel">
-            <label className="cs-label">OUTFIT</label>
-            <div className="cs-swatches">
-              {OUTFITS.map((o, i) => (
-                <button key={o.name} className={look.outfit === i ? "on" : ""} onClick={() => set({ outfit: i })}>
-                  <i style={{ background: i === 0 ? "conic-gradient(#6b7a4a,#a08860,#3d4a5c,#6b7a4a)" : o.tint }} />
-                  <span>{o.name}</span>
+          <div className="lk">
+            <div className="lk-tabs">
+              {(["outfit", "finish", "skin", "emote"] as const).map((t) => (
+                <button key={t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>
+                  {t === "finish" ? "GUN FINISH" : t === "skin" ? "GUN SKIN" : t.toUpperCase()}
                 </button>
               ))}
             </div>
-          </div>
-          <div className="cs-panel">
-            <label className="cs-label">GUN FINISH</label>
-            <div className="cs-swatches">
-              {FINISHES.map((f, i) => (
-                <button key={f.name} className={look.finish === i ? "on" : ""} onClick={() => set({ finish: i })}>
-                  <i style={{ background: i === 0 ? "#3a3f4a" : f.tint }} />
-                  <span>{f.name}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="cs-panel">
-            <label className="cs-label">GUN SKIN</label>
-            <div className="cs-swatches">
-              {SKINS.map((k, i) => (
-                <button key={k.key} className={(look.skin ?? 0) === i ? "on" : ""} onClick={() => set({ skin: i })}>
-                  <SkinSwatch i={i} />
-                  <span>{k.name}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="cs-panel">
-            <label className="cs-label">
-              SIGNATURE EMOTE <em>B opens the wheel in a match</em>
-            </label>
-            <div className="cs-emotes">
-              {EMOTES.map((e, i) => (
-                <button key={e.key} className={look.emote === i ? "on" : ""} onClick={() => play(i)}>
-                  <span>{e.name}</span>
-                  {look.emote === i && <b>★</b>}
-                </button>
-              ))}
+            <p className="lk-sub">
+              {tab === "outfit" && "The tone of your operator's gear."}
+              {tab === "finish" && "The colour of your guns' metal."}
+              {tab === "skin" && "A pattern printed on every gun you carry."}
+              {tab === "emote" && "Your signature. In a match press B for the wheel."}
+            </p>
+            <div className={`lk-grid ${tab === "emote" ? "wide" : ""}`}>
+              {tab === "outfit" &&
+                OUTFITS.map((o, i) => (
+                  <button key={o.name} className={`lk-tile ${look.outfit === i ? "on" : ""}`} onClick={() => set({ outfit: i })}>
+                    <i className="lk-fill" style={{ background: i === 0 ? "conic-gradient(from 40deg,#6b7a4a,#a08860,#3d4a5c,#7a4a3a,#6b7a4a)" : `linear-gradient(160deg, ${o.tint}, color-mix(in srgb, ${o.tint} 55%, #000))` }} />
+                    <span>{o.name}</span>
+                  </button>
+                ))}
+              {tab === "finish" &&
+                FINISHES.map((f, i) => (
+                  <button key={f.name} className={`lk-tile ${look.finish === i ? "on" : ""}`} onClick={() => set({ finish: i })}>
+                    <i className="lk-fill" style={{ background: `linear-gradient(160deg, ${i === 0 ? "#5a606c" : f.tint}, color-mix(in srgb, ${i === 0 ? "#2a2d34" : f.tint} 45%, #000))` }} />
+                    <span>{f.name}</span>
+                  </button>
+                ))}
+              {tab === "skin" &&
+                SKINS.map((k, i) => (
+                  <button key={k.key} className={`lk-tile ${(look.skin ?? 0) === i ? "on" : ""}`} onClick={() => set({ skin: i })}>
+                    <SkinSwatch i={i} big />
+                    <span>{k.name}</span>
+                  </button>
+                ))}
+              {tab === "emote" &&
+                EMOTES.map((e, i) => (
+                  <button key={e.key} className={`lk-tile emote ${look.emote === i ? "on" : ""}`} onClick={() => play(i)}>
+                    <EmoteGlyph k={e.key} />
+                    <span>{e.name}</span>
+                  </button>
+                ))}
             </div>
           </div>
           <button className="btn primary cs-done" onClick={() => go("/")}>
