@@ -102,6 +102,8 @@ const sockV = new THREE.Vector3();
 const sockV2 = new THREE.Vector3();
 const sockQ = new THREE.Quaternion();
 const gripV = new THREE.Vector3();
+const sockQ2 = new THREE.Quaternion();
+const [sockV3, sockV4, sockV5, sockV6, sockV7, sockV8, sockV9, sockV10, sockV11, palmR, palmLw] = Array.from({ length: 11 }, () => new THREE.Vector3());
 const tmpM2 = new THREE.Matrix4();
 const ikQ = new THREE.Quaternion();
 const [ikS, ikE, ikH, ikT, ikB, ikD, ikEl, ikF] = Array.from({ length: 8 }, () => new THREE.Vector3());
@@ -652,6 +654,7 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
   const handAnchor = useRef<THREE.Matrix4 | null>(null);
   const diveAt = useRef(0);
   const raiseK = useRef(0);
+  const holdDir = useRef(new THREE.Vector3());
   const prevCrouch = useRef(false);
   const prevSpeed = useRef(0);
   const reachFix = useRef(0);
@@ -1072,53 +1075,72 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
     // The way shooters are animated: the recording drives the right arm, and the gun sits in that
     // hand (a socket), so walk, run and crouch move it exactly as a real hand would. The socket is
     // measured once, in the standing idle pose: the palm, with the gun level and pointing forward.
-    const socket = !def.camo && !!gr && !!inner && !throwing && !m.downed && !!grips.r;
-    if (socket && gr && inner && grips.r) {
-      bones.rHand.updateWorldMatrix(true, false);
-      const handL = sockM.copy(g.matrixWorld).invert().multiply(bones.rHand.matrixWorld); // hand in the soldier's frame
-      if (!handAnchor.current && m.speed === 0 && !m.crouch && rp < 0 && w.current.idle > 0.95) {
-        handL.decompose(tmpA, tmpQ, tmpB);
-        const fingerL = tmpC.copy(grips.r.finger).applyQuaternion(tmpQ).normalize();
-        const palmL = sockV.copy(grips.r.palm).applyQuaternion(tmpQ).normalize();
-        // the grip sits in the closed hand: a little along the fingers, a little off the palm
-        const palmPt = tmpA.clone().addScaledVector(fingerL, 0.045).addScaledVector(palmL, 0.022);
-        // and the barrel runs the way the recording holds its rifle: from the right hand towards the
-        // left, angled across the body, not straight out from the wrist
-        bones.lHand.updateWorldMatrix(true, false);
-        const lh = new THREE.Vector3().setFromMatrixPosition(bones.lHand.matrixWorld);
-        g.worldToLocal(lh);
-        const along = lh.sub(palmPt);
-        along.y *= 0.35; // the support hand is held low: keep the muzzle near level, not at the floor
-        if (along.lengthSq() < 1e-6 || along.normalize().x < 0.35) along.set(1, -0.1, -0.15).normalize();
-        const upV = new THREE.Vector3(0, 1, 0).addScaledVector(along, -along.y).normalize();
-        const side = new THREE.Vector3().crossVectors(along, upV);
-        const anchor = new THREE.Matrix4().makeBasis(along, upV, side).setPosition(palmPt);
-        handAnchor.current = new THREE.Matrix4().copy(handL).invert().multiply(anchor);
+    // Holding the gun the way the recording does. Every rifle clip carries an invisible rifle in both
+    // hands, so each frame the gun is laid along the line from the right palm to the left palm, with
+    // this gun's pistol grip in the right palm. Walk, run, crouch, prone and reload all carry it right,
+    // and nothing passes through the chest, because the recording never did. The pistol keeps its own
+    // two-handed stance (both hands on the grip, so the line between them means nothing there).
+    const socket = !def.camo && !!gr && !!inner && !throwing && !m.downed && !!grips.r && !!grips.l;
+    let socketed = false;
+    let supportPart: THREE.Vector3 | null = null;
+    if (socket && gr && inner && grips.r && grips.l) {
+      g.updateMatrixWorld(true);
+      const ws = g.getWorldScale(sockV5).x;
+      const palmOf = (gp: Grip, out: THREE.Vector3) => {
+        gp.hand.updateWorldMatrix(true, false);
+        const q = gp.hand.getWorldQuaternion(sockQ2);
+        out.setFromMatrixPosition(gp.hand.matrixWorld)
+          .addScaledVector(sockV3.copy(gp.finger).applyQuaternion(q), 0.045 * ws)
+          .addScaledVector(sockV4.copy(gp.palm).applyQuaternion(q), 0.022 * ws);
+        return out;
+      };
+      const rW = palmOf(grips.r, palmR);
+      const lW = palmOf(grips.l, palmLw);
+      const rL = g.worldToLocal(sockV6.copy(rW));
+      const lL = g.worldToLocal(sockV7.copy(lW));
+      const gripLocal = gripV.copy(gm?.grip ? sockV2.fromArray(gm.grip) : sockV2.copy(GRIP_AT)).multiplyScalar(GUN_SCALE).add(GUN_INNER);
+      const dir = sockV8.copy(lL).sub(rL);
+      const pistolHold = weapon === 0 || dir.length() < 0.09;
+      if (pistolHold) {
+        // straight out of the shooting hand, both hands round the grip
+        dir.set(1, 0, 0);
+      } else dir.normalize();
+      if (dir.x < 0.2) dir.set(1, Math.max(-0.5, dir.y), dir.z).normalize(); // never pointing back into the body
+      // smooth out frame-to-frame wobble in the recording
+      if (holdDir.current.lengthSq() < 0.5) holdDir.current.copy(dir);
+      holdDir.current.lerp(dir, Math.min(1, dt * 18)).normalize();
+      const along = holdDir.current;
+      const upV = sockV9.set(0, 1, 0).addScaledVector(along, -along.y).normalize();
+      const side = sockV10.crossVectors(along, upV);
+      const frame = sockM2.makeBasis(along, upV, side).setPosition(rL);
+      frame.multiply(sockM3.makeTranslation(-gripLocal.x, -gripLocal.y, -gripLocal.z));
+      frame.decompose(gr.position, gr.quaternion, tmpB);
+      gr.scale.set(1, 1, 1);
+      // firing (or just fired): the gun comes up level to point straight ahead, about the grip
+      const hot = m.firing || (m.shotAt !== undefined && now - m.shotAt < 700);
+      raiseK.current += ((hot ? 1 : 0) - raiseK.current) * Math.min(1, dt * (hot ? 14 : 3));
+      if (raiseK.current > 0.01) {
+        const gp = sockV2.copy(gripLocal).applyQuaternion(gr.quaternion).add(gr.position);
+        gr.quaternion.slerp(sockQ.identity(), raiseK.current);
+        gr.position.copy(gp).sub(sockV.copy(gripLocal).applyQuaternion(gr.quaternion));
       }
-      if (handAnchor.current) {
-        // the grip frame this frame, then the gun placed so its grip point is in it
-        const gripLocal = gripV.copy(gm?.grip ? sockV2.fromArray(gm.grip) : sockV2.copy(GRIP_AT)).multiplyScalar(GUN_SCALE).add(GUN_INNER);
-        const gunM = sockM2.copy(handL).multiply(handAnchor.current).multiply(sockM3.makeTranslation(-gripLocal.x, -gripLocal.y, -gripLocal.z));
-        gunM.decompose(gr.position, gr.quaternion, tmpB);
-        gr.scale.set(1, 1, 1);
-        // firing (or just fired): the gun comes up from the low-ready carry to point straight ahead,
-        // turning about the grip so the hand stays on it
-        const hot = m.firing || (m.shotAt !== undefined && now - m.shotAt < 700);
-        raiseK.current += ((hot ? 1 : 0) - raiseK.current) * Math.min(1, dt * (hot ? 14 : 3));
-        if (raiseK.current > 0.01) {
-          const gp = sockV2.copy(gripLocal).applyQuaternion(gr.quaternion).add(gr.position);
-          gr.quaternion.slerp(sockQ.identity(), raiseK.current);
-          gr.position.copy(gp).sub(sockV.copy(gripLocal).applyQuaternion(gr.quaternion));
-        }
-        // the shot still kicks: back along the barrel, muzzle up
-        const kk2 = kick.current;
-        const K2 = RECOIL[weapon] ?? RECOIL[0];
-        gr.translateX(-kk2 * K2[0]);
-        gr.rotateZ(kk2 * K2[1]);
-        gr.updateMatrixWorld(true);
+      // the shot kicks: back along the barrel, muzzle up
+      const K2 = RECOIL[weapon] ?? RECOIL[0];
+      gr.translateX(-kick.current * K2[0]);
+      gr.rotateZ(kick.current * K2[1]);
+      gr.updateMatrixWorld(true);
+      // the support hand closes on this gun's handguard, as near as it can to where the recording
+      // has it: projected onto the gun, kept between the mag well and the muzzle end
+      if (!pistolHold) {
+        const pl = inner.worldToLocal(sockV11.copy(lW));
+        const f = gm?.front ?? [FRONT_AT.x, FRONT_AT.y, FRONT_AT.z];
+        const gx = gm?.grip?.[0] ?? GRIP_AT.x;
+        const endX = gm ? gm.rear + gm.len * 0.9 : 0.85;
+        pl.set(THREE.MathUtils.clamp(pl.x, gx + 0.16, Math.max(gx + 0.2, endX)), f[1], f[2]);
+        supportPart = pl;
       }
+      socketed = true;
     }
-    const socketed = socket && !!handAnchor.current;
     const grip = gr && inner ? inner.localToWorld(gm?.grip ? target.fromArray(gm.grip) : target.copy(GRIP_AT)) : target.set(0, 0, 0);
     let rightT: THREE.Vector3 = grip;
     if (throwing) {
@@ -1126,7 +1148,7 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
       const p = (now - m.throwAt) / 450;
       rightT = g.localToWorld(kp[7].set(0.1 + p * 0.5, 1.45 - p * 0.35, 0.18));
     }
-    const front = gr && inner ? inner.localToWorld(gm?.front ? ikF.fromArray(gm.front) : ikF.copy(weapon === 0 ? PISTOL_FRONT : FRONT_AT)) : grip;
+    const front = gr && inner ? inner.localToWorld(supportPart ? ikF.copy(supportPart) : gm?.front ? ikF.fromArray(gm.front) : ikF.copy(weapon === 0 ? PISTOL_FRONT : FRONT_AT)) : grip;
     let leftT: THREE.Vector3 = front;
     let carry = 0; // what the left hand holds: 1 a magazine, 2 a shell, 3 a rifle round
     if (rp >= 0 && gr && !throwing) {
