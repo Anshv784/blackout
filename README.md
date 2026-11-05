@@ -38,6 +38,7 @@ On a normal blockchain, fog of war is impossible: every account is public, so a 
 | Program (devnet) | [`VWHcbCSH4kATcuPJgjZ6QC56W3NBQ53U6fxJNtGknh3`](https://explorer.solana.com/address/VWHcbCSH4kATcuPJgjZ6QC56W3NBQ53U6fxJNtGknh3?cluster=devnet) |
 | TEE validator | [`MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo`](https://explorer.solana.com/address/MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo?cluster=devnet) (`devnet-tee.magicblock.app`) |
 | Live proof | The **How it works** page has a *Try to cheat* button that asks the TEE for a real room's sealed accounts and shows the denial |
+| Built with AI | How the game was built with Claude Code, from the first commit to now: [AI_USAGE.md](AI_USAGE.md) |
 
 ### Hackathons
 
@@ -139,7 +140,7 @@ No ghosting: when you die your View is emptied. Bots follow the same vision rule
 ## The game
 
 <p align="center">
-  <img src="docs/assets/storm.jpg" alt="A night in the Yard: your torch, the HUD and the controls card" width="100%">
+  <img src="docs/assets/storm.jpg" alt="A night in the Yard: your torch, a rival operator, the compass, zone clock and night modifier" width="100%">
 </p>
 
 ### The story
@@ -150,12 +151,42 @@ First-time visitors get a 34-second launch trailer, cut fast from one night play
   <img src="docs/assets/story.jpg" alt="The trailer: NYX's torch sweeps past DUSK hiding behind a container" width="100%">
 </p>
 
+### Two maps
+
+The host picks the map in the lobby.
+
+| | |
+|---|---|
+| **The Yard** | Containers, warehouses, offices and floodlights. Tight corners, and a lamp on every crossroads. |
+| **The Meadow** | Open fields, hedgerows, a creek and a bridge. Tall grass hides anyone crouched or prone in it, and one crate a night holds a **ghillie suit**: crouch in it and you're only seen up close. |
+
+<p align="center">
+  <img src="docs/assets/meadow.jpg" alt="The Meadow: an aimed throw arcs over the hedge while DUSK lies in the grass" width="100%">
+</p>
+
+### Your operator
+
+The **Operator** page sets how everyone at your table sees you. It's saved on your device and travels inside three spare bytes of your on-chain name, so it needs no extra accounts.
+
+- **Operators:** six motion-captured soldiers (TITAN, GRIM, VIPER, ECHO, NOX, VEIL), each with 35 recorded animations: idle, walk, run and strafe, crouch, prone crawl, jump and dive roll, reloads by stance, throws, hits and deaths.
+- **Outfits:** seven tones for your gear (Original, Woodland, Desert, Urban, Midnight, Arctic, Crimson).
+- **Emotes:** Salute, Victory, Wave, Taunt, Dance and Clap. Press **B** in a night for the emote wheel, or click your soldier in the lobby.
+- **Gunsmith:** turn any of the eight guns on a stand, compare damage, fire rate, magazine and range, and pick a metal finish (six) and a skin (seven: Factory, Woodland, Digital, Tiger, Carbon, Hex, Ember). Both apply to every gun you carry.
+
+<p align="center">
+  <img src="docs/assets/operator.jpg" alt="Operator page: six operators, outfits and emotes" width="49%">
+  <img src="docs/assets/gunsmith.jpg" alt="Gunsmith: the KESTREL rifle with finishes, skins and stats" width="49%">
+</p>
+
+### How a night plays
+
 | | |
 |---|---|
 | **Stealth first** | You see only your flashlight cone. Shooting lights you up for everyone nearby; footsteps, reloads and loot pickups make directional sound pings. |
-| **Move** | Shift sprints (1.5×, loud, burns stamina), C crouches to sneak (slow and silent), Space jumps. Stamina, crouch and jump are simulated on-chain and mirrored bit-for-bit for prediction. |
-| **Guns** | eight original guns: VESPER pistol, HORNET SMG, MAUL shotgun, KESTREL rifle, TALON sniper, LANCE marksman rifle, BULWARK LMG and the silent WHISPER crossbow; two slots, aim down sights, recoil. Each has its own layered sound: crack, body, tail, and the slide, pump or bolt. |
+| **Move** | Shift sprints (1.5×, loud, burns stamina), C crouches to sneak (slow and silent), Ctrl goes prone (a crawl, seen at under half the usual range), Space jumps. Stamina, crouch, prone and jump are simulated on-chain and mirrored bit-for-bit for prediction. |
+| **Guns** | eight original guns: VESPER pistol, HORNET SMG, MAUL shotgun, KESTREL rifle, TALON sniper, LANCE marksman rifle, BULWARK LMG and the silent WHISPER crossbow; two slots, aim down sights, recoil. Seven are real CC-BY models, held in both hands along the recorded grip. Each has its own layered sound: crack, body, tail, and the slide, pump or bolt. |
 | **Gadgets** | Frag, smoke, flashbang, decoy, motion sensor and night vision. Hold G to see the arc and where it lands, let go to throw. The can flies, bounces off walls and rolls on-chain; you see and hear it. |
+| **Daily challenge** | One sealed night a day: the same seed for everyone, you and three bots, one try per wallet, ranked on its own board. |
 | **Events** | Supply drops, a mid-night BLACKOUT that kills the lamps, and a bounty on the kill leader. |
 | **Duos** | Partners see each other through walls, get downed instead of dying, and revive by standing over each other. |
 | **Loot** | Medkits, armor, every gun and gadget above, and the flare, which lets you see everyone for 5 seconds. Supply drops carry the best of it. |
@@ -165,11 +196,11 @@ First-time visitors get a 34-second launch trailer, cut fast from one night play
 | **Sound** | Real recorded gunshots, reloads and racks, horror ambience under every night, and horror hits when someone steps into your light, when you die and when the lamps die. All CC0, credited in `app/public/sfx/CREDITS.txt`. Master, effects and music volume each go to 150%. |
 | **Feel** | Tracers, sparks and blood, hit markers, kill streak banners, recoil and hit shake, a sprint camera, walls that fade when they block your view. |
 | **Death** | The body buckles and falls back, the gun clatters away and the dropped torch lights it on the ground while the camera rises. Players you watch die stay where they fell. |
-| **Controls** | A key card opens at the start of every night (H brings it back), and prompts appear only when a key matters: reload on an empty mag, how to throw a new gadget, swap to a new gun. |
+| **Controls** | A controls card (H) in five groups: move, stealth, combat, gear, view and menu, and prompts appear only when a key matters: reload on an empty mag, how to throw a new gadget, swap to a new gun. |
 | **Replay** | After lights-on, scrub the whole night from your own view or everyone's, follow any player, and export a clip. |
 
 <p align="center">
-  <img src="docs/assets/lobby.jpg" alt="Lobby" width="49%">
+  <img src="docs/assets/lobby.jpg" alt="Lobby: map picker, pedestals per seat, night settings" width="49%">
   <img src="docs/assets/map.jpg" alt="Full map" width="49%">
 </p>
 <p align="center">
@@ -182,22 +213,24 @@ First-time visitors get a 34-second launch trailer, cut fast from one night play
 
 | Screen | What's there |
 |---|---|
-| Gate | Create a room, a private room with a code, join by code, the staked table, open rooms to join |
-| Lobby | 3D pedestals per seat, host controls (seats, bot skill, solo or duos, make host, kick), invite link or room code |
-| Match | Countdown clock with the zone schedule, minimap and full map (Tab), a fullscreen button (phones go fullscreen and sideways on their own), phone controls (move stick, drag to look, labelled fire/scope/jump/crouch/reload/swap/gadget buttons), settings (Esc): sensitivity, invert, arrow-key camera, FOV, smoothing, crosshair style/colour/size, laser sight, graphics, storm, master / effects / music volume |
+| Home | Play now, create a room, play with friends (private, with a code), the staked night, join by code, today's daily challenge and open rooms, beside your own operator |
+| Operator | Pick an operator, outfit and emote; the Gunsmith for finishes and skins |
+| Lobby | Map picker, 3D pedestals per seat (click yours to emote), host controls (seats, bot skill, solo or duos, make host, kick), invite link or room code |
+| Match | Compass, countdown clock with the zone schedule, minimap and full map (Tab), a fullscreen button (phones go fullscreen and sideways on their own), phone controls (move stick, drag to look, labelled fire/scope/jump/crouch/reload/swap/gadget buttons), the emote wheel (B), settings (Esc) in five tabs: controls, camera, crosshair, display and audio |
 | Verdict | Results, replay, clip export, and a VERIFY tab that re-derives the night from its VRF seed in your browser |
-| Leaderboard | Staked nights only: wins and SOL won, written by the `settle` Magic Action |
+| Leaderboard | Staked nights (wins and SOL won, written by the `settle` Magic Action) and the daily challenge |
 | How it works | The live *Try to cheat* console, every building block, the timeline and the permission matrix |
 
-**Wallet optional.** Guests play free and gasless with a browser key; nothing is saved and they never appear on the leaderboard. Connecting Phantom, Solflare or Backpack keeps your callsign and lets you play **staked nights**: every staker pays 0.01 SOL into the room's bank, there are no bots, and the winner's wallet is paid by the Magic Action.
+**Wallet optional.** Guests play free and gasless with a browser key; nothing is saved and they never appear on the leaderboard. Connecting Phantom, Solflare or Backpack keeps your callsign and lets you play **staked nights**: every staker pays 0.01 SOL into the room's bank, there are no bots, and the Magic Action pays the winner the pot less a 5% house fee. A room that never starts refunds every ticket.
 
 ---
 
 ## Verified on devnet
 
 - `scripts/e2e.ts` plays full nights against the live TEE and checks that a player can read its own View but not another's, a spectator can't read the World, VRF seeds the match, the crank holds 20 ticks/s, and after `finish` the World and Recorder are readable and `settle` runs.
+- `scripts/e2e_money.ts` (30/30) and `scripts/e2e_daily.ts` (15/15): stakes, payouts, the fee, refunds and every attack from [Audit.md](Audit.md); the daily challenge from roll to leaderboard.
 - `scripts/e2e_stake.ts`: two funded players buy tickets on Solana, play a staked night, and the winner's wallet receives the pot from the `settle` Magic Action.
-- `scripts/mirror.ts`: 2,000 random movement steps, sprint, sneak, jump and stamina included, give identical results in the Rust program and the TypeScript prediction.
+- `scripts/mirror.ts`: 2,000 random movement steps (sprint, sneak, prone, jump and stamina included) and 72 aimed throws give identical results in the Rust program and the TypeScript prediction.
 - `cargo test`: 40 full 8-bot nights end with valid placements; 30 more check bots actually fight; frags, duos revives, supply drops and the blackout each have a test.
 - After every night, the VERIFY tab re-derives every spawn, loot roll and zone circle from the revealed VRF seed and checks them against the unsealed World.
 - `scripts/ui/`: Playwright runs of the full flows (and `readme_shots.ts`, which retakes every image in this README): guest play, private rooms with codes and kicks, closing a room, ending a night, duos, the phone layout and touch controls, and a console-error audit.
@@ -217,17 +250,20 @@ programs/blackout/       Anchor program
 app/                     Vite + React + react-three-fiber client
   src/chain/             instruction builders and account decoders
   src/game/              session (prediction, reconcile), sim.ts mirror, audio, settings
-  src/scene/             the Yard, players, effects, replay
-  src/ui/                gate, lobby, HUD, verdict, leaderboard, how it works
+  src/scene/             the Yard and the Meadow, soldiers and guns, effects, replay
+  src/ui/                home, operator, lobby, HUD, emote wheel, verdict, leaderboard, how it works
+  public/models/         operators, the shared animation bundle, gun models (credits in guns/CREDITS.md)
 scripts/                 devnet tooling: deploy, admin, e2e, mirror, verify, kick stuck rooms
 scripts/ui/              Playwright flow tests
 ```
+
+How the game was built, and how each part was checked: [AI_USAGE.md](AI_USAGE.md).
 
 ## Run it
 
 ```bash
 # program (devnet)
-anchor build && ./scripts/deploy.sh
+./scripts/deploy.sh   # builds with cargo build-sbf + anchor idl build (not `anchor build`), then deploys
 npx tsx scripts/admin.ts board
 npx tsx scripts/admin.ts rooms 1 2 3 4 6 7 8 9 10 11 12 13
 
