@@ -1,3 +1,4 @@
+import { LensMark } from "./Brand";
 import { useEffect, useRef, useState } from "react";
 import { FullscreenButton } from "./Fullscreen";
 import { Settings } from "./GameMenu";
@@ -11,10 +12,7 @@ import { go } from "../App";
 export function Logo({ onClick }: { onClick?: () => void }) {
   return (
     <a className="logo-mark" onClick={onClick ?? (() => go("/"))}>
-      <svg viewBox="0 0 32 32" width="22" height="22" aria-hidden>
-        <circle cx="16" cy="16" r="14" fill="none" stroke="#a64dff" strokeWidth="1.5" opacity=".7" />
-        <circle cx="16" cy="16" r="5" fill="#ffe9b0" />
-      </svg>
+      <LensMark size={24} />
       <span>BLACKOUT</span>
     </a>
   );

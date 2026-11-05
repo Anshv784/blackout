@@ -1,3 +1,4 @@
+import { Wordmark } from "./Brand";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { client } from "../game/identity";
 import { PUBLIC_ROOMS, PRIVATE_POOL, QUICK_ROOMS, STAKED_ROOMS } from "../config";
@@ -279,7 +280,9 @@ export function Home() {
             <span className="dot" /> THE WARDEN IS WATCHING ·{" "}
             {live > 0 ? `${live} ${live === 1 ? "night" : "nights"} in the dark` : openRooms.length ? `${openRooms.length} open ${openRooms.length === 1 ? "room" : "rooms"}` : "every room is free"}
           </div>
-          <h1 className="gate-title">BLACKOUT</h1>
+          <h1 className="gate-title">
+            <Wordmark />
+          </h1>
           <p className="gate-tag">
             A real-time battle royale where <b>nobody can see you</b> — not the other players, not the RPC, <b>not even the chain</b>.
           </p>

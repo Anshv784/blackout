@@ -1,3 +1,4 @@
+import { Wordmark } from "./Brand";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { audio } from "../game/audio";
 import { fullscreenOnTouch } from "./Fullscreen";
@@ -161,7 +162,9 @@ export function Intro({ onDone }: { onDone: () => void }) {
       {dip > 0 && <div className="cut-dip" style={{ opacity: Math.min(1, dip * 1.4) }} />}
       {t >= TITLE_AT && (
         <div className="intro-title ad-end">
-          <h1>BLACKOUT</h1>
+          <h1>
+            <Wordmark />
+          </h1>
           <p>The battle royale nobody can see. Not even the chain.</p>
           <div className="ad-facts">
             <span><b>8</b> players</span>

@@ -2687,3 +2687,10 @@ button {
 .lk-tile .lk-gun img,.lk-tile .lk-gun b{position:absolute;left:8%;right:8%;top:14%;bottom:14%;width:84%;height:72%;object-fit:contain}
 .lk-tile .lk-gun img{filter:brightness(1.1) drop-shadow(0 5px 8px rgba(0,0,0,.6))}
 .lk-tile .lk-gun b{-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;mix-blend-mode:color;opacity:.85}
+
+/* the wordmark: BLACK [lens] UT, a beam of light falling behind UT */
+.wordmark{display:inline-flex;align-items:center;white-space:nowrap}
+.wordmark .wm-o{position:relative;display:inline-flex;align-items:center;margin:0 .02em}
+.wordmark .wm-o svg{width:.86em;height:.86em;position:relative;z-index:1;filter:drop-shadow(0 0 .12em rgba(255,209,102,.35))}
+.wordmark .wm-beam{position:absolute;left:55%;top:50%;width:2.4em;height:1.1em;transform:translateY(-50%);background:linear-gradient(90deg,rgba(255,231,168,.5),rgba(255,209,102,.1) 60%,transparent);clip-path:polygon(0 42%,100% 0,100% 100%,0 58%);pointer-events:none}
+.wordmark .wm-ut{position:relative;z-index:1}
