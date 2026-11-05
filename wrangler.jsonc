@@ -11,7 +11,9 @@
   // the game's own domain (blackout.anshverma.tech stays on Vercel, untouched)
   "routes": [
     { "pattern": "playblackout.fun", "custom_domain": true },
-    { "pattern": "www.playblackout.fun", "custom_domain": true }
+    { "pattern": "www.playblackout.fun", "custom_domain": true },
+    // blackout.anshverma.tech arrives as a Cloudflare for SaaS custom hostname on playblackout.fun
+    { "pattern": "blackout.anshverma.tech/*", "zone_name": "playblackout.fun" }
   ],
   // keep the workers.dev address working too
   "workers_dev": true,
