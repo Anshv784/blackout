@@ -39,7 +39,7 @@ const seatPos = (i: number, n: number, gap: number, rows: number): [number, numb
     const inRow = back ? n - cols : cols;
     // equal rows shift a quarter gap each way; a shorter back row already falls in the gaps
     const shift = n - cols === cols ? gap / 4 : 0;
-    return [(col - (inRow - 1) / 2) * gap + (back ? shift : -shift), 0, back ? -1.7 : 0];
+    return [(col - (inRow - 1) / 2) * gap + (back ? shift : -shift), 0, back ? -1.35 : 0];
   }
   if (rows === 2) {
     // phone held upright: two rows, the back one offset so nobody hides behind anyone
@@ -156,7 +156,7 @@ function Pedestal({ i, n, gap, rows, seat, onTake, onMakeHost, onKick, onSelf }:
 
 /** Frames the seats in the free band between the page title and the controls at the bottom,
  *  measured from the page itself, so tags never run into the title on any screen. */
-function Rig({ n, gap, depth }: { n: number; gap: number; depth: number }) {
+function Rig({ n, gap, depth, lift = 0 }: { n: number; gap: number; depth: number; lift?: number }) {
   const { camera, size } = useThree();
   const band = useRef({ top: 170, bot: size.height - 170, left: 0, at: -1 });
   useEffect(() => () => (camera as THREE.PerspectiveCamera).clearViewOffset(), [camera]);
@@ -184,7 +184,7 @@ function Rig({ n, gap, depth }: { n: number; gap: number; depth: number }) {
     const fitH = (3.4 * size.height) / (h * 2 * tanV);
     const dist = Math.max(6.5, fitW, fitH) + depth;
     cam.position.set(Math.sin(t * 0.1) * 0.5, 2.9 + Math.sin(t * 0.25) * 0.05, dist);
-    cam.lookAt(0, 1.6, -depth);
+    cam.lookAt(0, 1.6 - lift, -depth);
     // move the picture's centre into the middle of the band
     const offY = size.height / 2 - (top + bot) / 2;
     const offX = left ? size.width / 2 - (left + (left + freeW)) / 2 : 0;
@@ -242,7 +242,7 @@ export const LobbyStage = memo(function LobbyStage({ seats, onTake, onMakeHost, 
   }, []);
   // a full table (6+) on a wide screen: two staggered rows, so the soldiers stay big
   const rows = portrait && seats.length > 2 ? 2 : seats.length >= 6 ? 3 : 1;
-  const gap = portrait ? 1.7 : rows === 3 ? 2.0 : 2.1;
+  const gap = portrait ? 1.7 : rows === 3 ? 1.55 : 2.1;
   return (
     <div className="backdrop">
       <Canvas shadows={!TOUCH} dpr={TOUCH ? 1 : [1, 1.5]} gl={{ antialias: !TOUCH }} camera={{ fov: 34, position: [0, 2.3, 9] }} onCreated={({ gl }) => {
@@ -254,7 +254,7 @@ export const LobbyStage = memo(function LobbyStage({ seats, onTake, onMakeHost, 
         <fog attach="fog" args={["#020203", 10, 24]} />
         <hemisphereLight args={["#8ea2c8", "#0b0c10", 0.32]} />
         <Studio />
-        <Rig n={rows === 2 ? Math.ceil(seats.length / 2) : rows === 3 ? Math.ceil(seats.length / 2) + 0.5 : seats.length} gap={gap} depth={rows === 2 ? 1.2 : rows === 3 ? 0.9 : 0.4} />
+        <Rig n={rows === 2 ? Math.ceil(seats.length / 2) : rows === 3 ? Math.ceil(seats.length / 2) + 0.3 : seats.length} gap={gap} depth={rows === 2 ? 1.2 : rows === 3 ? 0.55 : 0.4} lift={rows === 3 ? 0.55 : 0} />
         <mesh rotation-x={-Math.PI / 2} receiveShadow>
           <planeGeometry args={[60, 60]} />
           {TOUCH ? (
