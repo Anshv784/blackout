@@ -8,5 +8,12 @@
     "directory": "./app/dist",
     "not_found_handling": "none"
   },
+  // the game's own domain (blackout.anshverma.tech stays on Vercel, untouched)
+  "routes": [
+    { "pattern": "playblackout.fun", "custom_domain": true },
+    { "pattern": "www.playblackout.fun", "custom_domain": true }
+  ],
+  // keep the workers.dev address working too
+  "workers_dev": true,
   "observability": { "enabled": true }
 }
