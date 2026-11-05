@@ -7,7 +7,7 @@ import * as THREE from "three";
 import { Avatar } from "./Avatar";
 import { stillMotion, type Motion } from "./Soldier";
 import { TOUCH } from "../game/device";
-import { useLook } from "../game/look";
+import { previewGun, useLook } from "../game/look";
 
 function Studio() {
   const { gl, scene } = useThree();
@@ -53,7 +53,7 @@ function Operator({ color }: { color: string }) {
   });
   return (
     <group ref={g} scale={1.55}>
-      <Avatar color={color} me ring={false} weapon={3} motion={motion} look={myLook} />
+      <Avatar color={color} me ring={false} weapon={previewGun()} motion={motion} look={myLook} />
     </group>
   );
 }

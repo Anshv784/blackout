@@ -3,7 +3,7 @@
 import { lazy, Suspense, useState } from "react";
 import { TopBar } from "./TopBar";
 import { go } from "../App";
-import { CHARACTERS, ROSTER, OUTFITS, FINISHES, EMOTES, SKINS, useLook } from "../game/look";
+import { CHARACTERS, ROSTER, OUTFITS, FINISHES, EMOTES, SKINS, previewGun, useLook } from "../game/look";
 import { SkinSwatch } from "./SkinSwatch";
 import { EmoteGlyph } from "./EmoteWheel";
 import { WEAPON_NAME } from "../chain/layout";
@@ -26,9 +26,19 @@ const GUN_INFO: { type: string; dmg: number; rate: number; mag: number; range: n
 ];
 const bar = (v: number, max: number) => Math.max(0.06, Math.min(1, v / max));
 
+const OUTFIT_NOTE = ["as issued", "forest greens", "sand and dust", "concrete grey", "night blue", "snow white", "dried red"];
+const FINISH_NOTE = ["bare steel", "desert tan", "field olive", "polished white", "gold plate", "red anodised"];
+
 export function Characters() {
   const { look, set } = useLook();
-  const [weapon, setWeapon] = useState(3);
+  // the gun you pick here is the one your operator carries on the home screen too
+  const [weapon, setWeaponState] = useState(() => previewGun());
+  const setWeapon = (w: number) => {
+    setWeaponState(w);
+    try {
+      localStorage.setItem("bo-preview-gun", String(w));
+    } catch {}
+  };
   const [emoteAt, setEmoteAt] = useState(0);
   const [mode, setMode] = useState<"operator" | "guns">("operator");
   const [tab, setTab] = useState<"outfit" | "finish" | "skin" | "emote">("outfit");
@@ -140,18 +150,32 @@ export function Characters() {
             <div className={`lk-grid ${curTab === "emote" ? "wide" : ""}`}>
               {curTab === "outfit" &&
                 OUTFITS.map((o, i) => (
-                  <button key={o.name} className={`lk-tile ${look.outfit === i ? "on" : ""}`} onClick={() => set({ outfit: i })}>
-                    <i className="lk-fill" style={{ background: i === 0 ? "conic-gradient(from 40deg,#6b7a4a,#a08860,#3d4a5c,#7a4a3a,#6b7a4a)" : `linear-gradient(160deg, ${o.tint}, color-mix(in srgb, ${o.tint} 55%, #000))` }} />
-                    <span>{o.name}</span>
+                  <button key={o.name} className={`lk-tile op ${look.outfit === i ? "on" : ""}`} onClick={() => set({ outfit: i })}>
+                    <i className="lk-fill lk-op" style={{ ["--tint" as string]: i === 0 ? "#9a8a70" : o.tint }}>
+                      <img src={`/models/chars/thumbs/${ch.key}.png`} alt="" />
+                      {i > 0 && <b style={{ background: o.tint, WebkitMaskImage: `url(/models/chars/thumbs/${ch.key}.png)`, maskImage: `url(/models/chars/thumbs/${ch.key}.png)` }} />}
+                    </i>
+                    <span>
+                      {o.name}
+                      <em>{OUTFIT_NOTE[i]}</em>
+                    </span>
                   </button>
                 ))}
               {curTab === "finish" &&
-                FINISHES.map((f, i) => (
-                  <button key={f.name} className={`lk-tile ${look.finish === i ? "on" : ""}`} onClick={() => set({ finish: i })}>
-                    <i className="lk-fill" style={{ background: `linear-gradient(160deg, ${i === 0 ? "#5a606c" : f.tint}, color-mix(in srgb, ${i === 0 ? "#2a2d34" : f.tint} 45%, #000))` }} />
-                    <span>{f.name}</span>
-                  </button>
-                ))}
+                FINISHES.map((f, i) => {
+                  const c = i === 0 ? "#8a909c" : f.tint;
+                  return (
+                    <button key={f.name} className={`lk-tile op ${look.finish === i ? "on" : ""}`} onClick={() => set({ finish: i })}>
+                      <i className="lk-fill lk-gun" style={{ ["--tint" as string]: c, color: c }}>
+                        <GunIcon weapon={weapon} />
+                      </i>
+                      <span>
+                        {f.name}
+                        <em>{FINISH_NOTE[i] ?? ""}</em>
+                      </span>
+                    </button>
+                  );
+                })}
               {curTab === "skin" &&
                 SKINS.map((k, i) => (
                   <button key={k.key} className={`lk-tile ${(look.skin ?? 0) === i ? "on" : ""}`} onClick={() => set({ skin: i })}>

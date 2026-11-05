@@ -117,3 +117,13 @@ export const useLook = create<{ look: Look; set: (l: Partial<Look>) => void }>((
   },
 }));
 export const getLook = () => useLook.getState().look;
+
+/** the gun last picked on the Operator page (shown on the home screen), the KESTREL by default */
+export function previewGun(): number {
+  try {
+    const v = Number(localStorage.getItem("bo-preview-gun"));
+    return Number.isInteger(v) && v >= 0 && v <= 7 && localStorage.getItem("bo-preview-gun") !== null ? v : 3;
+  } catch {
+    return 3;
+  }
+}

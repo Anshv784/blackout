@@ -279,7 +279,7 @@ export interface GunModel {
   front?: [number, number, number];
 }
 export const GUN_MODELS: Partial<Record<number, GunModel>> = {
-  0: { url: "/models/guns/pistol.glb", len: 0.27, rear: 0.25, y: -0.02, flip: [true, false] },
+  0: { url: "/models/guns/pistol.glb", len: 0.27, rear: 0.25, y: -0.02, flip: [true, false], grip: [0.29, 0.0, 0.045], front: [0.31, -0.03, -0.04] },
   1: { url: "/models/guns/smg.glb", len: 0.55, rear: 0.05, y: -0.01, grip: [0.42, -0.07, 0.045], front: [0.55, -0.065, -0.045] },
   2: { url: "/models/guns/shotgun.glb", len: 1.0, rear: 0.11, y: -0.01 },
   3: { url: "/models/guns/rifle.glb", len: 0.95, rear: -0.03, y: -0.01, flip: [true, false] },
