@@ -2670,3 +2670,20 @@ button {
   .map-picker .mp-thumb{height:58px}
   .map-picker .mp-text span{display:none}
 }
+
+/* armory: the real gun, rendered, beside its name and a damage bar */
+.gs-item{gap:14px;padding:6px 14px 6px 6px;transition:border-color .12s,background .12s,transform .12s}
+.gs-item:hover{transform:translateX(2px)}
+.gs-item .gs-thumb{flex:none;width:118px;height:46px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:radial-gradient(90% 120% at 50% 110%,rgba(255,209,102,.07),rgba(255,255,255,.015) 60%,transparent);overflow:hidden}
+.gs-item .gs-thumb img{max-width:104px;max-height:40px;object-fit:contain;filter:brightness(1.15) contrast(1.05) drop-shadow(0 4px 6px rgba(0,0,0,.55));transition:transform .2s}
+.gs-item:hover .gs-thumb img{transform:scale(1.06)}
+.gs-item.on{background:linear-gradient(90deg,rgba(255,209,102,.12),rgba(12,14,22,.82) 70%)}
+.gs-item.on .gs-thumb{background:radial-gradient(90% 120% at 50% 110%,rgba(255,209,102,.22),rgba(255,209,102,.04) 65%,transparent)}
+.gs-item>div{flex:1;min-width:0}
+.gs-item .gs-dmg{display:block;height:3px;margin-top:6px;border-radius:2px;background:rgba(255,255,255,.08);overflow:hidden;max-width:120px}
+.gs-item .gs-dmg i{display:block;height:100%;background:linear-gradient(90deg,#8a93a8,#c9cfdc)}
+.gs-item.on .gs-dmg i{background:linear-gradient(90deg,#d9a93c,var(--gold))}
+@media (max-height:820px) and (min-width:861px){.gs-item .gs-thumb{height:38px;width:104px}.gs-item .gs-thumb img{max-height:32px}}
+.lk-tile .lk-gun img,.lk-tile .lk-gun b{position:absolute;left:8%;right:8%;top:14%;bottom:14%;width:84%;height:72%;object-fit:contain}
+.lk-tile .lk-gun img{filter:brightness(1.1) drop-shadow(0 5px 8px rgba(0,0,0,.6))}
+.lk-tile .lk-gun b{-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;mix-blend-mode:color;opacity:.85}

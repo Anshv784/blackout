@@ -29,7 +29,9 @@ function Bench({ weapon, finish, skin, spin }: { weapon: number; finish?: string
   const g = useRef<THREE.Group>(null);
   useFrame((_, dt) => {
     if (!g.current) return;
-    if (!spin.current.drag) spin.current.y += dt * 0.35;
+    // thumbnail capture (dev): hold a clean side profile
+    if ((globalThis as any).__gunThumb) spin.current.y = g.current.rotation.y = 0.22;
+    else if (!spin.current.drag) spin.current.y += dt * 0.35;
     g.current.rotation.y += (spin.current.y - g.current.rotation.y) * 0.12;
   });
   const [cx, len] = CENTRE[weapon] ?? [0.5, 1];
@@ -78,7 +80,7 @@ export const GunStage = memo(function GunStage({ weapon, finish, skin }: { weapo
         <Suspense fallback={null}>
           <Bench weapon={weapon} finish={finish} skin={skin} spin={spin} />
         </Suspense>
-        <mesh rotation-x={-Math.PI / 2} position={[0, -0.3, 0]}>
+        <mesh rotation-x={-Math.PI / 2} position={[0, -0.3, 0]} visible={!(globalThis as any).__gunThumb}>
           <ringGeometry args={[0.62, 0.64, 96]} />
           <meshBasicMaterial color="#ffd166" toneMapped={false} transparent opacity={0.7} />
         </mesh>

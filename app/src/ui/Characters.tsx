@@ -84,10 +84,15 @@ export function Characters() {
               <div className="gs-list">
                 {[0, 1, 2, 3, 5, 4, 6, 7].map((w) => (
                   <button key={w} className={`gs-item ${weapon === w ? "on" : ""}`} onClick={() => setWeapon(w)}>
-                    <GunIcon weapon={w} />
+                    <i className="gs-thumb">
+                      <img src={`/models/guns/thumbs/${w}.webp`} alt="" loading="lazy" />
+                    </i>
                     <div>
                       <b>{WEAPON_NAME[w]}</b>
                       <span>{GUN_INFO[w].type}</span>
+                      <em className="gs-dmg" title="damage per hit">
+                        <i style={{ width: `${bar(GUN_INFO[w].dmg, 80) * 100}%` }} />
+                      </em>
                     </div>
                   </button>
                 ))}
@@ -166,8 +171,9 @@ export function Characters() {
                   const c = i === 0 ? "#8a909c" : f.tint;
                   return (
                     <button key={f.name} className={`lk-tile op ${look.finish === i ? "on" : ""}`} onClick={() => set({ finish: i })}>
-                      <i className="lk-fill lk-gun" style={{ ["--tint" as string]: c, color: c }}>
-                        <GunIcon weapon={weapon} />
+                      <i className="lk-fill lk-gun" style={{ ["--tint" as string]: c }}>
+                        <img src={`/models/guns/thumbs/${weapon}.webp`} alt="" />
+                        {i > 0 && <b style={{ background: c, WebkitMaskImage: `url(/models/guns/thumbs/${weapon}.webp)`, maskImage: `url(/models/guns/thumbs/${weapon}.webp)` }} />}
                       </i>
                       <span>
                         {f.name}
