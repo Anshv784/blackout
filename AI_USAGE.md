@@ -165,6 +165,14 @@ Plenty here wasn't the AI's call:
 
 ---
 
+## About the git history
+
+Every commit in this repo was written by Claude Code and committed under the developer's account. Until this point the commits carried no AI attribution line, because that was the developer's choice at the time.
+
+The commit that added this section is co-authored by Claude on purpose, as a marker that the project is AI-built. A co-author line is only a label, and anyone can add one. The real evidence is everything else in this file: the timeline matches the commit history day by day, the tests can be re-run, and the Claude Code session logs that produced each commit still exist and can be shown on request.
+
+---
+
 ## Known limits and open items
 
 - The **clap** emote needs a better source clip, or should be replaced.
