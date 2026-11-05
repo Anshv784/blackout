@@ -20,12 +20,11 @@ export { INTRO_LENGTH };
 
 // ------------------------------------------------------------------ script
 //
-// One night across both maps, choreographed once and then cut like a launch trailer (game/trailer.ts).
-// Act I, the Yard: 03:12 the grid fails. DUSK wakes among the containers and learns the one rule
-// hiding from NYX's searching torch; WRAITH forgets it and dies. The Warden watches and tells no
-// one. Act II, the Meadow: no walls, only grass. VEX kills GLOOM with a crossbow nobody hears.
-// DUSK answers with a grenade, takes the silent bow, and in the last circle ends NYX, who kept
-// his light on, standing under a lantern on the creek bridge. One walks out.
+// One night in the Yard, told by DUSK, in real time (no ad cutting).
+// 03:12 the grid fails. DUSK wakes among the containers, clicks his torch on and learns the one
+// rule hiding from NYX's searching beam. WRAITH forgets it, sprays at a sound and dies in his own
+// muzzle flashes. The Warden watches and tells no one, and the circle pulls the last two to the
+// water tower: NYX under the lamp with his light on, DUSK in the dark. One shot. One walks out.
 
 type V3 = [number, number, number];
 type Win = [number, number];
@@ -48,65 +47,44 @@ interface Actor {
 }
 
 /** the night switches from the Yard to the Meadow here, behind a lightning flash */
-export const MAP_SWITCH = 33.0;
+export const MAP_SWITCH = 999; // the whole story stays in the Yard
 
 export const ACTORS: Actor[] = [
   {
-    name: "DUSK", seat: 7, weapon: 3, weapons: [{ t: 51.0, w: 7 }], show: [[6, 22], [37.2, 41.5], [44.6, 51.5], [55, 70]],
+    name: "DUSK", seat: 7, weapon: 3, show: [[6, 22], [33, 70]],
     lights: [[9.8, 13]],
-    crouch: [[6, 9.2], [13, 22], [37.2, 48.6], [50.6, 51.5], [55, 59.7]],
+    crouch: [[6, 9.2], [13, 22], [33, 43.0]],
     keys: [
-      // Act I: wakes in the container yard
+      // wakes in the container yard
       { t: 6, x: 6.5, z: 10.6, face: -20 }, { t: 12.9, x: 6.5, z: 10.6, face: -10 },
       // hides south of the containers while NYX passes on the other side
       { t: 13, x: 11.4, z: 13.45, face: -60 }, { t: 22, x: 11.4, z: 13.45, face: -80 },
-      // Act II: crawling north through the tall grass, west of the creek
-      { t: 37.2, x: 20.6, z: 29.4, face: -88 }, { t: 41.5, x: 20.3, z: 23.6, face: -95 },
-      // stops in the grass, watches the hedge, throws
-      { t: 44.6, x: 17.6, z: 19.6, face: 205 }, { t: 48.6, x: 17.6, z: 19.6, face: 202 },
-      // runs to the body and takes the crossbow
-      { t: 50.6, x: 11.2, z: 17.2, face: 200 }, { t: 51.5, x: 11.2, z: 17.2, face: 200 },
-      // the last circle: low in the tall grass south of the bridge
-      { t: 55, x: 31.5, z: 40.6, face: 218 }, { t: 59.6, x: 31.5, z: 40.6, face: 218 }, { t: 60.0, x: 31.5, z: 40.6, face: 219 },
-      { t: 70, x: 31.5, z: 40.6, face: 219 },
+      // the last circle: low in the dark east of the water tower, watching the lamp
+      { t: 33, x: 26.6, z: 21.6, face: 183 }, { t: 42.9, x: 26.6, z: 21.6, face: 184 }, { t: 43.1, x: 26.6, z: 21.6, face: 184 },
+      { t: 70, x: 26.6, z: 21.6, face: 184 },
     ],
-    throwAt: 47.3,
-    fire: [{ t: 60.0, at: "NYX" }],
+    fire: [{ t: 43.2, at: "NYX" }],
   },
   {
-    name: "NYX", seat: 1, weapon: 4, show: [[13, 22], [22, 29], [55, 70]],
-    lights: [[13, 22], [55, 60.3]],
+    name: "NYX", seat: 1, weapon: 4, show: [[13, 22], [22, 29], [33, 70]],
+    lights: [[13, 22], [33, 43.35]],
     keys: [
-      // Act I, the hunter: walks the far side of the containers, torch searching
+      // the hunter: walks the far side of the containers, torch searching
       { t: 13, x: 21.0, z: 10.5, face: 180 }, { t: 20.5, x: 14.0, z: 10.5, face: 180 }, { t: 21.9, x: 13.6, z: 10.5, face: 180 },
       // dark on the road, waiting
       { t: 22, x: 21.5, z: 17.0, face: 145 }, { t: 29, x: 21.5, z: 17.0, face: 145 },
-      // Act II: on the south bridge, under the lantern, light on
-      { t: 55, x: 25.3, z: 36.5, face: -40 }, { t: 58.6, x: 27.4, z: 36.6, face: -25 }, { t: 70, x: 27.4, z: 36.6, face: -25 },
+      // the last circle: walks down to the crossroads, stops under the lamp, searching
+      { t: 33, x: 21.6, z: 16.4, face: 90 }, { t: 38.2, x: 21.8, z: 20.9, face: 75 }, { t: 43.35, x: 22.0, z: 21.3, face: 6 }, { t: 70, x: 22.0, z: 21.3, face: 6 },
     ],
-    sweep: [{ from: 13, to: 21.9, amp: 32, period: 2.6 }, { from: 55.2, to: 60.2, amp: 28, period: 2.4 }],
+    sweep: [{ from: 13, to: 21.9, amp: 32, period: 2.6 }, { from: 33.2, to: 43.3, amp: 38, period: 3.0 }],
     fire: [{ t: 26.4, at: "WRAITH", miss: 0.1 }],
-    dead: 60.3,
+    dead: 43.35,
   },
   {
     name: "WRAITH", seat: 2, weapon: 1, show: [[22, 29]], lights: [[22, 26.6]],
     keys: [{ t: 22, x: 10.5, z: 20.5, face: 0 }, { t: 25.0, x: 16.5, z: 20.5, face: 25 }, { t: 29, x: 16.5, z: 20.5, face: 35 }],
     fire: [{ t: 25.2, at: [21, 0, 23.5], miss: 1.2 }, { t: 25.45, at: [21, 0, 23.5], miss: 1.2 }, { t: 25.7, at: [21, 0, 23.5], miss: 1.2 }, { t: 25.95, at: [21, 0, 23.5], miss: 1.2 }],
     dead: 26.45,
-  },
-  {
-    // Act II: walks the north field with his torch on, past the hedge gap
-    name: "GLOOM", seat: 5, weapon: 2, show: [[41.5, 44.6]], lights: [[41.5, 43.8]],
-    keys: [{ t: 41.5, x: 3.5, z: 13.5, face: 0 }, { t: 44.6, x: 9.6, z: 13.4, face: 5 }],
-    dead: 43.75,
-  },
-  {
-    // Act II: crouched behind the hedgerow with a crossbow; never lights up, never makes a sound
-    name: "VEX", seat: 3, weapon: 7, show: [[41.5, 51.5]],
-    crouch: [[41.5, 48.2]],
-    keys: [{ t: 41.5, x: 10.1, z: 16.6, face: 230 }, { t: 43.3, x: 10.1, z: 16.6, face: 238 }, { t: 51.5, x: 10.1, z: 16.6, face: 238 }],
-    fire: [{ t: 43.4, at: "GLOOM" }],
-    dead: 48.25,
   },
 ];
 
@@ -131,38 +109,28 @@ export const CAMS: Cam[] = [
   { from: 26.9, to: 29, p0: [1.6, 1.5, 2.4], p1: [1.9, 2.1, 2.7], l0: [-0.6, 0.2, -0.3], l1: [-0.6, 0.15, -0.3], follow: "WRAITH" },
   // the Warden over the water tower, the circle closing on the Yard
   { from: 29, to: 33, p0: [31, 4, 33], p1: [28, 8.5, 30], l0: [24, 8.5, 24], l1: [24, 10, 24] },
-  // ---- Act II, the Meadow
-  // night two: high over the fields, the creek a silver line, lanterns, fireflies
-  { from: 33, to: 37.2, p0: [24, 30, 66], p1: [24, 15, 47], l0: [24, 0, 24], l1: [22, 0, 26], fill: 0 },
-  // low in the tall grass behind DUSK as he crawls
-  { from: 37.2, to: 41.5, p0: [0.55, 0.75, 1.9], p1: [0.5, 0.8, 1.7], l0: [-0.1, 0.45, -2.6], l1: [-0.1, 0.45, -2.6], follow: "DUSK", fill: 1.1 },
-  // behind the hedge with VEX: GLOOM's torch on the far side of the gap
-  { from: 41.5, to: 44.6, p0: [11.7, 0.85, 18.3], p1: [11.5, 0.9, 18.1], l0: [7.2, 0.9, 13.6], l1: [7.6, 0.9, 13.6], fill: 0.5 },
-  // DUSK in the grass, the throw lined up on the hedge
-  { from: 44.6, to: 48.6, p0: [19.4, 1.25, 20.6], p1: [19.2, 1.35, 20.4], l0: [11.0, 0.5, 16.6], l1: [10.6, 0.5, 16.6], fill: 0.9 },
-  // the body, and the crossbow taken from it
-  { from: 48.6, to: 51.5, p0: [13.4, 1.0, 18.7], p1: [12.9, 0.95, 18.4], l0: [10.6, 0.5, 16.8], l1: [10.8, 0.6, 16.9], fill: 1.0 },
-  // the Warden over the Meadow, drawing the last circle round the bridge
-  { from: 51.5, to: 55, p0: [27, 2.5, 56], p1: [27, 5.5, 50], l0: [27, 6, 37], l1: [27, 9.5, 37] },
-  // the last circle: behind DUSK low in the grass, NYX on the bridge under the lantern
-  { from: 55, to: 59.7, p0: [32.7, 1.25, 42.4], p1: [32.5, 1.3, 42.1], l0: [26.4, 1.05, 36.5], l1: [27.2, 1.05, 36.6], fill: 0.6 },
-  // he rises: one bolt, no flash, no sound
-  { from: 59.7, to: 61.6, p0: [29.6, 1.35, 33.9], p1: [29.8, 1.4, 33.7], l0: [27.4, 0.95, 36.8], l1: [27.4, 0.8, 36.8], fill: 0.8 },
-  // close on the one who walks out, pulling away over the dark field
-  { from: 61.6, to: 70, p0: [30.2, 1.35, 42.0], p1: [28.4, 3.4, 44.2], l0: [31.5, 1.15, 40.6], l1: [31.5, 0.9, 40.6], fill: 1.4 },
+  // ---- the last circle, at the water tower
+  // NYX walks down into the crossroads, torch searching, toward the lamp
+  { from: 33, to: 38.5, p0: [19.0, 1.45, 17.4], p1: [19.3, 1.4, 19.8], l0: [21.6, 1.15, 17.4], l1: [21.8, 1.1, 20.6], fill: 1.8 },
+  // NYX under the lamp, torch sweeping: he still trusts his light
+  { from: 38.5, to: 39.7, p0: [19.5, 1.45, 23.5], p1: [19.7, 1.45, 23.3], l0: [22.0, 1.15, 21.3], l1: [22.0, 1.15, 21.3], fill: 0.9 },
+  // close on DUSK in the dark: still, waiting, letting him look
+  { from: 39.7, to: 43.1, p0: [25.3, 0.95, 21.0], p1: [25.55, 0.95, 21.1], l0: [26.6, 0.85, 21.6], l1: [26.6, 0.9, 21.6], fill: 1.6 },
+  // under the lamp: one shot, and NYX goes down where he stood
+  { from: 43.1, to: 45.2, p0: [19.9, 1.4, 23.0], p1: [20.1, 1.5, 22.8], l0: [22.0, 1.0, 21.3], l1: [22.0, 0.55, 21.3], fill: 0.9 },
+  // the one who walks out: close, then pulling up and away over the dark Yard
+  { from: 45.2, to: 70, p0: [27.6, 1.4, 22.7], p1: [30.0, 6.5, 26.6], l0: [26.6, 1.2, 21.6], l1: [25.6, 0.4, 21.3], fill: 2.2 },
 ];
 
-const BLASTS: { t: number; x: number; z: number }[] = [{ t: 48.2, x: 10.2, z: 16.7 }];
-const NADES: { from: number; to: number; a: V3; b: V3 }[] = [{ from: 47.4, to: 48.2, a: [17.2, 1.5, 19.4], b: [10.2, 0.2, 16.7] }];
+const BLASTS: { t: number; x: number; z: number }[] = [];
+const NADES: { from: number; to: number; a: V3; b: V3 }[] = [];
 /** the aimed throw drawn before it's thrown (as in the game): DUSK lines it up */
-const ARC = { from: 45.4, to: 47.35, a: [17.3, 1.4, 19.4] as V3, b: [10.2, 0.05, 16.7] as V3 };
+const ARC = { from: 999, to: 999, a: [17.3, 1.4, 19.4] as V3, b: [10.2, 0.05, 16.7] as V3 };
 const ZONES = [
   { from: 29.4, to: 33, r0: 30, r1: 18, x: 24, z: 24 },
-  { from: 51.6, to: 57.5, r0: 24, r1: 9, x: 27, z: 37 },
 ];
 const WARDENS = [
   { from: 29.4, to: 33, x: 24, z: 24 },
-  { from: 51.6, to: 55, x: 27, z: 37 },
 ];
 const TITLE_AT = INTRO_LENGTH;
 
@@ -558,14 +526,16 @@ function Director({ t, onTime }: { t: React.MutableRefObject<number>; onTime: (s
     // the city's lights die early; lightning when the Warden wakes; light floods in for the title
     // the city's lights die at 03:12 and only come back for the title
     (globalThis as any).__boLightsOut = now > 3.1 && adT < TITLE_AT;
-    const strikes = [2.9, 3.05, 29.6, MAP_SWITCH - 0.25, MAP_SWITCH - 0.08, 51.7];
+    const strikes = [2.9, 3.05, 29.6];
     let li = 0;
     for (const st of strikes) if (now >= st && now < st + 0.16) li = 5 * (1 - (now - st) / 0.16);
     if (lightning.current) lightning.current.intensity = li;
     const on = adT > TITLE_AT ? Math.min(1, (adT - TITLE_AT) / 0.6) : 0;
-    if (amb.current) amb.current.intensity = 0.04 + on * 0.55;
+    // after the shot a faint moon comes up over the Yard, so the last image is readable
+    const moon = Math.min(0.16, Math.max(0, (now - 44.6) * 0.1));
+    if (amb.current) amb.current.intensity = 0.04 + moon + on * 0.55;
     // NYX's boots on the far side of the container, passing left to right of DUSK's ear
-    for (const [w0, w1, cx] of [[13.4, 20.6, 15], [55.2, 58.6, 30]]) {
+    for (const [w0, w1, cx] of [[13.4, 20.6, 15], [33.3, 38.1, 26]]) {
       if (now <= w0 || now >= w1) continue;
       const n = Math.floor((now - w0) / 0.6) + w0 * 100;
       if (n !== lastStep.current) {
@@ -595,34 +565,15 @@ function Director({ t, onTime }: { t: React.MutableRefObject<number>; onTime: (s
       audio.whisper(-0.6);
     });
     cue("zone", 29.8, () => audio.setZoneDanger(1));
-    // the cut to night two: thunder over the fields, the Yard's dread gives way to wind
-    cue("cut", MAP_SWITCH - 0.25, () => {
-      audio.setZoneDanger(0);
-      audio.thunder(0.6);
-      audio.boom();
-    });
-    cue("meadow", MAP_SWITCH + 1.2, () => audio.howl(0.5, 0.45));
-    cue("crawl", 37.4, () => audio.setHeartbeat(0.5));
-    cue("gloomfall", 43.85, () => audio.bodyFall(-0.4, 0.5));
-    cue("silence", 44.0, () => audio.horror("mid", 0.6, { wet: 0.8 }));
-    cue("toss", 47.3, () => audio.toss(1));
-    cue("clink", 48.0, () => audio.clink(-0.6, 0.3));
-    cue("vexfall", 48.7, () => audio.bodyFall(-0.5, 0.6));
-    cue("crawloff", 48.8, () => audio.setHeartbeat(0));
-    cue("pickup", 50.9, () => audio.reload(7, 1));
-    cue("warden2", 51.8, () => {
-      audio.boom();
-      audio.whisper(0.6);
-    });
-    cue("zone2", 51.9, () => audio.setZoneDanger(1));
-    cue("heart2", 55.2, () => audio.setHeartbeat(1));
-    cue("zone2off", 57.5, () => audio.setZoneDanger(0));
-    cue("heart2off", 60.0, () => audio.setHeartbeat(0));
-    cue("fall3", 60.75, () => audio.bodyFall(-0.2, 1));
-    cue("walksout", 62.0, () => audio.horror("high", 0.75));
-    cue("wolves2", 63.5, () => audio.howl(0.7, 0.4));
+    // the last circle
+    cue("circle", 33.2, () => audio.horror("bass", 0.45, { wet: 0.8 }));
+    cue("heart2", 38.6, () => audio.setHeartbeat(1));
+    cue("zone2off", 43.0, () => audio.setZoneDanger(0));
+    cue("heart2off", 43.25, () => audio.setHeartbeat(0));
+    cue("fall3", 43.8, () => audio.bodyFall(-0.3, 1));
+    cue("walksout", 45.4, () => audio.horror("high", 0.6));
+    cue("wolves2", 47.5, () => audio.howl(0.7, 0.4));
     // the ad's own beats: a hit on each feature card, the lights come on for the end card
-    for (const at of [4.6, 7.6, 12.1, 14.6, 16.6, 18.9, 21.7, 23.5, 28.6]) cue(`hit${at}`, at, () => audio.boom(), adT);
     cue("lights", TITLE_AT, () => {
       audio.setHeartbeat(0);
       audio.setZoneDanger(0);

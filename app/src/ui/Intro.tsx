@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { audio } from "../game/audio";
 import { fullscreenOnTouch } from "./Fullscreen";
 import { INTRO_LENGTH } from "../game/colors";
@@ -7,23 +7,26 @@ import { CLIPS } from "../game/trailer";
 const loadScene = () => import("../scene/IntroScene");
 const IntroScene = lazy(() => loadScene().then((m) => ({ default: m.IntroScene })));
 
-// the story, told underneath the picture: narration (bottom), a few cards (centre), name tags
-type Line = { at: number; to: number; text: string; kind: "say" | "card" | "name" | "tag"; sub?: string; n?: string };
+// the story, told by DUSK: narration under the picture (spoken too), a card, and name tags
+type Line = { at: number; to: number; text: string; kind: "say" | "card" | "name" | "tag"; sub?: string; n?: string; voice?: string };
 const LINES: Line[] = [
-  { at: 0.4, to: 2.4, kind: "card", text: "03:12", sub: "THE GRID FAILS" },
-  { at: 2.7, to: 4.4, kind: "say", text: "Eight players. No lights. One way out." },
-  { at: 4.6, to: 7.4, kind: "tag", n: "01", text: "STAY DARK", sub: "a light shows everyone where you are" },
-  { at: 7.6, to: 9.9, kind: "tag", n: "02", text: "EVERY SHOT IS A FLARE", sub: "fire, and the whole map knows" },
-  { at: 10.2, to: 11.9, kind: "say", text: "The Warden sees everything. It tells no one." },
-  { at: 12.1, to: 14.4, kind: "card", text: "TWO MAPS", sub: "THE YARD · THE MEADOW" },
-  { at: 14.6, to: 16.4, kind: "tag", n: "03", text: "HIDE IN THE GRASS", sub: "crouch and you vanish" },
-  { at: 16.6, to: 18.7, kind: "tag", n: "04", text: "SILENT KILLS", sub: "the crossbow makes no sound, no flash" },
-  { at: 18.9, to: 21.5, kind: "tag", n: "05", text: "AIM EVERY THROW", sub: "frags, smokes, flashbangs" },
-  { at: 21.7, to: 23.3, kind: "tag", n: "06", text: "LOOT THE FALLEN", sub: "guns, armor, grenades" },
-  { at: 23.5, to: 25.5, kind: "tag", n: "07", text: "THE CIRCLE CLOSES", sub: "the Warden picks where it ends" },
-  { at: 26.0, to: 28.4, kind: "say", text: "He still trusts his light." },
-  { at: 28.6, to: 29.9, kind: "card", text: "ONE BOLT", sub: "NO FLASH · NO SOUND" },
-  { at: 30.4, to: 33.6, kind: "card", text: "ONE WALKS OUT" },
+  { at: 0.4, to: 3.2, kind: "card", text: "03:12", sub: "THE GRID FAILS" },
+  { at: 6.6, to: 9.4, kind: "name", text: "DUSK", sub: "the one telling this" },
+  { at: 13.4, to: 16.2, kind: "name", text: "NYX", sub: "the hunter" },
+  { at: 22.2, to: 25.0, kind: "name", text: "WRAITH", sub: "the loud one" },
+  { at: 3.6, to: 7.29, kind: "say", text: "Eight of us woke up in the Yard. No lights. One way out.", voice: "01" },
+  { at: 9.6, to: 15.48, kind: "say", text: "My first mistake was the torch. A light lets you see... and lets everyone see you.", voice: "02" },
+  { at: 15.4, to: 20.07, kind: "say", text: "Nyx had already learned that. Anything his light touched was his.", voice: "03" },
+  { at: 19.9, to: 23.36, kind: "say", text: "So I stayed in the dark. And it passed me by.", voice: "04" },
+  { at: 23.2, to: 24.94, kind: "say", text: "Wraith never learned.", voice: "05" },
+  { at: 25.2, to: 27.18, kind: "say", text: "Every shot is a flare.", voice: "06" },
+  { at: 27.4, to: 29.1, kind: "say", text: "Nyx didn't miss.", voice: "07" },
+  { at: 29.8, to: 33.49, kind: "say", text: "Above us, the Warden sees everything. It tells no one.", voice: "08" },
+  { at: 33.8, to: 37.08, kind: "say", text: "The circle pulled the last two of us to the water tower.", voice: "09" },
+  { at: 37.4, to: 39.42, kind: "say", text: "He still trusted his light.", voice: "10" },
+  { at: 39.8, to: 41.26, kind: "say", text: "I let him look.", voice: "11" },
+  { at: 45.6, to: 48.36, kind: "say", text: "One shot. One flash. Then the dark again.", voice: "12" },
+  { at: 49.0, to: 51.39, kind: "say", text: "Eight walked in. One walks out.", voice: "13" },
 ];
 const TITLE_AT = INTRO_LENGTH;
 
@@ -37,6 +40,7 @@ export function Intro({ onDone }: { onDone: () => void }) {
   const [t, setT] = useState(0);
 
   const finish = () => {
+    spoken.current.forEach((a) => a.pause());
     audio.setHeartbeat(0);
     // the story's score gives way to the Yard's own dread
     audio.stopAmbience();
@@ -50,8 +54,21 @@ export function Intro({ onDone }: { onDone: () => void }) {
   };
 
   const live = t >= TITLE_AT ? [] : LINES.filter((x) => t >= x.at && t < x.to);
+  // the narration is spoken as well: each line starts when the picture reaches it
+  const spoken = useRef(new Map<string, HTMLAudioElement>());
+  useEffect(() => {
+    if (!started || !ready) return;
+    for (const l of LINES) {
+      if (!l.voice || spoken.current.has(l.voice) || t < l.at || t > l.at + 0.5) continue;
+      const a = new Audio(`/story/${l.voice}.mp3`);
+      a.volume = 1;
+      spoken.current.set(l.voice, a);
+      if (!audio.muted) a.play().catch(() => {});
+    }
+  }, [t, started, ready]);
+  useEffect(() => () => spoken.current.forEach((a) => a.pause()), []);
   // a quick dip to black around every cut (no white flash: easy on the eyes)
-  const dip = t >= TITLE_AT ? 0 : Math.max(0, ...CLIPS.filter((c) => c.from > 0).map((c) => 1 - Math.abs(t - c.from) / 0.12));
+  const dip = t >= TITLE_AT ? 0 : Math.max(0, ...CLIPS.filter((c) => c.from > 0 && !c.nodip).map((c) => 1 - Math.abs(t - c.from) / 0.12));
 
   useEffect(() => {
     if (started && t >= INTRO_LENGTH + 8) finish();
