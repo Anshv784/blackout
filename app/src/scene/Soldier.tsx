@@ -25,7 +25,9 @@ export interface Motion {
   jumpAt?: number; // performance.now() a jump started
   shotAt?: number; // performance.now() of the latest shot (each one kicks)
   torch?: boolean; // the under-barrel torch is on
-  deadAt?: number; // performance.now() they were killed: knees go, then they fall back and the gun drops
+  deadAt?: number; // performance.now() they were killed: a recorded death plays, the gun drops
+  /** which recorded death to play (the story picks; in a match it follows from the moment of death) */
+  deathClip?: string;
   reloadAt?: number; // performance.now() the reload started (your own soldier only)
   reloadDur?: number; // and how long it takes, ms
   pickAt?: number; // performance.now() of a pickup: bend down and grab it
@@ -60,6 +62,10 @@ export const stillMotion = (): Motion => ({ speed: 0, firing: false, reloading: 
 
 /** seconds after death the body becomes a crate, and how long the change takes */
 const BOX_AT = 1.6;
+/** the recorded deaths in the bundle; a standing kill picks one of the first five */
+const DEATHS = ["death_back", "death_rifle", "death_headshot", "death_forward", "death_dying", "death_crouch"];
+/** a long recording is played a little quicker so the body is down before it turns into a crate */
+const DEATH_MAX = 2.3;
 const BOX_DUR = 0.45;
 /** per gun: [push back, muzzle climb (rad), flash size, settle (lower = faster)] */
 const RECOIL: [number, number, number, number][] = [
@@ -645,7 +651,9 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
     const jump = scrub("jump");
     const dive = scrub("dive_roll");
     const reload = reloads.stand;
-    return { emotes, reload, reloads, throws, jump, dive };
+    // recorded deaths, scrubbed from the moment of death so every client and every replay agrees
+    const deaths = Object.fromEntries(DEATHS.map((n) => [n, scrub(n)])) as Record<string, THREE.AnimationAction | null>;
+    return { emotes, reload, reloads, throws, jump, dive, deaths };
   }, [mixer, clips]);
   const emoteRef = useRef({ at: 0, idx: -1 });
   // the gun fitted to this body: moved with the shoulder, and in closer for shorter arms
@@ -670,6 +678,7 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
   const crouchK = useRef(0);
   const proneK = useRef(0);
   const landed = useRef(false); // the fallen pose has been drawn at least once
+  const death = useRef<{ at: number; a: THREE.AnimationAction | null; dur: number; rate: number }>({ at: 0, a: null, dur: 0, rate: 1 });
   const [torchOn, setTorchOn] = useState(false);
   // swapping guns: the old one drops away, the new one comes up (shown gun lags the real one)
   const [shown, setShown] = useState(weapon);
@@ -778,11 +787,27 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
     actions.run.timeScale = 1.15;
     // the dead stop breathing once they're down
     const deadT = m.deadAt ? (performance.now() - m.deadAt) / 1000 : -1;
+    if (m.deadAt && death.current.at !== m.deadAt) {
+      // which recording: the story names one; crouched kills fold down; prone and downed keep the
+      // procedural fall (no recording starts lying down); otherwise one picked from the moment of death
+      const name = def.camo || m.prone || m.downed ? null : m.deathClip ?? (m.crouch ? "death_crouch" : DEATHS[Math.floor(Math.abs(m.deadAt * 7.31)) % 5]);
+      const a = name ? extra.deaths[name] ?? null : null;
+      for (const d of Object.values(extra.deaths)) d?.setEffectiveWeight(0);
+      const dur = a ? a.getClip().duration : 0;
+      death.current = { at: m.deadAt, a, dur, rate: Math.max(1, Math.min(1.4, dur / DEATH_MAX)) };
+    }
+    if (!m.deadAt && death.current.a) {
+      death.current.a.setEffectiveWeight(0);
+      death.current = { at: 0, a: null, dur: 0, rate: 1 };
+    }
+    const rec = death.current.a;
+    const recEnd = rec ? death.current.dur / death.current.rate : 0;
+    const boxAt = rec ? Math.max(BOX_AT, recEnd + 0.5) : BOX_AT;
     // landed: the body is frozen exactly as it fell. Nothing touches the skeleton any more.
-    if (deadT > 1.3 && landed.current) {
+    if (landed.current && deadT > (rec ? recEnd + 0.05 : 1.3)) {
       if (pool.current) pool.current.scale.setScalar(0.15 + 0.85 * Math.sqrt(Math.min(1, (deadT - 0.6) / 4)));
       // then the body becomes a death box: it sinks into the ground as a crate pops up in its place
-      const bt = (deadT - BOX_AT) / BOX_DUR;
+      const bt = (deadT - boxAt) / BOX_DUR;
       if (landedY.current === null) landedY.current = model.position.y;
       const sink = Math.min(1, Math.max(0, bt));
       model.position.y = landedY.current - (sink * 0.9) / scale;
@@ -806,7 +831,7 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
       landedY.current = null;
       model.visible = true;
     }
-    mixer.update(deadT > 0.9 ? 0 : dt);
+    mixer.update(deadT > 0.9 && !rec ? 0 : dt);
     if (deadT < 0) {
       // the gun rides the shoulder: every frame it follows where the walk / run / crouch put the
       // right shoulder (so it bobs, leans and dips with the body instead of floating level)
@@ -823,6 +848,36 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
       gunBase.lerp(tmpB, Math.min(1, dt * 18));
     }
     if (deadT < 0) landed.current = false;
+    if (deadT >= 0 && rec) {
+      // the recording takes the whole body over a fifth of a second, then plays out and holds its last frame
+      const f = Math.min(1, deadT / 0.2);
+      for (const n of LOCO) actions[n].setEffectiveWeight(w.current[n] * (1 - f));
+      extra.emotes.forEach((a) => a?.setEffectiveWeight(0));
+      for (const a of [...Object.values(extra.reloads), ...Object.values(extra.throws), extra.jump, extra.dive]) a?.setEffectiveWeight(0);
+      rec.setEffectiveWeight(Math.max(0.001, f) * 20);
+      rec.time = Math.min(death.current.dur - 1e-3, deadT * death.current.rate);
+      mixer.update(0);
+      model.rotation.x = 0;
+      model.rotation.z = 0;
+      model.position.y = 0;
+      if (deadT > recEnd) landed.current = true;
+      if (gunRef.current) {
+        // the gun leaves the hands and clatters down beside the body
+        const gt = Math.min(1, deadT / 0.6);
+        gunRef.current.visible = true;
+        gunRef.current.position.set(gunBase.x + 0.35 * gt, Math.max(0.04, gunBase.y * (1 - gt * gt)), gunBase.z + 0.25 * gt);
+        gunRef.current.rotation.set((Math.PI / 2) * gt, 0, 0);
+      }
+      if (pool.current) {
+        const k2 = THREE.MathUtils.clamp((deadT - recEnd * 0.7) / 4, 0, 1);
+        pool.current.visible = !ghost && deadT > recEnd * 0.6;
+        pool.current.scale.setScalar(0.15 + 0.85 * Math.sqrt(k2));
+        bones.spine.updateWorldMatrix(true, false);
+        g.worldToLocal(tmpA.setFromMatrixPosition(bones.spine.matrixWorld));
+        pool.current.position.set(tmpA.x, 0.015, tmpA.z);
+      }
+      return;
+    }
     if (deadT >= 0) {
       if (deadT > 1.1) landed.current = true;
       // 0-0.25 s the knees buckle, 0.2-0.75 s the body goes over backwards with a small bounce

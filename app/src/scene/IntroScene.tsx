@@ -40,7 +40,9 @@ interface Actor {
   show: Win[];
   keys: Key[];
   fire?: { t: number; at: string | V3; miss?: number }[];
-  dead?: number; // shot at: falls back, gun drops
+  dead?: number; // shot at: a recorded death, gun drops
+  /** which recorded death */
+  deathClip?: string;
   throwAt?: number;
   lights?: Win[]; // flashlight on
   crouch?: Win[];
@@ -88,18 +90,21 @@ export const ACTORS: Actor[] = [
     sweep: [{ from: 13, to: 21.9, amp: 32, period: 2.6 }, { from: 55.2, to: 60.2, amp: 28, period: 2.4 }],
     fire: [{ t: 26.4, at: "WRAITH", miss: 0.1 }],
     dead: 60.3,
+    deathClip: "death_back",
   },
   {
     name: "WRAITH", seat: 2, weapon: 1, show: [[22, 29]], lights: [[22, 26.6]],
     keys: [{ t: 22, x: 10.5, z: 20.5, face: 0 }, { t: 25.0, x: 16.5, z: 20.5, face: 25 }, { t: 29, x: 16.5, z: 20.5, face: 35 }],
     fire: [{ t: 25.2, at: [21, 0, 23.5], miss: 1.2 }, { t: 25.45, at: [21, 0, 23.5], miss: 1.2 }, { t: 25.7, at: [21, 0, 23.5], miss: 1.2 }, { t: 25.95, at: [21, 0, 23.5], miss: 1.2 }],
     dead: 26.45,
+    deathClip: "death_rifle",
   },
   {
     // Act II: walks the north field with his torch on, past the hedge gap
     name: "GLOOM", seat: 5, weapon: 2, show: [[41.5, 44.6]], lights: [[41.5, 43.8]],
     keys: [{ t: 41.5, x: 3.5, z: 13.5, face: 0 }, { t: 44.6, x: 9.6, z: 13.4, face: 5 }],
     dead: 43.75,
+    deathClip: "death_headshot",
   },
   {
     // Act II: crouched behind the hedgerow with a crossbow; never lights up, never makes a sound
@@ -108,6 +113,7 @@ export const ACTORS: Actor[] = [
     keys: [{ t: 41.5, x: 10.1, z: 16.6, face: 230 }, { t: 43.3, x: 10.1, z: 16.6, face: 238 }, { t: 51.5, x: 10.1, z: 16.6, face: 238 }],
     fire: [{ t: 43.4, at: "GLOOM" }],
     dead: 48.25,
+    deathClip: "death_dying",
   },
 ];
 
@@ -239,6 +245,7 @@ function ActorView({ a, t }: { a: Actor; t: React.MutableRefObject<number> }) {
     m.crouch = inWin(a.crouch, now);
     // the fall is driven from the script clock so frozen frames show the right moment
     m.deadAt = dead ? performance.now() - (now - a.dead!) * 1000 : undefined;
+    m.deathClip = a.deathClip;
     m.throwAt = a.throwAt !== undefined && now >= a.throwAt && now < a.throwAt + 0.45 ? performance.now() - (now - a.throwAt) * 1000 : 0;
     const shot = a.fire?.findIndex((f) => now >= f.t && now < f.t + 0.09) ?? -1;
     m.firing = shot >= 0;
