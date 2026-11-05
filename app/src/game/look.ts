@@ -70,7 +70,7 @@ export interface Look {
   emote: number;
   skin: number;
 }
-export const DEFAULT_LOOK: Look = { char: 1, outfit: 0, finish: 0, emote: 0, skin: 0 };
+export const DEFAULT_LOOK: Look = { char: 1, outfit: 0, finish: 0, emote: 3, skin: 0 }; // taunt by default
 /** the operators you can pick */
 export const ROSTER = CHARACTERS.filter((c) => !c.hidden);
 
@@ -80,7 +80,7 @@ const clampLook = (l: Partial<Look>): Look => ({
   char: CHARACTERS[l.char ?? 1] && !CHARACTERS[l.char ?? 1].hidden ? (l.char ?? 1) : 1,
   outfit: Math.min(OUTFITS.length - 1, Math.max(0, l.outfit ?? 0)),
   finish: Math.min(FINISHES.length - 1, Math.max(0, l.finish ?? 0)),
-  emote: Math.min(EMOTES.length - 1, Math.max(0, l.emote ?? 0)),
+  emote: Math.min(EMOTES.length - 1, Math.max(0, l.emote ?? DEFAULT_LOOK.emote)),
   skin: Math.min(SKINS.length - 1, Math.max(0, l.skin ?? 0)),
 });
 /** write the look into bytes 13-15 of a 16-byte name (the name itself is at most 12) */

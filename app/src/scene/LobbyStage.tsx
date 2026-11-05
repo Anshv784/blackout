@@ -31,6 +31,16 @@ export interface SeatInfo {
 
 /** Seats sit on a shallow arc; tighter on a phone held upright. */
 const seatPos = (i: number, n: number, gap: number, rows: number): [number, number, number] => {
+  if (rows === 3) {
+    // a full table on a wide screen: two staggered rows like a team photo, the back row in the gaps
+    const cols = Math.ceil(n / 2);
+    const back = i >= cols ? 1 : 0;
+    const col = back ? i - cols : i;
+    const inRow = back ? n - cols : cols;
+    // equal rows shift a quarter gap each way; a shorter back row already falls in the gaps
+    const shift = n - cols === cols ? gap / 4 : 0;
+    return [(col - (inRow - 1) / 2) * gap + (back ? shift : -shift), 0, back ? -1.7 : 0];
+  }
   if (rows === 2) {
     // phone held upright: two rows, the back one offset so nobody hides behind anyone
     const cols = Math.ceil(n / 2);
@@ -107,7 +117,7 @@ function Pedestal({ i, n, gap, rows, seat, onTake, onMakeHost, onKick, onSelf }:
       <spotLight ref={key} position={[0.8, 4.6, 3.2]} angle={0.36} penumbra={0.7} distance={11} decay={1.2} intensity={seat.taken ? 60 : 0} color="#fff1e2" castShadow={seat.taken} shadow-mapSize={[1024, 1024]} shadow-bias={-0.0004} />
       {/* rim: the seat colour from behind, outlining the silhouette */}
       <spotLight ref={rim} position={[-0.4, 3.4, -2.6]} angle={0.5} penumbra={0.8} distance={8} decay={1.3} intensity={seat.taken ? 38 : 3.5} color={new THREE.Color(color).lerp(WHITE, seat.taken ? 0.15 : 0)} />
-      <Html position={[0, rows === 2 && z < -1 ? 1.15 : 2.5, rows === 2 && z < -1 ? 0.9 : 0]} center zIndexRange={[4, 0]}>
+      <Html position={rows === 3 && z > -1 ? [0, -0.05, 0.85] : [0, rows === 2 && z < -1 ? 1.15 : 2.5, rows === 2 && z < -1 ? 0.9 : 0]} center zIndexRange={[4, 0]}>
         {seat.taken ? (
           <div className={`stage-tag ${seat.me ? "me" : ""}`} style={{ ["--c" as any]: color }}>
             <b>{seat.name || "SURVIVOR"}</b>
@@ -230,8 +240,9 @@ export const LobbyStage = memo(function LobbyStage({ seats, onTake, onMakeHost, 
     window.addEventListener("resize", f);
     return () => window.removeEventListener("resize", f);
   }, []);
-  const rows = portrait && seats.length > 2 ? 2 : 1;
-  const gap = portrait ? 1.7 : 2.1;
+  // a full table (6+) on a wide screen: two staggered rows, so the soldiers stay big
+  const rows = portrait && seats.length > 2 ? 2 : seats.length >= 6 ? 3 : 1;
+  const gap = portrait ? 1.7 : rows === 3 ? 2.0 : 2.1;
   return (
     <div className="backdrop">
       <Canvas shadows={!TOUCH} dpr={TOUCH ? 1 : [1, 1.5]} gl={{ antialias: !TOUCH }} camera={{ fov: 34, position: [0, 2.3, 9] }} onCreated={({ gl }) => {
@@ -243,7 +254,7 @@ export const LobbyStage = memo(function LobbyStage({ seats, onTake, onMakeHost, 
         <fog attach="fog" args={["#020203", 10, 24]} />
         <hemisphereLight args={["#8ea2c8", "#0b0c10", 0.32]} />
         <Studio />
-        <Rig n={rows === 2 ? Math.ceil(seats.length / 2) : seats.length} gap={gap} depth={rows === 2 ? 1.2 : 0.4} />
+        <Rig n={rows === 2 ? Math.ceil(seats.length / 2) : rows === 3 ? Math.ceil(seats.length / 2) + 0.5 : seats.length} gap={gap} depth={rows === 2 ? 1.2 : rows === 3 ? 0.9 : 0.4} />
         <mesh rotation-x={-Math.PI / 2} receiveShadow>
           <planeGeometry args={[60, 60]} />
           {TOUCH ? (
