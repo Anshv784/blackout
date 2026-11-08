@@ -10,8 +10,8 @@
 </p>
 
 <p align="center">
-  <a href="https://blackout.anshverma.tech"><img src="https://img.shields.io/badge/play-blackout.anshverma.tech-ffd166?style=for-the-badge" alt="Play"></a>
-  <a href="https://explorer.solana.com/address/VWHcbCSH4kATcuPJgjZ6QC56W3NBQ53U6fxJNtGknh3?cluster=devnet"><img src="https://img.shields.io/badge/program-Solana%20devnet-1f6feb?style=for-the-badge" alt="Program on devnet"></a>
+  <a href="https://playblackout.fun"><img src="https://img.shields.io/badge/play-playblackout.fun-ffd166?style=for-the-badge" alt="Play"></a>
+  <a href="https://explorer.solana.com/address/CkSb4kkmhzr8n9awdmrvqhuoWka6nZUXXb8RXnrFBAKU?cluster=devnet"><img src="https://img.shields.io/badge/program-Solana%20devnet-1f6feb?style=for-the-badge" alt="Program on devnet"></a>
   <a href="#how-it-uses-magicblock"><img src="https://img.shields.io/badge/MagicBlock-8%20building%20blocks-a64dff?style=for-the-badge" alt="8 MagicBlock building blocks"></a>
 </p>
 
@@ -34,11 +34,12 @@ On a normal blockchain, fog of war is impossible: every account is public, so a 
 
 | | |
 |---|---|
-| Play | **[blackout.anshverma.tech](https://blackout.anshverma.tech)**: free, gasless, no wallet needed |
-| Program (devnet) | [`VWHcbCSH4kATcuPJgjZ6QC56W3NBQ53U6fxJNtGknh3`](https://explorer.solana.com/address/VWHcbCSH4kATcuPJgjZ6QC56W3NBQ53U6fxJNtGknh3?cluster=devnet) |
+| Play | **[playblackout.fun](https://playblackout.fun)** (also [blackout.anshverma.tech](https://blackout.anshverma.tech)): free, gasless, no wallet needed |
+| Program (devnet) | [`CkSb4kkmhzr8n9awdmrvqhuoWka6nZUXXb8RXnrFBAKU`](https://explorer.solana.com/address/CkSb4kkmhzr8n9awdmrvqhuoWka6nZUXXb8RXnrFBAKU?cluster=devnet) |
 | TEE validator | [`MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo`](https://explorer.solana.com/address/MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo?cluster=devnet) (`devnet-tee.magicblock.app`) |
 | Live proof | The **How it works** page has a *Try to cheat* button that asks the TEE for a real room's sealed accounts and shows the denial |
 | Built with AI | How the game was built with Claude Code, from the first commit to now: [AI_USAGE.md](AI_USAGE.md) |
+| Security | Self-audit of every path money can take, with the fixes: [Audit.md](Audit.md) |
 
 ### Hackathons
 
@@ -116,7 +117,7 @@ Take any one of these out and the game stops working.
 |---|---|
 | **Private Ephemeral Rollup** (TEE) | Runs the whole night: physics, bullets, bots, vision. Without it every position would be public state. |
 | **Ephemeral permissions** | World has *zero* readers, each View has exactly one (its seat's key), Room has everyone. `join`, `kick` and `leave` rewrite View permissions; `finish` flips World + Recorder public and `reset` seals them again. |
-| **Ephemeral accounts** | World, 8 Views and 5 Recorder chunks exist only inside the rollup, rent sponsored by the room PDA. Over 50 KB of per-night state never touches the base layer. |
+| **Ephemeral accounts** | World, 8 Views and 5 Recorder chunks exist only inside the rollup, rent sponsored by the room PDA. Over 60 KB of per-night state never touches the base layer. |
 | **Crank** | `start_match` schedules `tick` every 50 ms. There is no game server anywhere. |
 | **VRF** | One seed per night rolls spawns, loot and every zone centre, sealed until each circle is announced, published at lights-on. |
 | **Magic Action** | `finish` commits the room with a post-commit `settle` action that pays the pot from the room's bank and writes the leaderboard, with no extra user transaction. |
@@ -145,7 +146,7 @@ No ghosting: when you die your View is emptied. Bots follow the same vision rule
 
 ### The story
 
-First-time visitors get a 34-second launch trailer, cut fast from one night played live across both maps with the game's own soldiers, lights and sound. Each cut shows one idea: stay dark, every shot is a flare, two maps, hide in the grass, silent crossbow kills, aimed throws, loot the fallen, the closing circle, and one walks out. Replay it any time from **Story** in the top bar.
+First-time visitors get a one-minute narrated story, told by DUSK over a single night: eight operators wake in the Yard with no lights, the circle pushes the last of them out into the Meadow, and one walks out. It plays live in the engine with the game's own operators, guns, recorded deaths and sound, so everything it shows is how the game really works: a torch gives you away, every shot is a flare, the grass hides you and the crossbow makes no sound. Skip it with **skip ›**, or replay it any time from **Story** in the top bar.
 
 <p align="center">
   <img src="docs/assets/story.jpg" alt="The trailer: NYX's torch sweeps past DUSK hiding behind a container" width="100%">
@@ -168,7 +169,7 @@ The host picks the map in the lobby.
 
 The **Operator** page sets how everyone at your table sees you. It's saved on your device and travels inside three spare bytes of your on-chain name, so it needs no extra accounts.
 
-- **Operators:** six motion-captured soldiers (TITAN, GRIM, VIPER, ECHO, NOX, VEIL), each with 35 recorded animations: idle, walk, run and strafe, crouch, prone crawl, jump and dive roll, reloads by stance, throws, hits and deaths.
+- **Operators:** six motion-captured soldiers (TITAN, GRIM, VIPER, ECHO, NOX, VEIL), sharing 41 recorded animations: idle, walk, run and strafe, crouch, prone crawl, jump and dive roll, reloads by stance, throws, hits, emotes and six different deaths.
 - **Outfits:** seven tones for your gear (Original, Woodland, Desert, Urban, Midnight, Arctic, Crimson).
 - **Emotes:** Salute, Victory, Wave, Taunt, Dance and Clap. Press **B** in a night for the emote wheel, or click your soldier in the lobby.
 - **Gunsmith:** turn any of the eight guns on a stand, compare damage, fire rate, magazine and range, and pick a metal finish (six) and a skin (seven: Factory, Woodland, Digital, Tiger, Carbon, Hex, Ember). Both apply to every gun you carry.
@@ -195,7 +196,7 @@ The **Operator** page sets how everyone at your table sees you. It's saved on yo
 | **Storm** | Rain, and lightning that lights up the walls (never the players). Thunder rolls in a second later. |
 | **Sound** | Real recorded gunshots, reloads and racks, horror ambience under every night, and horror hits when someone steps into your light, when you die and when the lamps die. All CC0, credited in `app/public/sfx/CREDITS.txt`. Master, effects and music volume each go to 150%. |
 | **Feel** | Tracers, sparks and blood, hit markers, kill streak banners, recoil and hit shake, a sprint camera, walls that fade when they block your view. |
-| **Death** | The body buckles and falls back, the gun clatters away and the dropped torch lights it on the ground while the camera rises. Players you watch die stay where they fell. |
+| **Death** | One of six recorded deaths (falling back, forward, a headshot, a crouched collapse…), the gun clatters away and the dropped torch lights the body while the camera rises. Players you watch die stay where they fell. |
 | **Controls** | A controls card (H) in five groups: move, stealth, combat, gear, view and menu, and prompts appear only when a key matters: reload on an empty mag, how to throw a new gadget, swap to a new gun. |
 | **Replay** | After lights-on, scrub the whole night from your own view or everyone's, follow any player, and export a clip. |
 
@@ -221,17 +222,17 @@ The **Operator** page sets how everyone at your table sees you. It's saved on yo
 | Leaderboard | Staked nights (wins and SOL won, written by the `settle` Magic Action) and the daily challenge |
 | How it works | The live *Try to cheat* console, every building block, the timeline and the permission matrix |
 
-**Wallet optional.** Guests play free and gasless with a browser key; nothing is saved and they never appear on the leaderboard. Connecting Phantom, Solflare or Backpack keeps your callsign and lets you play **staked nights**: every staker pays 0.01 SOL into the room's bank, there are no bots, and the Magic Action pays the winner the pot less a 5% house fee. A room that never starts refunds every ticket.
+**Wallet optional.** Guests play free and gasless with a browser key; nothing is saved and they never appear on the leaderboard. Connecting Phantom, Solflare or Backpack keeps your callsign and lets you play **staked nights**: every staker pays 0.01 SOL into the room's bank, there are no bots, and the Magic Action pays the winner the pot less a 5% house fee. A room that never starts, or a night that can't settle in time, refunds every ticket in full.
 
 ---
 
 ## Verified on devnet
 
 - `scripts/e2e.ts` plays full nights against the live TEE and checks that a player can read its own View but not another's, a spectator can't read the World, VRF seeds the match, the crank holds 20 ticks/s, and after `finish` the World and Recorder are readable and `settle` runs.
-- `scripts/e2e_money.ts` (30/30) and `scripts/e2e_daily.ts` (15/15): stakes, payouts, the fee, refunds and every attack from [Audit.md](Audit.md); the daily challenge from roll to leaderboard.
+- `scripts/e2e_money.ts` (29/29) and `scripts/e2e_daily.ts` (14/14): stakes, payouts, the fee, refunds and every attack from [Audit.md](Audit.md); the daily challenge from roll to leaderboard.
 - `scripts/e2e_stake.ts`: two funded players buy tickets on Solana, play a staked night, and the winner's wallet receives the pot from the `settle` Magic Action.
 - `scripts/mirror.ts`: 2,000 random movement steps (sprint, sneak, prone, jump and stamina included) and 72 aimed throws give identical results in the Rust program and the TypeScript prediction.
-- `cargo test`: 40 full 8-bot nights end with valid placements; 30 more check bots actually fight; frags, duos revives, supply drops and the blackout each have a test.
+- `cargo test`: 35 tests (plus 2 long ones run on demand), including a golden fingerprint of whole nights, full 8-bot nights with valid placements, bots that actually fight, frags, duos revives, supply drops, the blackout, the house fee and called-off staked nights.
 - After every night, the VERIFY tab re-derives every spawn, loot roll and zone circle from the revealed VRF seed and checks them against the unsealed World.
 - `scripts/ui/`: Playwright runs of the full flows (and `readme_shots.ts`, which retakes every image in this README): guest play, private rooms with codes and kicks, closing a room, ending a night, duos, the phone layout and touch controls, and a console-error audit.
 
@@ -243,41 +244,54 @@ programs/blackout/       Anchor program
   src/config.rs          addresses, fee, timings
   src/state.rs           account layouts
   src/error.rs           error codes
-  src/instructions/      admin, stake (money), setup, lobby, night, room_account
+  src/instructions/      admin, stake (money), setup, lobby, night, daily, room_account
   src/sim/               deterministic simulation: rules, math, seed, step, sight, bots, recorder, tests
-  src/state.rs           Room, World, View, Recorder, Board layouts
-  src/gen.rs             map and trig tables (generated)
+  src/gen.rs             map and trig tables (generated by scripts/gen.py)
 app/                     Vite + React + react-three-fiber client
   src/chain/             instruction builders and account decoders
   src/game/              session (prediction, reconcile), sim.ts mirror, audio, settings
-  src/scene/             the Yard and the Meadow, soldiers and guns, effects, replay
+  src/scene/             the Yard and the Meadow, soldiers and guns, the story, effects, replay
   src/ui/                home, operator, lobby, HUD, emote wheel, verdict, leaderboard, how it works
   public/models/         operators, the shared animation bundle, gun models (credits in guns/CREDITS.md)
 scripts/                 devnet tooling: deploy, admin, e2e, mirror, verify, kick stuck rooms
 scripts/ui/              Playwright flow tests
+docs/assets/             README images
 ```
 
 How the game was built, and how each part was checked: [AI_USAGE.md](AI_USAGE.md).
 
 ## Run it
 
+The client talks to the live devnet program, so to work on the game you only need Node 22+:
+
 ```bash
-# program (devnet)
-./scripts/deploy.sh   # builds with cargo build-sbf + anchor idl build (not `anchor build`), then deploys
-npx tsx scripts/admin.ts board
-npx tsx scripts/admin.ts rooms 1 2 3 4 6 7 8 9 10 11 12 13
-
-# checks
-cd programs/blackout && cargo test && cd ../..
-npx tsx scripts/mirror.ts
-npx tsx scripts/e2e.ts 1
-
-# client
-cd app && npm install && npm run dev
+cd app
+cp .env.example .env   # optional: point at your own RPC or program
+npm install
+npm run dev            # http://localhost:5173
 ```
+
+To work on the program you also need Rust, the Solana CLI (3.x) and Anchor 1.0:
+
+```bash
+cd programs/blackout && cargo test && cd ../..   # simulation and money rules
+npm install                                       # root: tooling for the scripts
+npx tsx scripts/mirror.ts                         # Rust and TypeScript sims still agree
+./scripts/deploy.sh                               # cargo build-sbf + anchor idl build (not `anchor build`), then deploy
+```
+
+Deploying your own copy needs your own program id and admin key: see [CONTRIBUTING.md](CONTRIBUTING.md#running-your-own-program).
 
 ## Limits
 
-- **Devnet only.** Staked nights use devnet SOL.
+- **Devnet only.** Staked nights use devnet SOL. A mainnet build is prepared but not deployed.
 - **The TEE is the trust anchor.** Privacy rests on MagicBlock's TDX validator and its permission checks; the program can't prove privacy by itself.
 - **Fixed room pool.** Rooms are pre-created slots that players claim; a room with nobody in it is finished and reset by the next visitor.
+
+## Contributing
+
+Bug reports, playtest notes and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) explains how the pieces fit together and the one rule that matters most: the Rust simulation and its TypeScript mirror must change together. Found a way to cheat or to move someone else's SOL? Please report it privately, as described in [SECURITY.md](SECURITY.md).
+
+## License
+
+The code is [MIT](LICENSE). The characters and animations (Adobe Mixamo), gun models (CC-BY, see [credits](app/public/models/guns/CREDITS.md)) and sounds (CC0, see [credits](app/public/sfx/CREDITS.txt)) keep their own terms and are not covered by the MIT license.
