@@ -136,7 +136,7 @@ export function TopBar({ active }: { active?: "play" | "board" | "how" | "chars"
         <Wallet />
         <SoundToggle />
         <SettingsButton />
-        <FullscreenButton className="chip-btn" />
+        <FullscreenButton className="chip-btn fs-btn" />
       </div>
     </header>
   );

@@ -13,6 +13,7 @@ import { go } from "../App";
 import { verifyMatch } from "../game/verify";
 import { connectWallet } from "../game/wallet";
 import { client } from "../game/identity";
+import { recordNight } from "../game/career";
 
 const EMPTY = "11111111111111111111111111111111";
 
@@ -37,6 +38,10 @@ export function Reveal({ session }: { session: Session }) {
   // kill cam: replay your last seconds through your killer's eyes
   const [camSeat, setCamSeat] = useState<number | null>(null);
   const pov = camSeat ?? basePov;
+  // your service record (Operator page): this night counted once, on this device
+  useEffect(() => {
+    if (mySeat !== null) recordNight(room, mySeat);
+  }, [room.roomId, room.matchNo, mySeat]);
 
   const highlight = useMemo(() => {
     if (!rec) return 0;

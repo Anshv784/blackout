@@ -9,6 +9,7 @@ import { EmoteGlyph } from "./EmoteWheel";
 import { WEAPON_NAME } from "../chain/layout";
 import { GunIcon } from "./Icons";
 import { useStore } from "../game/store";
+import { loadCareer, favouriteGun, fmtTime } from "../game/career";
 
 const GunStage = lazy(() => import("../scene/GunStage").then((m) => ({ default: m.GunStage })));
 const CharacterStage = lazy(() => import("../scene/CharacterStage").then((m) => ({ default: m.CharacterStage })));
@@ -198,6 +199,7 @@ export function Characters() {
                 ))}
             </div>
           </div>
+          <ServiceRecord />
           <button className="btn primary cs-done" onClick={() => go("/")}>
             DONE · BACK TO MENU
           </button>
@@ -206,3 +208,59 @@ export function Characters() {
     </div>
   );
 }
+
+/** Every night you finished on this device: the numbers, your deadliest gun and your last placings. */
+function ServiceRecord() {
+  const [c] = useState(loadCareer);
+  const fav = favouriteGun(c);
+  if (c.nights === 0)
+    return (
+      <div className="sr sr-empty">
+        <label className="cs-label">SERVICE RECORD</label>
+        <p>Finish a night and it starts here: your kills, wins, best placing and the gun that does your work.</p>
+      </div>
+    );
+  const kd = c.deaths ? (c.kills / c.deaths).toFixed(2) : c.kills.toFixed(0);
+  const stats: [string, string][] = [
+    ["NIGHTS", String(c.nights)],
+    ["WINS", String(c.wins)],
+    ["KILLS", String(c.kills)],
+    ["K / D", kd],
+    ["BEST", c.best ? `#${c.best}` : "—"],
+    ["IN THE DARK", fmtTime(c.alive)],
+  ];
+  return (
+    <div className="sr">
+      <div className="sr-head">
+        <label className="cs-label">SERVICE RECORD</label>
+        <span className="sr-rate">{Math.round((c.wins / c.nights) * 100)}% walked out</span>
+      </div>
+      <div className="sr-grid">
+        {stats.map(([k, v]) => (
+          <div key={k}>
+            <b>{v}</b>
+            <span>{k}</span>
+          </div>
+        ))}
+      </div>
+      {fav !== null && (
+        <div className="sr-fav">
+          <img src={`/models/guns/thumbs/${fav}.webp`} alt="" />
+          <div>
+            <span>DEADLIEST</span>
+            <b>{WEAPON_NAME[fav]}</b>
+          </div>
+          <em>{c.guns[fav]} {c.guns[fav] === 1 ? "kill" : "kills"}</em>
+        </div>
+      )}
+      {c.recent.length > 0 && (
+        <div className="sr-recent" title="your last nights, newest first">
+          {c.recent.map((p, i) => (
+            <i key={i} className={p === 1 ? "won" : p > 0 && p <= 3 ? "top" : ""}>{p ? `#${p}` : "—"}</i>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+

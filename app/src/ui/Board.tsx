@@ -110,7 +110,8 @@ export function Board() {
   }, []);
   const stakers = table ? table.players.filter((p, i) => table.isBot[i] === 0 && p.toBase58() !== "11111111111111111111111111111111").length : 0;
   const rows = [...(data?.entries ?? [])].sort((a, b) => b.wins - a.wins || Number(b.earned - a.earned) || b.kills - a.kills || b.games - a.games);
-  const podium = rows.slice(0, 3);
+  // only winners stand on the podium (a staker who played and lost is in the table, not on a medal)
+  const podium = rows.filter((e) => e.wins > 0 || e.earned > 0n).slice(0, 3);
   const totalWon = rows.reduce((n, e) => n + Number(e.earned), 0) / 1e9;
   const myIdx = rows.findIndex((e) => mine.has(e.key.toBase58()));
 
@@ -182,7 +183,7 @@ export function Board() {
         {!data && !failed && <div className="board-loading"><div className="warden-loader" /> reading the board from Solana…</div>}
         {failed && <div className="board-loading">Couldn't reach Solana devnet — try again in a moment.</div>}
 
-        {data && rows.length === 0 && (
+        {data && podium.length === 0 && (
           <div className="throne">
             <div className="podium ghost">
               {["II", "I", "III"].map((r, i) => (

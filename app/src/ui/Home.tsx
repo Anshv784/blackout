@@ -174,7 +174,7 @@ export function Home() {
       .catch(() => {});
     client
       .fetchBoard()
-      .then((b) => alive && b && setBoard([...b.entries].sort((a, c) => c.wins - a.wins || Number(c.earned - a.earned) || c.kills - a.kills).slice(0, 3)))
+      .then((b) => alive && b && setBoard([...b.entries].filter((e) => e.wins > 0 || e.earned > 0n).sort((a, c) => c.wins - a.wins || Number(c.earned - a.earned) || c.kills - a.kills).slice(0, 3)))
       .catch(() => {});
     const t = setInterval(load, 3000);
     return () => {
@@ -342,7 +342,7 @@ export function Home() {
         </div>
         <aside className="gate-side">
           <DailyCard daily={daily} busy={busy === "daily"} onPlay={() => guard(null, () => requireRealWallet(playDaily))} />
-          <div className="side-card">
+          <div className="side-card rooms-card">
             <label>OPEN ROOMS · JOIN SOMEONE</label>
             {openRooms.length === 0 && <div className="side-empty">No one is waiting right now. Create a room — friends can join from your link.</div>}
             {openRooms.map(([id, r]) => (
@@ -403,8 +403,8 @@ export function Home() {
         <div className="gb-live">
           <span className={`pulse ${live > 0 ? "st-3" : "st-0"}`} />
           <div>
-            <b>{live > 0 ? `${live} ${live === 1 ? "night" : "nights"} live` : "The Yard is quiet"}</b>
-            <span>{live > 0 ? `${players} ${players === 1 ? "player" : "players"} in the dark` : "be the first in tonight"}</span>
+            <b>{live > 0 ? `${live} ${live === 1 ? "night" : "nights"} live` : openRooms.length ? `${openRooms.length} ${openRooms.length === 1 ? "room" : "rooms"} filling` : "The Yard is quiet"}</b>
+            <span>{live > 0 ? `${players} ${players === 1 ? "player" : "players"} in the dark` : openRooms.length ? "players waiting in the lobby" : "be the first in tonight"}</span>
           </div>
         </div>
       </footer>
