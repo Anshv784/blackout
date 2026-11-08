@@ -37,6 +37,20 @@ export function RoomPage({ roomId }: { roomId: bigint }) {
   const room = useStore((s) => s.room);
   const mySeat = useStore((s) => s.mySeat);
   const [err, setErr] = useState<string | null>(null);
+  // the end of a night gets its moment: after a night you played, the game view stays up a few
+  // seconds after the room flips to the reveal (longer if you won) before the replay takes over
+  const sawLive = useRef(false);
+  const endedAt = useRef<number | null>(null);
+  const [, rerender] = useState(0);
+  if (room?.status === ST_LIVE) sawLive.current = true;
+  if (room && (room.status === ST_ENDED || room.status === ST_REVEALED) && endedAt.current === null) endedAt.current = performance.now();
+  const lingerFor = room && mySeat !== null && room.winner === mySeat ? 6000 : 4000;
+  const linger = !!room && room.status === ST_REVEALED && sawLive.current && endedAt.current !== null && performance.now() - endedAt.current < lingerFor;
+  useEffect(() => {
+    if (!linger) return;
+    const k = window.setTimeout(() => rerender((x) => x + 1), 400);
+    return () => clearTimeout(k);
+  });
 
   useEffect(() => {
     useStore.getState().set({ room: null, view: null, mySeat: null, reveal: null });
@@ -58,8 +72,8 @@ export function RoomPage({ roomId }: { roomId: bigint }) {
   if (err) return <Center title="The Warden isn't answering" sub={err} />;
   if (!room) return <Center title="Opening the gate…" sub="authenticating with the Warden (MagicBlock TEE)" spinner />;
 
-  const playing = mySeat !== null && [ST_STARTING, ST_COUNTDOWN, ST_LIVE, ST_ENDED].includes(room.status);
-  if (room.status === ST_REVEALED) return <Reveal session={session} />;
+  const playing = mySeat !== null && ([ST_STARTING, ST_COUNTDOWN, ST_LIVE, ST_ENDED].includes(room.status) || linger);
+  if (room.status === ST_REVEALED && !linger) return <Reveal session={session} />;
   if (playing)
     return (
       <div className={`game ${touch ? "touch" : ""}`}>

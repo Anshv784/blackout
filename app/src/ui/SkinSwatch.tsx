@@ -36,8 +36,11 @@ void main(){
   float y = vUv.y * 2.0 - 1.0;
   vec3 n = normalize(vec3(0.0, y * 0.9, sqrt(max(0.0, 1.0 - y * y * 0.81))));
   vec3 p = vec3(0.24 + vUv.x * 0.36, -0.08 + vUv.y * 0.24, n.z * 0.02);
-  vec3 col; vec3 emi = vec3(0.0); float rough = 0.5; float metal = 0.1;
-  skinShade(p, vec3(0.0, 0.0, 1.0), n.z, uSkinT, col, emi, rough, metal);
+  vec3 col; vec3 emi = vec3(0.0); float rough = 0.5; float metal = 0.1; float hgt = 0.0;
+  skinShade(p, vec3(0.0, 0.0, 1.0), n.z, uSkinT, col, emi, rough, metal, hgt);
+  #if SKIN_ID >= 16
+  n = sk_bump(p, n, hgt, 0.0035);
+  #endif
   vec3 L = normalize(vec3(-0.3, 0.75, 0.6));
   float diff = max(dot(n, L), 0.0);
   vec3 H = normalize(L + vec3(0.0, 0.0, 1.0));

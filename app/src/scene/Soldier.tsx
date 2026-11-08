@@ -103,6 +103,14 @@ const tmpQ = new THREE.Quaternion();
 const tmpQ2 = new THREE.Quaternion();
 const tmpM = new THREE.Matrix4();
 const sockM = new THREE.Matrix4();
+const chestA = new THREE.Vector3();
+const chestB = new THREE.Vector3();
+const chestC = new THREE.Vector3();
+const chestD = new THREE.Vector3();
+const chestE = new THREE.Vector3();
+const chestF = new THREE.Vector3();
+const chestQ = new THREE.Quaternion();
+const UP = new THREE.Vector3(0, 1, 0);
 const sockM2 = new THREE.Matrix4();
 const sockM3 = new THREE.Matrix4();
 const sockV = new THREE.Vector3();
@@ -677,6 +685,8 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
   const handAnchor = useRef<THREE.Matrix4 | null>(null);
   const diveAt = useRef(0);
   const raiseK = useRef(0);
+  /** how far the gun is swung out (about the grip) to keep the stock out of the chest, radians */
+  const clearYaw = useRef(0);
   const aimW = useRef(0);
   const pistolW = useRef(0);
   const holdDir = useRef(new THREE.Vector3());
@@ -1225,6 +1235,47 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
         const gp = sockV2.copy(gripLocal).applyQuaternion(gr.quaternion).add(gr.position);
         gr.quaternion.slerp(sockQ.identity(), raiseK.current);
         gr.position.copy(gp).sub(sockV.copy(gripLocal).applyQuaternion(gr.quaternion));
+      }
+      // never through the chest: when the operator turns or shifts weight, the recording's hands can
+      // bring the back of the gun into the body. The torso is an oval sized from this operator's
+      // shoulders (TITAN's armour is far wider than VIPER); if the stock lands inside it, swing the
+      // gun about its grip (the right hand stays put) until the stock rests against the body.
+      if (!pistolHold && bones.spine && bones.lArm && bones.rArm) {
+        const sp = g.worldToLocal(chestA.setFromMatrixPosition(bones.spine.matrixWorld));
+        const la = g.worldToLocal(chestB.setFromMatrixPosition(bones.lArm.matrixWorld));
+        const ra = g.worldToLocal(chestC.setFromMatrixPosition(bones.rArm.matrixWorld));
+        // the arm bones sit at the shoulder joints, inside the body: the surface (muscle, or TITAN's
+        // plate) is a few centimetres further out
+        const halfW = Math.max(0.16, la.distanceTo(ra) * 0.5 + 0.065);
+        const halfD = halfW * 0.72;
+        const top = Math.max(la.y, ra.y) + 0.08;
+        const low = sp.y - 0.38;
+        // the back of the gun relative to the grip, in the gun's own frame
+        const rel = chestD.set(gm ? gm.rear + 0.03 : 0.12, gm ? gm.y : 0, 0).multiplyScalar(GUN_SCALE).add(GUN_INNER).sub(gripLocal);
+        const gp = chestE.copy(gripLocal).applyQuaternion(gr.quaternion).add(gr.position);
+        const depth = (yaw: number) => {
+          chestQ.setFromAxisAngle(UP, yaw).multiply(gr.quaternion);
+          const st = chestF.copy(rel).applyQuaternion(chestQ).add(gp);
+          if (st.y > top || st.y < low) return 2;
+          return ((st.x - sp.x) / halfD) ** 2 + ((st.z - sp.z) / halfW) ** 2;
+        };
+        let want = 0;
+        if (depth(0) < 1) {
+          // swing whichever way clears sooner, at most ~80°
+          for (let k = 1; k <= 28 && want === 0; k++) {
+            const a = k * 0.05;
+            const out = depth(a), inn = depth(-a);
+            if (out >= 1 || inn >= 1) want = out >= inn ? a : -a;
+          }
+          if (want === 0) want = depth(1.4) > depth(-1.4) ? 1.4 : -1.4;
+        }
+        // swing out fast (never let it sink in), ease back slowly
+        clearYaw.current += (want - clearYaw.current) * Math.min(1, dt * (Math.abs(want) > Math.abs(clearYaw.current) ? 30 : 8));
+        if (Math.abs(clearYaw.current) > 1e-3) {
+          chestQ.setFromAxisAngle(UP, clearYaw.current);
+          gr.quaternion.premultiply(chestQ);
+          gr.position.copy(gp).sub(chestF.copy(gripLocal).applyQuaternion(gr.quaternion));
+        }
       }
       // the shot kicks: back along the barrel, muzzle up
       const K2 = RECOIL[weapon] ?? RECOIL[0];

@@ -92,8 +92,8 @@ export function Reveal({ session }: { session: Session }) {
     if (!fired.current && rec && t >= highlight - 2) {
       fired.current = true;
       toggleLights(true);
-      // the verdict lands a beat after the lights
-      setTimeout(() => setCard(true), 2600);
+      // the verdict lands well after the lights: let the last moments play first
+      setTimeout(() => setCard(true), 5000);
     }
   }, [t, highlight, rec]);
   // no recording yet (very short match): still show the verdict

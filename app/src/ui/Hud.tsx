@@ -5,7 +5,7 @@ import { useStore } from "../game/store";
 import { KeyGuide, ActionHints } from "./KeyGuide";
 import { useTouch } from "./TouchControls";
 import type { Session } from "../game/session";
-import { ST_COUNTDOWN, ST_ENDED, ST_LIVE, ST_STARTING, WEAPON_NAME, GADGET_NAME, NIGHT_MOD, DOWNED, VIS_WATCHED, MOD_ONE_LIGHT } from "../chain/layout";
+import { ST_COUNTDOWN, ST_ENDED, ST_LIVE, ST_REVEALED, ST_STARTING, WEAPON_NAME, GADGET_NAME, NIGHT_MOD, DOWNED, VIS_WATCHED, MOD_ONE_LIGHT } from "../chain/layout";
 import { angleToRad } from "../game/sim";
 import { SEAT_COLORS } from "../game/colors";
 import { GameMenu, MatchClock } from "./GameMenu";
@@ -166,7 +166,7 @@ export function Hud({ session }: { session: Session }) {
           <small>find the dark · your gun gives you away</small>
         </div>
       )}
-      {room.status === ST_ENDED && (
+      {(room.status === ST_ENDED || room.status === ST_REVEALED) && (
         <div className="center-msg big">
           {room.winner === session.mySeat ? "👑 LAST ONE STANDING" : `${room.names[room.winner] ?? "?"} WINS`}
           <small>turning the lights on…</small>

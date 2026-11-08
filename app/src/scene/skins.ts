@@ -37,6 +37,15 @@ vec2 sk_vor(vec3 p, float t, float amp){
 // a flat pattern laid on the face the surface mostly faces (sides of the gun: x along, y up)
 vec2 sk_plane(vec3 p, vec3 n){ vec3 a = abs(n); return (a.x > a.y && a.x > a.z) ? p.zy : (a.y > a.z ? p.xz : p.xy); }
 float sk_h2(vec2 p){ return sk_h(vec3(p, 3.7)); }
+// turn a height into a bent normal (screen-space derivatives, as three.js does for bump maps)
+vec3 sk_bump(vec3 pos, vec3 nrm, float h, float scale){
+  vec3 dpx = dFdx(pos), dpy = dFdy(pos);
+  vec2 dh = vec2(dFdx(h), dFdy(h)) * scale;
+  vec3 r1 = cross(dpy, nrm), r2 = cross(nrm, dpx);
+  float det = dot(dpx, r1);
+  vec3 grad = sign(det) * (dh.x * r1 + dh.y * r2);
+  return normalize(abs(det) * nrm - grad);
+}
 mat2 sk_rot(float a){ float c = cos(a), s = sin(a); return mat2(c, -s, s, c); }
 // one heartbeat over x in 0..1: P wave, the QRS spike, T wave
 float sk_ecg(float x){
@@ -44,7 +53,7 @@ float sk_ecg(float x){
        - 0.022 * exp(-pow((x - 0.44) / 0.01, 2.0)) + 0.02 * exp(-pow((x - 0.62) / 0.05, 2.0));
 }
 
-void skinShade(vec3 p, vec3 n, float ndv, float t, out vec3 col, inout vec3 emi, inout float rough, inout float metal){
+void skinShade(vec3 p, vec3 n, float ndv, float t, out vec3 col, inout vec3 emi, inout float rough, inout float metal, inout float hgt){
   col = vec3(0.5);
 #if SKIN_ID == 1
   // Woodland: khaki, olive, brown, black blotches
@@ -223,6 +232,7 @@ void skinShade(vec3 p, vec3 n, float ndv, float t, out vec3 col, inout vec3 emi,
     float lo = length((a - vec2(0.11, -0.1)) / vec2(0.11, 0.1));
     float wing = min(up, lo);
     float body = length(q / vec2(0.022, 0.16));
+    hgt = max(hgt, (1.0 - smoothstep(0.75, 1.0, wing)) * 0.8 + (1.0 - smoothstep(0.6, 1.0, body)));
     if (wing < 1.0) {
       float ang = atan(a.y + 0.03, a.x + 0.01);
       float vein = smoothstep(0.8, 0.97, abs(sin(ang * 5.0 + a.x * 14.0)));
@@ -250,6 +260,7 @@ void skinShade(vec3 p, vec3 n, float ndv, float t, out vec3 col, inout vec3 emi,
     }
   }
   float rim = smoothstep(0.6, 0.76, sd);
+  hgt = 1.0 - (sd / 0.78) * (sd / 0.78);
   col = mix(vec3(0.55, 0.05, 0.04), vec3(0.1, 0.01, 0.015), smoothstep(0.05, 0.7, sd)) * (0.8 + 0.4 * sid);
   col = mix(col, vec3(0.9, 0.66, 0.25), rim);
   float bx = fract(t * 0.22) * 1.9 - 0.45;
@@ -279,6 +290,7 @@ void skinShade(vec3 p, vec3 n, float ndv, float t, out vec3 col, inout vec3 emi,
   vec2 tq = q + vec2(0.075, 0.0);
   bool tail = tq.x < 0.0 && tq.x > -0.04 && abs(tq.y) < -tq.x * 0.75;
   float shadow = length((q - vec2(0.01, -0.012)) / vec2(0.07, 0.024));
+  hgt = 0.15 * caus + max(0.0, 1.0 - body * body) + (tail ? 0.5 : 0.0);
   if (shadow < 1.0) col *= 0.55;
   if (body < 1.0 || tail) {
     float spot = sk_n(vec3(q * vec2(45.0, 65.0), ph * 10.0 + cid * 3.0));
@@ -303,6 +315,7 @@ void skinShade(vec3 p, vec3 n, float ndv, float t, out vec3 col, inout vec3 emi,
   vec3 fire = mix(vec3(0.85, 0.12, 0.02), vec3(1.0, 0.72, 0.2), 0.5 + 0.5 * sin(uv.x * 7.0 + ff.x * 1.5));
   vec3 ash = vec3(0.24, 0.23, 0.22) * (0.6 + 0.6 * sk_n(p * 80.0));
   float rachis = (1.0 - smoothstep(0.02, 0.05, abs(ff.y))) * step(-0.45, ff.x);
+  hgt = (1.0 - smoothstep(0.0, 0.6, plume)) * (0.6 + 0.4 * ablaze) + rachis * 0.3 + barb * 0.08;
   vec3 feather = fire * (0.5 + 0.5 * barb) * (1.0 - 0.8 * smoothstep(0.3, 0.5, plume));
   feather = mix(feather, vec3(1.0, 0.85, 0.5), rachis * 0.6);
   col = mix(ash, feather, ablaze);
@@ -318,6 +331,7 @@ void skinShade(vec3 p, vec3 n, float ndv, float t, out vec3 col, inout vec3 emi,
   float br = abs(uv.y - 0.01 - 0.05 * sin(uv.x * 6.0) - 0.02 * sk_fbm(vec3(uv * 20.0, 1.0)));
   float branch = 1.0 - smoothstep(0.005, 0.01, br);
   col = mix(col, vec3(0.8, 0.6, 0.22), branch);
+  hgt = branch * 0.7;
   metal = mix(0.2, 0.8, branch); rough = 0.25;
   vec2 g = (uv + vec2(t * 0.025, t * 0.05)) * 9.0;
   vec2 id = floor(g); vec2 f = fract(g) - 0.5;
@@ -330,6 +344,7 @@ void skinShade(vec3 p, vec3 n, float ndv, float t, out vec3 col, inout vec3 emi,
     float pe = length(q / vec2(0.13, 0.2));
     float notch = length((q - vec2(0.0, 0.2)) / vec2(0.05, 0.06));
     if (pe < 1.0 && notch > 1.0) {
+      hgt = 1.0 - pe * pe;
       vec3 pink = mix(vec3(1.0, 0.84, 0.9), vec3(0.95, 0.45, 0.62), smoothstep(0.0, 1.0, pe));
       col = pink; emi = pink * 0.22; rough = 0.5; metal = 0.0;
     }
@@ -339,6 +354,7 @@ void skinShade(vec3 p, vec3 n, float ndv, float t, out vec3 col, inout vec3 emi,
   vec2 uv = sk_plane(p, n);
   float cl = sk_fbm(vec3(uv * 6.0 + vec2(t * 0.08, 0.0), t * 0.05));
   col = mix(vec3(0.09, 0.1, 0.14), vec3(0.34, 0.36, 0.44), smoothstep(0.3, 0.8, cl));
+  hgt = cl;
   rough = 0.5; metal = 0.2;
   float slot = floor(t / 1.3);
   float age = fract(t / 1.3) * 1.3;
@@ -366,6 +382,7 @@ void skinShade(vec3 p, vec3 n, float ndv, float t, out vec3 col, inout vec3 emi,
   float slope = (sk_ecg(bx + 0.002) - sk_ecg(bx - 0.002)) * amp / (0.004 * 0.3);
   float d = abs(uv.y - lane - e) / sqrt(1.0 + slope * slope);
   float line = 1.0 - smoothstep(0.0012, 0.0035, d);
+  hgt = line * 0.8 - (1.0 - smoothstep(0.0, 0.06, min(gr.x, gr.y))) * 0.25;
   float sx = fract(t * 0.45) * 1.6 - 0.3;
   float behind = sx - uv.x;
   float trail = behind > 0.0 ? exp(-behind * 3.0) : 0.0;
@@ -381,6 +398,7 @@ void skinShade(vec3 p, vec3 n, float ndv, float t, out vec3 col, inout vec3 emi,
   float ph = t * 0.5;
   vec3 sphere = vec3(mq / mr, sqrt(max(0.0, 1.0 - dot(mq, mq) / (mr * mr))));
   float lit = smoothstep(-0.05, 0.1, dot(sphere, vec3(sin(ph), 0.0, cos(ph))));
+  hgt = md < mr ? sphere.z * 0.9 - 0.25 * sk_fbm(vec3(mq * 90.0, 2.0)) : 0.0;
   if (md < mr) {
     vec3 moon = vec3(0.95, 0.86, 0.62) * (0.7 + 0.4 * sk_fbm(vec3(mq * 90.0, 2.0)));
     col = mix(vec3(0.03, 0.03, 0.06), moon * 0.4, lit);
@@ -417,6 +435,7 @@ void skinShade(vec3 p, vec3 n, float ndv, float t, out vec3 col, inout vec3 emi,
     }
   }
   col += vec3(0.25, 0.35, 0.6) * lines * 0.3;
+  hgt = star * 0.9 + lines * 0.3;
   emi = vec3(0.85, 0.9, 1.0) * star * 1.6 + vec3(0.4, 0.6, 1.0) * lines * 0.9;
 #elif SKIN_ID == 25
   // Abyss: the deep sea; jellyfish pulse their way up, glowing with their own light
@@ -442,13 +461,16 @@ void skinShade(vec3 p, vec3 n, float ndv, float t, out vec3 col, inout vec3 emi,
       tent += (q.y < 0.0 && q.y > -0.4) ? (1.0 - smoothstep(0.004, 0.012, abs(q.x - tx))) * (1.0 + q.y * 2.5) : 0.0;
     }
     vec3 hue = mix(vec3(0.2, 0.9, 1.0), vec3(0.9, 0.3, 1.0), sk_h2(id + 8.0));
+    hgt = dome * (1.0 - bell * bell) + clamp(tent, 0.0, 1.0) * 0.3;
     col += hue * 0.12 * dome;
     emi += hue * (dome * (0.25 + 0.9 * rim) + clamp(tent, 0.0, 1.0) * 0.5) * (0.7 + 0.3 * pulse);
   }
 #elif SKIN_ID == 26
   // Wisp: marsh moss; blue spirit flames wander the gun, flickering
   vec2 uv = sk_plane(p, n);
-  col = mix(vec3(0.03, 0.05, 0.03), vec3(0.09, 0.13, 0.06), sk_fbm(p * 18.0));
+  float moss = sk_fbm(p * 18.0);
+  col = mix(vec3(0.03, 0.05, 0.03), vec3(0.09, 0.13, 0.06), moss);
+  hgt = moss * 0.6 + sk_n(p * 90.0) * 0.25;
   rough = 0.75; metal = 0.0;
   for (int k = 0; k < 4; k++) {
     float fk = float(k);
@@ -475,10 +497,18 @@ void skinShade(vec3 p, vec3 n, float ndv, float t, out vec3 col, inout vec3 emi,
   float hub = smoothstep(0.07, 0.09, r);
   float cut = (r > 0.14 && r < 0.29) ? smoothstep(0.025, 0.045, abs(sin(a * 2.5)) * r) : 1.0;
   float m = gear * hub * cut;
+  hgt = m * (0.8 + 0.2 * (1.0 - smoothstep(0.09, 0.14, r)));
   vec3 brass = vec3(0.8, 0.6, 0.26) * (0.8 + 0.2 * sin(a * 2.0 + id.x));
   col = mix(vec3(0.07, 0.045, 0.025), brass, m);
   emi = vec3(1.0, 0.65, 0.25) * m * 0.12 * (1.0 - smoothstep(0.0, 0.3, fract(t * 2.0)));
   rough = mix(0.6, 0.28, m); metal = mix(0.2, 0.7, m);
+#endif
+#if SKIN_ID >= 16
+  // a legend glows at its edges in its own colour, so it reads as one even across the room
+  const vec3 RIMS[12] = vec3[12](vec3(1.0, 0.5, 0.1), vec3(1.0, 0.3, 0.05), vec3(0.3, 0.9, 1.0), vec3(1.0, 0.6, 0.15),
+    vec3(1.0, 0.55, 0.75), vec3(0.55, 0.7, 1.0), vec3(1.0, 0.2, 0.15), vec3(0.95, 0.85, 0.6),
+    vec3(0.6, 0.75, 1.0), vec3(0.4, 0.9, 1.0), vec3(0.35, 0.65, 1.0), vec3(1.0, 0.75, 0.35));
+  emi += RIMS[SKIN_ID - 16] * pow(1.0 - ndv, 4.0) * (0.28 + 0.12 * sin(t * 1.7));
 #endif
   // the palettes above are written as screen colours; light works in linear
   col = pow(max(col, vec3(0.0)), vec3(2.2));
@@ -495,7 +525,8 @@ export function applySkin(mat: THREE.MeshStandardMaterial, skin: number, tint: T
   if (!skin) return mat;
   mat.defines = { ...(mat.defines ?? {}), SKIN_ID: skin };
   const tintV = tint ? new THREE.Color(1, 1, 1).lerp(tint, 0.6).multiplyScalar(1.05) : new THREE.Color(1, 1, 1);
-  const uniforms = { uSkinT: SKIN_TIME, uSkinTint: { value: tintV }, uSkinGlow: { value: glow } };
+  // relief depth follows the gun's on-screen scale (the bench shows guns bigger than a match does)
+  const uniforms = { uSkinT: SKIN_TIME, uSkinTint: { value: tintV }, uSkinGlow: { value: glow }, uSkinRelief: { value: glow >= 1 ? 1.4 : 1 } };
   mat.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, uniforms);
     sh.vertexShader = sh.vertexShader
@@ -504,7 +535,7 @@ export function applySkin(mat: THREE.MeshStandardMaterial, skin: number, tint: T
     sh.fragmentShader = sh.fragmentShader
       .replace(
         "#include <common>",
-        "#include <common>\nvarying vec3 vSkP;\nvarying vec3 vSkN;\nuniform float uSkinT;\nuniform vec3 uSkinTint;\nuniform float uSkinGlow;\n" + SKIN_GLSL,
+        "#include <common>\nvarying vec3 vSkP;\nvarying vec3 vSkN;\nuniform float uSkinT;\nuniform vec3 uSkinTint;\nuniform float uSkinGlow;\nuniform float uSkinRelief;\n" + SKIN_GLSL,
       )
       .replace(
         "#include <emissivemap_fragment>",
@@ -513,9 +544,13 @@ export function applySkin(mat: THREE.MeshStandardMaterial, skin: number, tint: T
           // the model's own paint survives as light and shade under the pattern
           float lum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
           float detail = mix(1.0, clamp(lum * 2.2, 0.35, 1.15), 0.5);
-          vec3 sc; vec3 se = vec3(0.0); float sr = roughnessFactor; float sm = metalnessFactor;
+          vec3 sc; vec3 se = vec3(0.0); float sr = roughnessFactor; float sm = metalnessFactor; float sh = 0.0;
           float ndv = abs(dot(normalize(normal), normalize(vViewPosition)));
-          skinShade(vSkP, normalize(vSkN), ndv, uSkinT, sc, se, sr, sm);
+          skinShade(vSkP, normalize(vSkN), ndv, uSkinT, sc, se, sr, sm, sh);
+          #if SKIN_ID >= 16
+          // legends are relief, not paint: the pattern's height bends the light
+          normal = sk_bump(-vViewPosition, normal, sh, 0.0035 * uSkinRelief);
+          #endif
           diffuseColor.rgb = sc * detail * uSkinTint;
           roughnessFactor = sr;
           metalnessFactor = sm;

@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import { applySkin, bakeSkinSpace, tickSkins } from "./skins";
+import { LegendFx, isLegend } from "./LegendFx";
 /** `n` names a moving part the reload animates: the magazine, the shotgun's pump, the Talon's bolt */
 type Part = { p: [number, number, number]; s: [number, number, number]; c?: string; r?: number; ry?: number; cyl?: boolean; glow?: string; n?: string };
 
@@ -317,6 +318,7 @@ export function Gun({ weapon, ghost = false, display = false, torch = false, fin
   return (
     <>
       {skin > 0 && <SkinClock />}
+      {isLegend(skin) && !ghost && <LegendFx skin={skin} display={display} />}
       {model && <ModelGun m={model} finish={finish} skin={skin} ghost={ghost} glow={glow} />}
       {(model ? [] : parts).map((pt, i) => {
         if (pt.glow)

@@ -230,7 +230,6 @@ export function Characters() {
                       onClick={() => set({ skins: look.skins.map((v, w) => (w === weapon ? i : v)) })}
                     >
                       <SkinSwatch i={i} big gun={weapon} />
-                      {k.group === "live" && <small className="lk-live">LIVE</small>}
                       <span>
                         {k.name}
                         <em>{k.note}</em>
