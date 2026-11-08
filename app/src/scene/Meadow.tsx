@@ -8,6 +8,7 @@ import { MAP_W, MAP_H } from "../game/gen";
 import { MAPS } from "../game/maps";
 import { wallBoxes, type WallBox } from "./Arena";
 import { TOUCH } from "../game/device";
+import { gfx, usePrefs } from "../game/prefs";
 
 const MAP = MAPS[1];
 const ROWS = MAP.rows;
@@ -445,8 +446,8 @@ function Crossings() {
 }
 
 // ------------------------------------------------------------------ lanterns and fireflies
-const NEAR_LIGHTS = TOUCH ? 2 : 4;
 function Lanterns({ lit }: { lit: boolean }) {
+  const NEAR_LIGHTS = TOUCH ? 2 : gfx(usePrefs()) === "low" ? 3 : 4;
   const lights = useRef<(THREE.PointLight | null)[]>([]);
   const glow = useMemo(() => {
     const c = document.createElement("canvas");

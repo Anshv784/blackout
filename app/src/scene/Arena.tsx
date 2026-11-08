@@ -528,12 +528,13 @@ const MOTHS_PER = 3;
 function Lamps() {
   // every lamp head glows, but only the nearest ones cast real light: a fixed number of lights
   // (no shader recompiles); every light costs on every pixel, so phones light only 2
-  const N = TOUCH ? 2 : 6;
+  // the low graphics tier skips the glow and the moths (extra pixels to fill) and lights only the
+  // 3 nearest lamps: every light is paid for on every pixel of every lit surface
+  const low = gfx(usePrefs()) === "low";
+  const N = TOUCH ? 2 : low ? 3 : 6;
   const lights = useRef<(THREE.PointLight | null)[]>([]);
   const heads = useRef<(THREE.MeshBasicMaterial | null)[]>([]);
   const cones = useMemo(lampCones, []);
-  // the low graphics tier (weak phones) skips the glow and the moths: extra pixels to fill
-  const low = gfx(usePrefs()) === "low";
   const moths = useRef<THREE.Points>(null);
   const mothPos = useMemo(() => new Float32Array(LAMPS.length * MOTHS_PER * 3), []);
   const head = useMemo(() => new THREE.Color("#ffd89a"), []);

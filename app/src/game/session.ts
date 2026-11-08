@@ -46,6 +46,8 @@ export interface Track {
   samples: Sample[];
   lastSeen: number; // local ms
   visible: boolean;
+  /** what was drawn last frame, and the offset still being eased out after a correction */
+  shown?: { x: number; y: number; at: number; rx: number; ry: number; ox: number; oy: number };
 }
 
 export interface Fx {
@@ -119,6 +121,10 @@ export class Session {
   // newer than the last one the program saw, which it now requires
   private seq = Math.floor((Date.now() - 1_790_000_000_000) / 10); // ~497 days of 10 ms steps from 2026-09
   private lastSendAt = 0;
+  /** frames your movement waited for the server (a measure of how the link is coping) */
+  holds = 0;
+  /** the newest input the program has applied (echoed back in your view) */
+  private ackSeq = 0;
   private sentAt = new Map<number, number>();
   rtt = 150;
 
@@ -210,12 +216,14 @@ export class Session {
     if (!r || this.mySeat === null || this.closed || this.polling) return;
     if (r.status !== ST_LIVE && r.status !== ST_COUNTDOWN) return;
     const now = performance.now();
-    if (now - this.viewAt < 900) return;
+    // updates normally land every 50 ms: after 400 ms of silence also ask over HTTP (every 150 ms
+    // while it lasts), whichever path answers first wins
+    if (now - this.viewAt < 400) return;
     this.polling = true;
     try {
       const v = await client.fetchView(this.roomId, this.mySeat).catch(() => null);
       if (v) this.onView(v);
-      if (now - this.viewAt > 4000 && now - this.lastResub > 6000) {
+      if (now - this.viewAt > 2500 && now - this.lastResub > 5000) {
         this.lastResub = now;
         const seat = this.mySeat;
         this.viewSubSeat = -2; // force a fresh subscription
@@ -464,6 +472,7 @@ export class Session {
     this.viewAt = now;
     this.viewsRecv++;
     // rtt from input echo
+    if (v.me.inSeq > this.ackSeq) this.ackSeq = v.me.inSeq;
     const sentAt = this.sentAt.get(v.me.inSeq);
     if (sentAt) {
       const sample = now - sentAt;
@@ -698,12 +707,15 @@ export class Session {
     const live = this.room?.status === ST_LIVE && v?.me.alive;
     if (live && this.predValid) {
       this.predAcc += dt;
-      // allowed lead: about a one-way trip of ticks, at least 2, at most 8
+      // allowed lead: about a one-way trip of ticks, at least 2, at most 8. (Tried a round trip:
+      // when the TEE ticks slower than real time, a longer lead only turns short waits into
+      // snap-backs. Measured: more snaps at 500 ms injected lag.)
       const lead = Math.max(2, Math.min(8, Math.round(this.rtt / 100) + 2));
       while (this.predAcc >= 50) {
         if (this.predTick >= this.serverTick + lead) {
           // the server hasn't caught up: hold here instead of running off and snapping back
           this.predAcc = Math.min(this.predAcc, 50);
+          this.holds++;
           break;
         }
         this.predAcc -= 50;
@@ -751,7 +763,11 @@ export class Session {
     // on a slow link every transaction queues behind the last: send less often so they don't pile up
     const slow = this.rtt > 350;
     const gap = slow ? 90 : 40;
-    if ((changed && since >= gap) || (aimChanged && since >= (firing ? gap : gap + 10)) || since >= 500) {
+    // the last input never came back (lost on the way, or dropped): send the current state again
+    // instead of waiting for the half-second heartbeat. A lost "stop" would otherwise keep you
+    // walking on the server and snap you back.
+    const unacked = this.seq > this.ackSeq && since >= Math.max(120, Math.min(600, this.rtt * 1.4));
+    if ((changed && since >= gap) || (aimChanged && since >= (firing ? gap : gap + 10)) || unacked || since >= 500) {
       this.lastSendAt = now;
       this.sent = { ...i };
       const seq = ++this.seq;
@@ -972,12 +988,56 @@ export class Session {
     await this.poll();
   }
 
-  /** Interpolated position of another player at render time (≈100 ms behind). */
+  /** Where to draw another player now: interpolated ≈100 ms behind; if updates stall, carried on
+   *  along their last heading for a moment instead of freezing; and any correction that causes is
+   *  eased out over a few frames instead of popping. */
   sampleTrack(tr: Track, now: number): Sample | null {
+    const raw = this.rawTrack(tr, now);
+    if (!raw) return null;
+    const sh = tr.shown;
+    if (sh && sh.at === now) return { ...raw, x: sh.x, y: sh.y };
+    if (!sh || now - sh.at > 400) {
+      tr.shown = { x: raw.x, y: raw.y, at: now, rx: raw.x, ry: raw.y, ox: 0, oy: 0 };
+      return raw;
+    }
+    const dt = Math.max(1, now - sh.at);
+    const jx = raw.x - sh.rx;
+    const jy = raw.y - sh.ry;
+    const jump = Math.hypot(jx, jy);
+    if (jump > 3 * UNIT) {
+      // a teleport (respawn, revive): go straight there
+      sh.ox = sh.oy = 0;
+    } else if (jump > 2.4 * dt + 24) {
+      // faster than anyone runs (sprint ≈ 1.7 units/ms): a correction, keep what's drawn and ease
+      sh.ox = sh.x - raw.x;
+      sh.oy = sh.y - raw.y;
+    }
+    const k = Math.exp(-dt / 90);
+    sh.ox *= k;
+    sh.oy *= k;
+    sh.rx = raw.x;
+    sh.ry = raw.y;
+    sh.x = raw.x + sh.ox;
+    sh.y = raw.y + sh.oy;
+    sh.at = now;
+    return { ...raw, x: sh.x, y: sh.y };
+  }
+
+  private rawTrack(tr: Track, now: number): Sample | null {
     const s = tr.samples;
     if (!s.length) return null;
     const renderT = now - this.interpDelay;
     if (s.length === 1 || renderT <= s[0].t) return s[0];
+    const last = s[s.length - 1];
+    if (renderT > last.t) {
+      // updates are late: keep them moving the way they were going, briefly (≤ 220 ms)
+      const prev = s[s.length - 2];
+      const span = last.t - prev.t;
+      if (span <= 0 || span > 400) return last;
+      const ahead = Math.min(220, renderT - last.t);
+      const k = ahead / span;
+      return { ...last, x: last.x + (last.x - prev.x) * k, y: last.y + (last.y - prev.y) * k };
+    }
     for (let i = s.length - 1; i > 0; i--) {
       const a = s[i - 1];
       const b = s[i];

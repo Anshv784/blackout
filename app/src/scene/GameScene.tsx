@@ -1,4 +1,5 @@
 import { memo, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import "./perf";
 import { muzzleAt } from "./Gun";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Html, PerformanceMonitor, useGLTF } from "@react-three/drei";
@@ -717,6 +718,7 @@ function Zone({ session }: { session: Session }) {
 const PING_COLORS = ["#fff", "#9fb4ff", "#ff5d5d", "#ffd166", "#c9c9c9", "#ff3b3b", "#ffd166", "#c9ccd1", "#38e1ff", "#ff9a3c"];
 
 function Fx({ session }: { session: Session }) {
+  const lowGfx = gfx(usePrefs()) === "low";
   const rings = useRef<(THREE.Mesh | null)[]>([]);
   const flashes = useRef<(THREE.PointLight | null)[]>([]);
   useFrame(() => {
@@ -762,7 +764,7 @@ function Fx({ session }: { session: Session }) {
           <meshBasicMaterial transparent opacity={0} toneMapped={false} side={THREE.DoubleSide} />
         </mesh>
       ))}
-      {Array.from({ length: TOUCH ? 0 : 3 }, (_, i) => (
+      {Array.from({ length: TOUCH ? 0 : lowGfx ? 1 : 3 }, (_, i) => (
         <pointLight key={i} ref={(el) => (flashes.current[i] = el)} color="#ffb347" intensity={0} distance={4} decay={1.5} />
       ))}
     </>
@@ -1336,7 +1338,14 @@ function DisplayPrefs() {
   const { gl, camera, scene } = useThree();
   const p = usePrefs();
   useEffect(() => {
-    if (import.meta.env.DEV) Object.assign(window as any, { __gl: gl, __scene: scene }); // perf checks, dev only
+    // perf checks: always in dev; on a build only when this device opted in (localStorage bo-perf)
+    let perf = import.meta.env.DEV;
+    try {
+      perf ||= !!localStorage.getItem("bo-perf");
+    } catch {
+      /* ignore */
+    }
+    if (perf) Object.assign(window as any, { __gl: gl, __scene: scene });
   }, [gl]);
   useEffect(() => {
     gl.toneMappingExposure = p.exposure;
@@ -1354,12 +1363,17 @@ function DisplayPrefs() {
 export const GameScene = memo(function GameScene({ session }: { session: Session }) {
   const mapId = useMapStore((m) => m.id);
   const p = usePrefs();
-  // phones start at 70% pixels (phone screens are dense; this is the biggest single win)
-  const [dpr, setDpr] = useState(TOUCH ? 0.7 : 1);
+  // phones start at 70% pixels (phone screens are dense; this is the biggest single win). On Low,
+  // computers render at 1x and drop to 80% if even that struggles (older MacBooks, Intel graphics).
+  const base = TOUCH ? 0.7 : 1;
+  const floor = TOUCH ? 0.55 : 0.8;
+  const [dpr, setDpr] = useState(base);
   return (
     <Canvas
-      shadows
-      dpr={TOUCH ? dpr : gfx(p) === "high" ? [1, 1.5] : 1}
+      // shadows only on High (the canvas re-applies this whenever it reconfigures, e.g. on a
+      // resolution change, so it has to match the tier or Low quietly pays for them again)
+      shadows={gfx(p) === "high" ? "percentage" : false}
+      dpr={!TOUCH && gfx(p) === "high" ? [1, 1.5] : dpr}
       camera={{ fov: 46, position: [16, 30, 30], near: 0.1, far: TOUCH ? 40 : 120 }}
       // phones: no MSAA (dense screens hide jaggies, and it's a big cost on mobile GPUs)
       gl={{ antialias: !TOUCH, powerPreference: "high-performance" }}
@@ -1395,17 +1409,18 @@ export const GameScene = memo(function GameScene({ session }: { session: Session
       {/* Auto graphics: watch the real frame rate. Struggling → Low (phones also drop to 75% pixels);
           plenty of headroom → back to High (not on phones). What it settles on is remembered. */}
       <PerformanceMonitor
-        flipflops={4}
+        flipflops={6}
         onDecline={() => {
-          if (TOUCH) setDpr(0.55);
-          if (prefs.quality === "auto" && prefs.autoTier !== "low") setPref("autoTier", "low");
+          // first give up the expensive look (shadows, post, extra lights), then pixels
+          if (!TOUCH && prefs.quality === "auto" && prefs.autoTier !== "low") setPref("autoTier", "low");
+          else if (TOUCH || gfx() === "low") setDpr(floor);
         }}
         onIncline={() => {
-          if (TOUCH) setDpr(0.7);
-          else if (prefs.quality === "auto" && prefs.autoTier !== "high") setPref("autoTier", "high");
+          if (dpr < base) setDpr(base);
+          else if (!TOUCH && prefs.quality === "auto" && prefs.autoTier !== "high") setPref("autoTier", "high");
         }}
         onFallback={() => {
-          if (TOUCH) setDpr(0.55);
+          setDpr(floor);
           if (prefs.quality === "auto") setPref("autoTier", "low");
         }}
       />

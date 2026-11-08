@@ -648,6 +648,7 @@ function DropBeacon({ session }: { session: Session }) {
 /** Smoke clouds (from smoke pings) and explosions (from boom pings). A fixed pool: no new lights or materials. */
 const SMOKE_PUFFS = 7;
 function SmokeAndBooms({ session }: { session: Session }) {
+  const lowGfx = gfx(usePrefs()) === "low";
   const tex = useMemo(() => {
     const c = document.createElement("canvas");
     c.width = c.height = 64;
@@ -707,7 +708,7 @@ function SmokeAndBooms({ session }: { session: Session }) {
           <spriteMaterial map={tex} transparent depthWrite={false} opacity={0.85} color="#9aa0aa" />
         </sprite>
       ))}
-      {!TOUCH && <pointLight ref={boomLight} color="#ffb070" intensity={0} distance={9} decay={1.4} />}
+      {!TOUCH && !lowGfx && <pointLight ref={boomLight} color="#ffb070" intensity={0} distance={9} decay={1.4} />}
     </>
   );
 }
