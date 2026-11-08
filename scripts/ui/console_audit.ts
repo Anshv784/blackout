@@ -1,7 +1,7 @@
 // Plays the gate → lobby → match path and prints every console error/warning (deduped).
 import { chromium } from "playwright";
 (async () => {
-  const b = await chromium.launch({ args: ["--use-gl=swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"] });
+  const b = await chromium.launch({ channel: "chrome", args: ["--use-gl=swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"] });
   const ctx = await b.newContext({ viewport: { width: 1400, height: 860 } });
   await ctx.addInitScript("localStorage.setItem('bo-intro-seen','1');localStorage.setItem('bo-guest','1');localStorage.setItem('bo-name','AUDIT')");
   const p = await ctx.newPage();
@@ -16,14 +16,14 @@ import { chromium } from "playwright";
   await p.goto("http://127.0.0.1:5173/#/how");
   await p.waitForTimeout(3000);
   await p.goto("http://127.0.0.1:5173/#/");
-  await p.getByRole("button", { name: /CREATE A ROOM/ }).click({ timeout: 30000 });
+  await p.getByRole("button", { name: /CREATE ROOM/ }).click({ timeout: 30000 });
   await p.waitForURL(/\/r\//, { timeout: 60000 });
   await p.getByRole("button", { name: "START THE NIGHT" }).click({ timeout: 60000 });
-  await p.locator(".night-card").waitFor({ timeout: 90000 });
-  await p.screenshot({ path: "demo/audit-countdown.png" });
+  await p.locator(".game").waitFor({ timeout: 90000 });
+  await p.screenshot({ path: ".tmp/qa/audit-countdown.png" });
   await p.locator(".compass").waitFor({ timeout: 90000 });
   await p.waitForTimeout(8000);
-  await p.screenshot({ path: "demo/audit-live.png" });
+  await p.screenshot({ path: ".tmp/qa/audit-live.png" });
   for (const [k, n] of seen) console.log(`${n}× ${k}`);
   console.log("done");
   await b.close();

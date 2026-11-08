@@ -3,7 +3,7 @@ import { chromium, devices } from "playwright";
 const out = process.argv[2] ?? "demo/qa";
 const mobile = process.argv[3] === "mobile";
 const URL = process.env.URL ?? "http://127.0.0.1:5173/";
-const b = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"] });
+const b = await chromium.launch({ channel: "chrome", args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"] });
 const ctx = await b.newContext(mobile ? { ...devices["Pixel 7 landscape"] } : { viewport: { width: 1440, height: 900 } });
 await ctx.addInitScript("localStorage.setItem('bo-intro-seen','1')");
 const p = await ctx.newPage();
@@ -14,7 +14,7 @@ p.on("console", (m) => { if (m.type() === "error") errs.push("console: " + m.tex
 const t0 = Date.now();
 const log = (...a: unknown[]) => console.log(`[${((Date.now() - t0) / 1000).toFixed(0)}s]`, ...a);
 await p.goto(URL);
-await p.getByRole("button", { name: /CREATE A ROOM/ }).click({ timeout: 40000 });
+await p.getByRole("button", { name: /CREATE ROOM/ }).click({ timeout: 40000 });
 await p.getByRole("button", { name: "PLAY AS GUEST" }).click();
 await p.getByRole("button", { name: "ENTER AS GUEST" }).click();
 await p.waitForURL(/\/r\//, { timeout: 60000 }); log("room", p.url());

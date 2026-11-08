@@ -2,7 +2,7 @@
 // and live HUD, then walks with the stick, looks, jumps and aims a throw.
 import { chromium } from "playwright";
 (async () => {
-  const b = await chromium.launch({ args: ["--use-gl=swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"] });
+  const b = await chromium.launch({ channel: "chrome", args: ["--use-gl=swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"] });
   const ctx = await b.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
   await ctx.addInitScript("localStorage.setItem('bo-intro-seen','1');localStorage.setItem('bo-guest','1');localStorage.setItem('bo-name','PHONE')");
   const p = await ctx.newPage();
@@ -11,7 +11,7 @@ import { chromium } from "playwright";
   await p.goto("http://127.0.0.1:5173/");
   await p.waitForTimeout(4000);
   await p.screenshot({ path: "demo/m-gate.png" });
-  await p.getByRole("button", { name: /CREATE A ROOM/ }).tap({ timeout: 30000 });
+  await p.getByRole("button", { name: /CREATE ROOM/ }).tap({ timeout: 30000 });
   await p.waitForURL(/\/r\//, { timeout: 60000 });
   await p.waitForTimeout(2500);
   await p.screenshot({ path: "demo/m-lobby.png" });

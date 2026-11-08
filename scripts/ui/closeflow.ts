@@ -1,13 +1,13 @@
 import { chromium } from "playwright";
 (async () => {
-  const b = await chromium.launch({ args: ["--use-gl=swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"] });
+  const b = await chromium.launch({ channel: "chrome", args: ["--use-gl=swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"] });
   const ctx = await b.newContext({ viewport: { width: 1400, height: 860 } });
   const p = await ctx.newPage();
   const errs: string[] = [];
   p.on("pageerror", (e) => errs.push(String(e)));
   await ctx.addInitScript("localStorage.setItem('bo-intro-seen','1');localStorage.setItem('bo-guest','1');localStorage.setItem('bo-name','TESTER')");
   await p.goto("http://127.0.0.1:5173/");
-  await p.getByRole("button", { name: /CREATE A ROOM/ }).click({ timeout: 30000 });
+  await p.getByRole("button", { name: /CREATE ROOM/ }).click({ timeout: 30000 });
   await p.waitForURL(/\/r\//, { timeout: 60000 });
   const id = p.url().match(/\/r\/(\d+)/)![1];
   await p.getByRole("button", { name: "START THE NIGHT" }).waitFor({ timeout: 60000 });

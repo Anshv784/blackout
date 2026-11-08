@@ -3,7 +3,7 @@ import { chromium } from "playwright";
 const URL = "http://127.0.0.1:5173/";
 const init = (n: string) => `localStorage.setItem('bo-intro-seen','1');localStorage.setItem('bo-guest','1');localStorage.setItem('bo-name','${n}')`;
 (async () => {
-  const b = await chromium.launch({ args: ["--use-gl=swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"] });
+  const b = await chromium.launch({ channel: "chrome", args: ["--use-gl=swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"] });
   const errs: string[] = [];
   const page = async (n: string) => {
     const ctx = await b.newContext({ viewport: { width: 1400, height: 860 } });

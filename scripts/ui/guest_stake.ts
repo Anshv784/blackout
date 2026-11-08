@@ -1,6 +1,6 @@
 import { chromium } from "playwright";
 (async () => {
-  const b = await chromium.launch({ args: ["--use-gl=swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"] });
+  const b = await chromium.launch({ channel: "chrome", args: ["--use-gl=swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"] });
   const p = await b.newPage({ viewport: { width: 1400, height: 860 } });
   await p.addInitScript("localStorage.setItem('bo-intro-seen','1');localStorage.setItem('bo-guest','1');localStorage.setItem('bo-name','GHOSTY')");
   await p.goto("http://127.0.0.1:5173/");

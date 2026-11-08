@@ -1,6 +1,6 @@
 import { chromium } from "playwright";
 const out = process.argv[2];
-const b = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
+const b = await chromium.launch({ channel: "chrome", args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
 const ctx = await b.newContext({ viewport: { width: 1440, height: 900 } });
 await ctx.addInitScript({
   content: `localStorage.setItem("bo-intro-seen","1");

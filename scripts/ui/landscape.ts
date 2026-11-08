@@ -2,7 +2,7 @@
 // countdown, a live night (crosshair, controls), map, settings, the volume panel, the verdict.
 import { chromium } from "playwright";
 (async () => {
-  const b = await chromium.launch({ args: ["--use-gl=swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"] });
+  const b = await chromium.launch({ channel: "chrome", args: ["--use-gl=swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"] });
   const ctx = await b.newContext({ viewport: { width: 780, height: 360 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
   const p = await ctx.newPage();
   const errs: string[] = [];
@@ -18,7 +18,7 @@ import { chromium } from "playwright";
   await p.getByText("skip ›").tap();
   await p.waitForTimeout(3500);
   await shot("03-gate");
-  await p.getByRole("button", { name: /CREATE A ROOM/ }).tap();
+  await p.getByRole("button", { name: /CREATE ROOM/ }).tap();
   await p.waitForTimeout(1000);
   await shot("04-wallet");
   await p.getByRole("button", { name: /PLAY AS GUEST/ }).tap();

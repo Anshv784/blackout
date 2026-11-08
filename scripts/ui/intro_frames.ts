@@ -2,7 +2,7 @@
 import { chromium } from "playwright";
 const times = (process.argv[2] ?? "1,5,7.5,8.5,9.5,10.5,12,14.5,17,18.5,22,26,29,30.5,32.5").split(",").map(Number);
 (async () => {
-  const b = await chromium.launch({ args: ["--use-gl=swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"] });
+  const b = await chromium.launch({ channel: "chrome", args: ["--use-gl=swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"] });
   const p = await b.newPage({ viewport: { width: 1280, height: 720 } });
   const errs: string[] = [];
   p.on("pageerror", (e) => errs.push(String(e)));
