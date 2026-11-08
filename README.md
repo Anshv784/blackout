@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/banner.jpg" alt="BLACKOUT" width="760">
+  <img src="docs/assets/banner.png" alt="BLACKOUT: the battle royale nobody can see" width="800">
 </p>
 
 <h2 align="center">A real-time fog-of-war battle royale on MagicBlock</h2>
