@@ -243,7 +243,10 @@ export function Reveal({ session }: { session: Session }) {
         <div className="verdict" onClick={() => setCard(false)}>
           <div className="verdict-card" onClick={(e) => e.stopPropagation()}>
             <div className="vc-kicker">NIGHT {room.matchNo} · ROOM {room.roomId.toString()}</div>
-            {mySeat === null ? (
+            {room.stake > 0n && room.winner === 255 && room.place.every((p) => p === 0) ? (
+              // the rollup stalled too long to settle safely: the program called the night off
+              <h1>Night called off · every stake is refunded</h1>
+            ) : mySeat === null ? (
               <h1>{winnerName} survived the night</h1>
             ) : room.winner === mySeat ? (
               <h1 className="win">YOU SURVIVED THE NIGHT</h1>

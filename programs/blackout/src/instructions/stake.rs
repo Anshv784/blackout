@@ -18,6 +18,8 @@ pub fn handle_buy_ticket(ctx: Context<BuyTicket>, room_id: u64, match_no: u32, p
     let stake = room.stake;
     drop(data);
     require!(match_no > ctx.accounts.bank.paid_match, BlackoutError::NeedTicket);
+    // a winnings wallet of all zeros is the System Program: paying it would fail the whole settle
+    require_keys_neq!(payout, Pubkey::default(), BlackoutError::BadAccount);
     transfer(
         CpiContext::new(
             ctx.accounts.system_program.key(),

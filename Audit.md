@@ -1,6 +1,6 @@
 # BLACKOUT · Program audit
 
-Done 2026-11-03 before the first mainnet deploy: two passes over the program, the app and the scripts.
+Done 2026-11-03 before the first mainnet deploy, and again on 2026-11-08 (see "Second pass"). The results below are from the 2026-11-08 run against the upgraded devnet program.
 This is a self-review backed by on-chain tests, not a professional audit. Keep stakes small.
 
 ## Results
@@ -9,7 +9,7 @@ This is a self-review backed by on-chain tests, not a professional audit. Keep s
 |---|---|
 | `scripts/e2e_money.ts`: every money rule and attack, against a deployed program (devnet `CkSb4kkmhzr8n9awdmrvqhuoWka6nZUXXb8RXnrFBAKU`), incl. a full 8-seat staked night | **29 of 29 pass** |
 | `scripts/e2e_daily.ts`: the daily challenge's rules and attacks, on the same program | **14 of 14 pass** |
-| `cargo test` (incl. the byte-exact simulation fingerprint over 48 nights, One Light, death cam, bot styles, daily scoring) | 20 passed |
+| `cargo test` (incl. the byte-exact simulation fingerprint over 48 nights, One Light, death cam, bot styles, daily scoring, money rules, called-off nights) | 35 passed, plus 2 long ones run on demand |
 | `scripts/mirror.ts` (Rust vs browser movement) | 2,000 steps identical |
 | Crank alone, 7 bots, no client ticks | went live and kept ticking in 2 of 2 rooms (failed at tick 59 before the fix) |
 | Rollup vs Solana clock | 0-1 s apart |
@@ -53,6 +53,34 @@ Known limits: anyone with several wallets gets several tries (a program can't te
 
 Settle sends 5% of each paid pot (`FEE_BPS`) to the fixed `TREASURY` wallet and the rest to the winner. Both values are compiled into the program, so changing them takes an upgrade. Refunded tickets pay nothing. If the treasury is too empty to stay rent-exempt, the fee is skipped, so it can't block a payout. The room page shows the fee before anyone stakes.
 
+## Second pass (2026-11-08, staked nights)
+
+A full re-read of every path money can take: `buy_ticket`, `join`, `leave`, `kick`, `start_match`, the VRF fallback, `tick` and the end-of-night ranking, `end_now`, `finish`, `settle`, `reset`, `close_ticket`, and the admin close paths. An outside report of the 2026-11-03 issues (host pot steal, join/leave pot inflation, no refunds) was checked against the current code and the live program: all were already fixed, and the deployed devnet program is byte-identical to this build.
+
+| Severity | Finding | Fix |
+|---|---|---|
+| Medium | **A stalled night could outlive its tickets.** Night length is counted in ticks but tickets expire in wall time. If the rollup stalled for 15+ minutes mid-night, a losing player could refund their ticket before `finish`, and the winner would be paid less. | `tick` calls a staked night off once it is within `SETTLE_MARGIN_SECS` (5 min) of the earliest seated ticket's expiry. Settle then pays nobody and every ticket is refundable immediately. Tests: `void_tests`. |
+| Low | **A winnings wallet of all zeros** (the System Program) made the winner's settle fail. Everyone would still be refunded, but only after an hour. | `buy_ticket` refuses an all-zero payout wallet. |
+| Medium | **Setup didn't check permission addresses.** `setup_core`, `setup_view`, `setup_rec` and the daily setup skip creating a permission that already exists, but never checked the permission account was the real PDA. Anyone could front-run setup of a new room (or the daily board) with a decoy account, leaving the World, a View or the sealed daily seed with no access rule. Existing devnet rooms are set up correctly (the live Try-to-cheat check shows them denied). | Every setup path requires `permission:` + account under the permission program (`expect_permission`). |
+| Low | **Every ticket stranded ~0.00084 SOL** on the in-browser session key (a flat 0.002 SOL was sent for a ticket whose rent is 0.00116). It's lost if the browser's storage is cleared. | The app tops the session key up only to the ticket's rent plus one fee float (rent minimum + 50,000 lamports) and reuses it; verified by simulating the purchase on devnet. A float below the rent minimum is rejected by Solana (`InsufficientFundsForRent`), so a smaller one isn't possible. |
+| Low | The deploy workflow ran with the repo's default `GITHUB_TOKEN` permissions. | `permissions: contents: read`. |
+
+Checked and found safe this pass:
+- **Refunding a seated ticket.** Possible only after `paid_match` passes it (settle has already run) or after expiry, and expiry can no longer fall inside a night.
+- **Faking a ticket in `join`.** It must be owned by the program and carry the `Ticket` discriminator, and only `buy_ticket` makes those. Expired tickets or tickets for another match are refused.
+- **A stale staker's seat being taken.** Their ticket is never used, so it is refundable once that match settles.
+- **Wrong accounts in `finish`.** It derives the tickets itself and checks the winner against the room, and the board and bank are seed-constrained.
+- **Calling `settle` directly or twice.** It needs the room's escrow signature, which only the delegation program can give, and it refuses a match at or below `paid_match`.
+- **A night where everyone dies at once.** It has no winner, so it settles with no payout and every ticket is refunded.
+- **Winner set to the bank itself.** That only costs the winner their own winnings; other stakes are untouched.
+- **Player inputs crashing a tick.** Angles are masked to 16 bits against a 257-entry table, movement is clamped from `i8`, the throw distance is capped, and weapons only change inside the simulation.
+- **Committed secrets.** None in the repo, its history or the built site.
+- **Unsafe HTML.** The app never renders player text as raw HTML.
+- **A stolen session key.** It can't redirect winnings, because payouts go to the wallet named on the ticket.
+- **Nobody calling `finish`.** Every open client calls it automatically when it sees an ended room. If none does, tickets expire and are refunded.
+
+Fairness notes (no funds at risk, by design): ties at the 5:00 bell go to the lower seat, and a staked night ends early once every living player has sent no input for 10 s, ranked by health.
+
 ## How refunds stay safe
 
 A ticket can't be refunded and also ride in a match:
@@ -60,6 +88,7 @@ A ticket can't be refunded and also ride in a match:
 - `finish` derives the seated tickets itself, so a loser can't leave theirs out of settle and reclaim it.
 - Settle marks those tickets used. An unused ticket at or below `bank.paid_match` was therefore never in that match.
 - A match only starts with 20+ minutes left on every seated ticket, and tickets last an hour.
+- A night is measured in ticks, so a stalled rollup could stretch it. If a staked night is still running within 5 minutes of its earliest ticket expiry, the next tick calls it off: no winner, and every ticket can be refunded in full at once.
 
 ## Known risks that remain
 

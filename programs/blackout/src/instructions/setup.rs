@@ -28,6 +28,7 @@ pub fn handle_setup_core<'info>(ctx: Context<'info, RoomAccount<'info>>) -> Resu
         w.room_hi = hi;
     })?;
     let room_permission = ctx.remaining_accounts.first().ok_or(BlackoutError::BadAccount)?;
+    expect_permission(room_permission, &ctx.accounts.room.key())?;
     if room_permission.data_is_empty() {
         let room_ai = ctx.accounts.room.to_account_info();
         CreateEphemeralPermissionCpi {

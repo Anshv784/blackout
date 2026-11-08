@@ -218,7 +218,8 @@ pub fn handle_input(ctx: Context<Input>, dx: i8, dy: i8, aim: u16, buttons: u8, 
 /// One 50 ms simulation step. Called by the crank (or any client as a
 /// fallback — the slot gate stops double-ticking).
 pub fn handle_tick<'info>(ctx: Context<'info, Tick<'info>>) -> Result<()> {
-    let slot = Clock::get()?.slot;
+    let clock = Clock::get()?;
+    let slot = clock.slot;
     let mut room = ctx.accounts.room.load_mut()?;
     if room.status != ST_COUNTDOWN && room.status != ST_LIVE {
         return Ok(());
@@ -227,6 +228,12 @@ pub fn handle_tick<'info>(ctx: Context<'info, Tick<'info>>) -> Result<()> {
         return Ok(());
     }
     room.last_tick_slot = slot;
+    // A night is counted in ticks, tickets expire in wall time. If the rollup stalled long
+    // enough that a seated ticket could soon be refunded mid-night, call the night off.
+    if out_of_time(&room, clock.unix_timestamp) {
+        void_night(&mut room);
+        return Ok(());
+    }
     let rid = room.room_id;
     let (lo, hi) = room_key_parts(rid);
     let accs = [
@@ -274,6 +281,20 @@ pub fn handle_tick<'info>(ctx: Context<'info, Tick<'info>>) -> Result<()> {
         room.start_slot = slot;
     }
     Ok(())
+}
+
+/// A staked night that can no longer settle before its earliest ticket becomes refundable.
+pub fn out_of_time(room: &Room, now: i64) -> bool {
+    room.stake > 0 && now.saturating_add(SETTLE_MARGIN_SECS) > room.stake_deadline
+}
+
+/// End a staked night with no winner: `settle` then pays nobody and marks the match
+/// settled, so every seated ticket can be refunded in full straight away.
+pub fn void_night(room: &mut Room) {
+    room.status = ST_ENDED;
+    room.winner = NO_SEAT;
+    room.end_tick = room.tick;
+    room.place = [0; MAXP];
 }
 
 /// Host ends a running night early: the next tick ends it normally (placements,
@@ -645,4 +666,43 @@ pub fn world_mut(d: &mut [u8], room_id: u64) -> Result<&mut World> {
     let (lo, hi) = room_key_parts(room_id);
     require!(w.magic == WORLD_MAGIC && w.room_lo == lo && w.room_hi == hi, BlackoutError::BadAccount);
     Ok(w)
+}
+
+#[cfg(test)]
+mod void_tests {
+    use super::*;
+
+    fn staked(deadline: i64) -> Room {
+        let mut r: Room = bytemuck::Zeroable::zeroed();
+        r.stake = MIN_STAKE;
+        r.stake_deadline = deadline;
+        r.status = ST_LIVE;
+        r.winner = 3;
+        r.place = [1; MAXP];
+        r
+    }
+
+    #[test]
+    fn a_staked_night_is_called_off_before_any_ticket_can_be_refunded() {
+        let r = staked(10_000);
+        assert!(!out_of_time(&r, 10_000 - SETTLE_MARGIN_SECS));
+        assert!(out_of_time(&r, 10_000 - SETTLE_MARGIN_SECS + 1));
+        // a full night always fits: a match only starts with MATCH_WINDOW_SECS left
+        assert!(!out_of_time(&r, 10_000 - MATCH_WINDOW_SECS + 6 * 60));
+    }
+
+    #[test]
+    fn free_nights_never_run_out_of_time() {
+        let mut r = staked(0);
+        r.stake = 0;
+        assert!(!out_of_time(&r, i64::MAX));
+    }
+
+    #[test]
+    fn a_called_off_night_has_no_winner() {
+        let mut r = staked(0);
+        void_night(&mut r);
+        assert_eq!((r.status, r.winner), (ST_ENDED, NO_SEAT));
+        assert!(r.place.iter().all(|&p| p == 0));
+    }
 }

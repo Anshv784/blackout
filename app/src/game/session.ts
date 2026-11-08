@@ -4,7 +4,7 @@ import { setActiveMap } from "./maps";
 import { TOUCH } from "./device";
 import { ComputeBudgetProgram, PublicKey } from "@solana/web3.js";
 import { client } from "./identity";
-import { ticketPda } from "../chain/client";
+import { ticketPda, TICKET_LEN } from "../chain/client";
 import { useStore } from "./store";
 import {
   decodeView,
@@ -830,8 +830,18 @@ export class Session {
       return;
     }
     const { Transaction, SystemProgram } = await import("@solana/web3.js");
+    // The session key pays the stake and the ticket's rent. It also keeps a small float for the
+    // fees of refunds it sends later; Solana won't let it hold less than its rent minimum, so the
+    // float is that minimum plus fees, topped up only when short (not added again on every ticket).
+    const [rent, minBalance, have] = await Promise.all([
+      client.base.getMinimumBalanceForRentExemption(TICKET_LEN),
+      client.base.getMinimumBalanceForRentExemption(0),
+      client.base.getBalance(client.publicKey),
+    ]);
+    const float = minBalance + 50_000;
+    const lamports = Number(r.stake) + rent + Math.max(0, float - have);
     const tx = new Transaction().add(
-      SystemProgram.transfer({ fromPubkey: wallet.publicKey, toPubkey: client.publicKey, lamports: Number(r.stake) + 2_000_000 }),
+      SystemProgram.transfer({ fromPubkey: wallet.publicKey, toPubkey: client.publicKey, lamports }),
       client.buyTicketIx(this.roomId, matchNo, wallet.publicKey),
     );
     tx.feePayer = wallet.publicKey;

@@ -5,7 +5,7 @@ use anchor_lang::prelude::*;
 use crate::error::BlackoutError;
 use crate::state::*;
 use ephemeral_rollups_sdk::access_control::instructions::{CreateEphemeralPermissionCpi, UpdateEphemeralPermissionCpi};
-use ephemeral_rollups_sdk::access_control::structs::{EphemeralMembersArgs, Member, AUTHORITY_FLAG, TX_LOGS_FLAG};
+use ephemeral_rollups_sdk::access_control::structs::{EphemeralMembersArgs, EphemeralPermission, Member, AUTHORITY_FLAG, TX_LOGS_FLAG};
 use ephemeral_rollups_sdk::consts::{EPHEMERAL_VAULT_ID, MAGIC_PROGRAM_ID, PERMISSION_PROGRAM_ID};
 use ephemeral_rollups_sdk::ephemeral_accounts::EphemeralAccount;
 
@@ -39,6 +39,15 @@ pub fn expect_pda(target: &AccountInfo, seeds: &[&[u8]]) -> Result<u8> {
     let (key, bump) = Pubkey::find_program_address(seeds, &crate::ID);
     require_keys_eq!(*target.key, key, BlackoutError::BadAccount);
     Ok(bump)
+}
+
+/// `perm` must be the real permission PDA of `account`. Setup skips creating a permission
+/// that already exists, so without this a caller could pass any non-empty account,
+/// skip the real one and leave a sealed account with no access rule at all.
+pub fn expect_permission(perm: &AccountInfo, account: &Pubkey) -> Result<()> {
+    let (key, _) = EphemeralPermission::find_pda(account);
+    require_keys_eq!(*perm.key, key, BlackoutError::BadAccount);
+    Ok(())
 }
 
 /// Rewrite who may read a seat's view: `members` only.
@@ -76,6 +85,7 @@ pub fn create_sealed<'info>(ctx: &Context<'info, RoomAccount<'info>>, rid: &[u8;
         init(&mut target.try_borrow_mut_data()?);
     }
     let perm = a.target_permission.to_account_info();
+    expect_permission(&perm, target.key)?;
     if perm.data_is_empty() {
         CreateEphemeralPermissionCpi {
             payer: room_ai.clone(),

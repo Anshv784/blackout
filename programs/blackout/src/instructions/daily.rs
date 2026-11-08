@@ -67,6 +67,7 @@ fn setup(ctx: &Context<RollDaily>) -> Result<()> {
         (daily_ai.clone(), a.daily_permission.to_account_info(), false, daily_seeds),
     ];
     for (acc, perm, private, seeds) in perms {
+        super::room_account::expect_permission(&perm, acc.key)?;
         if perm.data_is_empty() {
             CreateEphemeralPermissionCpi {
                 payer: daily_ai.clone(),

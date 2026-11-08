@@ -9,6 +9,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# the job only reads the repo; deploying uses the Cloudflare token, not GitHub's
+permissions:
+  contents: read
+
 concurrency:
   group: cloudflare-deploy
   cancel-in-progress: true
