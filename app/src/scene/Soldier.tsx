@@ -90,8 +90,9 @@ const GUN_INNER = new THREE.Vector3(-0.17, 0, -0.12);
 export const GUN_SCALE = 0.72;
 /** where the hands go, in the gun's own part space (see Gun.tsx): the right wrist just behind and
  *  outside the pistol grip, the left wrist under and left of the handguard */
-const GRIP_AT = new THREE.Vector3(0.3, -0.075, 0.045);
-const FRONT_AT = new THREE.Vector3(0.62, -0.065, -0.045);
+// (the built guns: palm on the grip part at x 0.36, palm under the handguard, which ends at y -0.01)
+const GRIP_AT = new THREE.Vector3(0.35, -0.08, 0.045);
+const FRONT_AT = new THREE.Vector3(0.72, -0.03, -0.015);
 /** a pistol is held two-handed: the support hand cups the shooting hand under the grip */
 const PISTOL_FRONT = new THREE.Vector3(0.36, -0.13, -0.06);
 
@@ -491,8 +492,11 @@ function clipsFor(key: string, src: THREE.AnimationClip[], animRoot: THREE.Objec
   // reloads while standing, walking or crouched: the arms, chest and head from the recording, the
   // legs from whatever the body is doing (prone reloads use the whole body)
   const upper = (t: THREE.KeyframeTrack) => /Spine|Neck|Head|Shoulder|Arm|Hand/.test(t.name);
-  for (const n of ["reload_stand", "reload_walk", "reload_crouch", "throw", "throw_crouch"])
+  for (const n of ["reload_stand", "reload_walk", "reload_crouch", "throw", "throw_crouch", "aim"])
     if (out[n]) out[n + "_up"] = new THREE.AnimationClip(n + "_up", out[n].duration, out[n].tracks.filter(upper));
+  // the pistol stance on the arms alone, for the clips recorded with a rifle (crouch, strafes, backing
+  // off): the chest keeps its lean and the legs their step, the arms hold the pistol out in both hands
+  if (out.pistol_idle) out.pistol_arms = new THREE.AnimationClip("pistol_arms", out.pistol_idle.duration, out.pistol_idle.tracks.filter((t) => /Shoulder|Arm|Hand/.test(t.name)));
   animCache.set(key, out);
   return out;
 }
@@ -653,7 +657,18 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
     const reload = reloads.stand;
     // recorded deaths, scrubbed from the moment of death so every client and every replay agrees
     const deaths = Object.fromEntries(DEATHS.map((n) => [n, scrub(n)])) as Record<string, THREE.AnimationAction | null>;
-    return { emotes, reload, reloads, throws, jump, dive, deaths };
+    // shooting: the recorded rifle aim on the arms, chest and head (the legs keep walking or crouching)
+    const aim = clips.aim_up ? mixer.clipAction(clips.aim_up) : null;
+    if (aim) {
+      aim.play();
+      aim.setEffectiveWeight(0);
+    }
+    const pistolArms = clips.pistol_arms ? mixer.clipAction(clips.pistol_arms) : null;
+    if (pistolArms) {
+      pistolArms.play();
+      pistolArms.setEffectiveWeight(0);
+    }
+    return { emotes, reload, reloads, throws, jump, dive, deaths, aim, pistolArms };
   }, [mixer, clips]);
   const emoteRef = useRef({ at: 0, idx: -1 });
   // the gun fitted to this body: moved with the shoulder, and in closer for shorter arms
@@ -662,6 +677,8 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
   const handAnchor = useRef<THREE.Matrix4 | null>(null);
   const diveAt = useRef(0);
   const raiseK = useRef(0);
+  const aimW = useRef(0);
+  const pistolW = useRef(0);
   const holdDir = useRef(new THREE.Vector3());
   const prevCrouch = useRef(false);
   const prevSpeed = useRef(0);
@@ -696,7 +713,7 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
   const target = useMemo(() => new THREE.Vector3(), []);
   const pole = useMemo(() => new THREE.Vector3(), []);
   // reload: scratch points for the hand's path, the gun's moving parts, what the left hand carries
-  const kp = useMemo(() => Array.from({ length: 9 }, () => new THREE.Vector3()), []);
+  const kp = useMemo(() => Array.from({ length: 11 }, () => new THREE.Vector3()), []);
   const held = useRef<THREE.Group>(null);
   const heldMag = useRef<THREE.Mesh>(null);
   const heldShell = useRef<THREE.Mesh>(null);
@@ -780,6 +797,21 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
       if (dying) break; // the pose under a body stays exactly as it was when it fell
       w.current[n] += (want[n] - w.current[n]) * k;
       actions[n].setEffectiveWeight(w.current[n]);
+    }
+    // firing (or just fired) with a long gun: the stock comes up into the shoulder the way the
+    // recording aims, instead of the carry pose with the gun forced level in front of it
+    {
+      const tn = performance.now();
+      const hotA = m.firing || (m.shotAt !== undefined && tn - m.shotAt < 700);
+      const aimOn = !!extra.aim && !def.camo && hotA && !m.prone && !m.downed && weapon !== 0 && !m.reloading && !dying && !emoting && tn - m.throwAt > 450;
+      aimW.current += ((aimOn ? 1 : 0) - aimW.current) * Math.min(1, dt * (aimOn ? 12 : 4));
+      extra.aim?.setEffectiveWeight(aimW.current * 10);
+      // a pistol in a clip recorded with a rifle: the pistol arms over it
+      const native = w.current.pistol_idle + w.current.pistol_walk + w.current.pistol_run;
+      const pOn = weapon === 0 && !def.camo && !m.prone && !m.downed && !m.reloading && !dying && !emoting && tn - m.throwAt > 450;
+      const pTarget = pOn ? Math.max(0, 1 - native) : 0;
+      pistolW.current += (pTarget - pistolW.current) * Math.min(1, dt * 10);
+      extra.pistolArms?.setEffectiveWeight(pistolW.current * 10);
     }
     // running strafes are the walking ones, quicker
     actions.strafe_left.timeScale = actions.strafe_right.timeScale = m.speed === 2 ? 1.45 : 1;
@@ -1176,6 +1208,13 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
       const upV = sockV9.set(0, 1, 0).addScaledVector(along, -along.y).normalize();
       const side = sockV10.crossVectors(along, upV);
       const frame = sockM2.makeBasis(along, upV, side).setPosition(rL);
+      // the line between the palms runs from the grip to the handguard, not along the barrel: on a
+      // real rifle the grip hangs lower than the handguard, so the barrel sits a few degrees off it
+      if (!pistolHold) {
+        const fp = gm?.front ?? [FRONT_AT.x, FRONT_AT.y, FRONT_AT.z];
+        const gpx = gm?.grip ?? [GRIP_AT.x, GRIP_AT.y, GRIP_AT.z];
+        frame.multiply(sockM.makeRotationZ(-Math.atan2(fp[1] - gpx[1], fp[0] - gpx[0])));
+      }
       frame.multiply(sockM3.makeTranslation(-gripLocal.x, -gripLocal.y, -gripLocal.z));
       frame.decompose(gr.position, gr.quaternion, tmpB);
       gr.scale.set(1, 1, 1);
@@ -1197,9 +1236,10 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
       if (!pistolHold) {
         const pl = inner.worldToLocal(sockV11.copy(lW));
         const f = gm?.front ?? [FRONT_AT.x, FRONT_AT.y, FRONT_AT.z];
-        const gx = gm?.grip?.[0] ?? GRIP_AT.x;
+        // slides along the handguard: from the measured hold to a little ahead of it (never back onto the mag well),
+        // never past the muzzle (the compact SMG's whole handguard is a few centimetres long)
         const endX = gm ? gm.rear + gm.len * 0.9 : 0.85;
-        pl.set(THREE.MathUtils.clamp(pl.x, gx + 0.16, Math.max(gx + 0.2, endX)), f[1], f[2]);
+        pl.set(THREE.MathUtils.clamp(pl.x, f[0] - 0.02, Math.max(f[0] - 0.02, Math.min(f[0] + 0.12, endX))), f[1], f[2]);
         supportPart = pl;
       }
       socketed = true;
@@ -1352,6 +1392,23 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
       }
     }
     const leftFree = !def.camo && (mb > 0.4 || throwing);
+    // `front` is where the centre of the left PALM goes; the arm reaches with the wrist, so aim the
+    // wrist a palm's length back from it (in the turn the hand is about to be given below), or the
+    // fingers end up past the handguard (on the short SMG, right off the gun)
+    const leftPalmT = kp[10].copy(leftT); // where the palm goes (leftT becomes the wrist's target)
+    if (!leftFree && gr && !throwing && grips.l) {
+      // away from the handguard only while a reload carries the hand off (a short arm sliding back
+      // along the gun is still holding it)
+      const hold = rp >= 0 ? 1 - Math.min(1, leftT.distanceTo(front) / 0.22) : 1;
+      if (hold > 0) {
+        const ws = g.getWorldScale(sockV5).x;
+        gr.getWorldQuaternion(qGun);
+        const fA = hd[2].set(0.3, 0.2, 1).applyQuaternion(qGun).normalize();
+        const pA = hd[3].set(0, 1, 0.75).applyQuaternion(qGun);
+        pA.addScaledVector(fA, -pA.dot(fA)).normalize();
+        leftT = kp[9].copy(leftT).addScaledVector(fA, -0.045 * ws * hold).addScaledVector(pA, -0.022 * ws * hold);
+      }
+    }
     if (!leftFree) {
       g.localToWorld(pole.set(0.35, 0.35, -0.32));
       reach(bones.lArm, bones.lFore, bones.lHand, leftT, pole);
@@ -1368,7 +1425,7 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
       const across = hd[2].set(0.3, 0.2, 1).applyQuaternion(qGun);
       const up = hd[3].set(0, 1, 0.75).applyQuaternion(qGun); // palm up and in, against the handguard
       // full grip on the gun; relaxing as the hand travels away (to the belt and back)
-      const away = Math.min(1, leftT.distanceTo(front) / 0.22);
+      const away = rp >= 0 ? Math.min(1, leftPalmT.distanceTo(front) / 0.22) : 0;
       const handling = (1 - away) * (carry ? 0.6 : 1);
       if (!leftFree) orientHand(grips.l, across, up, picking ? 1 - bendK : handling);
     }

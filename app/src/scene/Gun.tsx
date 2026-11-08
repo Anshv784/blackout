@@ -278,14 +278,17 @@ export interface GunModel {
   grip?: [number, number, number];
   front?: [number, number, number];
 }
+// grip / front measured on each model in part space (side view on a 5 cm grid): `grip` is the
+// centre of the right palm on the pistol grip (a little outside it, +z), `front` the centre of the
+// left palm cupped under the handguard (just below it, barely left of centre)
 export const GUN_MODELS: Partial<Record<number, GunModel>> = {
   0: { url: "/models/guns/pistol.glb", len: 0.27, rear: 0.25, y: -0.02, flip: [true, false], grip: [0.29, 0.0, 0.045], front: [0.31, -0.03, -0.04] },
-  1: { url: "/models/guns/smg.glb", len: 0.55, rear: 0.05, y: -0.01, grip: [0.42, -0.07, 0.045], front: [0.55, -0.065, -0.045] },
-  2: { url: "/models/guns/shotgun.glb", len: 1.0, rear: 0.11, y: -0.01 },
-  3: { url: "/models/guns/rifle.glb", len: 0.95, rear: -0.03, y: -0.01, flip: [true, false] },
-  4: { url: "/models/guns/sniper.glb", len: 1.2, rear: 0.12, y: 0.0 },
-  6: { url: "/models/guns/lmg.glb", len: 1.08, rear: -0.04, y: -0.01, front: [0.7, -0.065, -0.045] },
-  7: { url: "/models/guns/crossbow.glb", len: 0.86, rear: 0.1, y: 0.0, roll: Math.PI / 2 },
+  1: { url: "/models/guns/smg.glb", len: 0.55, rear: 0.05, y: -0.01, grip: [0.42, -0.07, 0.045], front: [0.55, -0.065, -0.015] },
+  2: { url: "/models/guns/shotgun.glb", len: 1.0, rear: 0.11, y: -0.01, grip: [0.245, -0.01, 0.045], front: [0.78, -0.045, -0.015] },
+  3: { url: "/models/guns/rifle.glb", len: 0.95, rear: -0.03, y: -0.01, flip: [true, false], grip: [0.295, -0.035, 0.045], front: [0.66, 0.035, -0.015] },
+  4: { url: "/models/guns/sniper.glb", len: 1.2, rear: 0.12, y: 0.0, grip: [0.39, -0.055, 0.045], front: [0.72, -0.035, -0.015] },
+  6: { url: "/models/guns/lmg.glb", len: 1.08, rear: -0.04, y: -0.01, grip: [0.3, -0.05, 0.045], front: [0.64, -0.045, -0.015] },
+  7: { url: "/models/guns/crossbow.glb", len: 0.86, rear: 0.1, y: 0.0, roll: Math.PI / 2, grip: [0.37, -0.045, 0.045], front: [0.63, -0.065, -0.015] },
 };
 for (const m of Object.values(GUN_MODELS)) if (m) useGLTF.preload(m.url);
 
@@ -402,7 +405,8 @@ export function Gun({ weapon, ghost = false, display = false, torch = false, fin
       )}
       {!display && !model && (
         // the torch under the barrel: body, and a lens that glows when it's on
-        <group position={[tx, -0.075, 0]}>
+        // tucked under the handguard (it ends at y -0.01 on the built guns), not hanging below it
+        <group position={[tx, -0.036, 0]}>
           <mesh rotation-z={Math.PI / 2}>
             <cylinderGeometry args={[0.024, 0.024, 0.14, 10]} />
             <meshStandardMaterial color="#1c1f25" roughness={0.5} metalness={0.3} transparent={ghost} opacity={op} />
