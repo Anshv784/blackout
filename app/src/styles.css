@@ -2733,3 +2733,25 @@ button {
 
 /* the kit column scrolls when it is taller than the screen, instead of squashing the outfit grid */
 .cs-kit>*{flex-shrink:0}
+
+/* gun skins: the tile is the chosen gun wearing the skin, live */
+.lk-grid.skins{grid-template-columns:repeat(4,1fr);gap:6px}
+.lk-grid.skins .lk-tile .lk-fill{aspect-ratio:1.35}
+.lk-grid.skins .lk-tile span{padding:5px 7px;font-size:10.5px;line-height:1.2}
+.lk-grid.skins .lk-tile span em{font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lk-tile .sk-gun{position:relative;overflow:hidden;background:radial-gradient(120% 90% at 50% 100%,#1a1f2c 0%,#0b0d14 70%)}
+.lk-tile .sk-gun canvas,.lk-tile .sk-gun img{position:absolute;left:3%;top:6%;width:94%;height:88%;object-fit:contain;-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center}
+.lk-tile .sk-gun canvas{object-fit:fill}
+/* the thumbnail's own light and shade over the skin: keeps the gun's shape and detail */
+.lk-tile .sk-gun .sk-shade{mix-blend-mode:overlay;opacity:.75;filter:contrast(1.25) brightness(1.05)}
+.lk-tile .sk-gun .sk-plain{filter:brightness(1.1) drop-shadow(0 5px 8px rgba(0,0,0,.6))}
+.lk-tile .sk-gun::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 60%,rgba(5,6,10,.5));pointer-events:none}
+.lk-live{position:absolute;top:5px;left:5px;padding:2px 5px;border-radius:5px;font-size:8px;font-weight:800;letter-spacing:.14em;color:#0b0d14;background:linear-gradient(90deg,#7cf7d4,#ffd166,#ff7ab8);background-size:200% 100%;animation:lk-live 3s linear infinite;z-index:2}
+@keyframes lk-live{to{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){.lk-live{animation:none}}
+.sk-factory{display:block;background:linear-gradient(135deg,#5a606c,#22252c)}
+.lk-all{width:100%;font-size:11px;letter-spacing:.12em;padding:9px}
+.lk-all:disabled{opacity:.4;cursor:default}
+.lk-sub b{color:var(--gold);font-weight:700}
+.gs-item span .gs-skin{font-style:normal;color:var(--gold);text-transform:none;margin-left:4px}
+@media (max-width:520px){.lk-grid.skins{grid-template-columns:repeat(3,1fr)}}

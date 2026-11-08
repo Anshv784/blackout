@@ -8,7 +8,7 @@ import * as THREE from "three";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { Gun, MUZZLE_FWD, GUN_MODELS } from "./Gun";
 import { dropMag } from "./Details";
-import { ANIMS_URL, CHARACTERS, OUTFITS, FINISHES, EMOTES, DEFAULT_LOOK, type Look } from "../game/look";
+import { ANIMS_URL, CHARACTERS, OUTFITS, FINISHES, EMOTES, DEFAULT_LOOK, skinOf, type Look } from "../game/look";
 
 export const SOLDIER_URL = "/models/soldier-v2.glb";
 useGLTF.preload(SOLDIER_URL);
@@ -1543,7 +1543,7 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
       </group>
       <group ref={gunRef} position={gunBase.toArray()}>
         <group ref={innerRef} position={GUN_INNER.toArray()} scale={GUN_SCALE}>
-          <Gun key={`${shown}-${look.skin ?? 0}-${look.finish}`} weapon={shown} ghost={ghost} torch={torchOn} finish={FINISHES[look.finish]?.tint} skin={look.skin ?? 0} />
+          <Gun key={`${shown}-${skinOf(look, shown)}-${look.finish}`} weapon={shown} ghost={ghost} torch={torchOn} finish={FINISHES[look.finish]?.tint} skin={skinOf(look, shown)} />
         </group>
         {/* muzzle flash: two crossed bright cards at the barrel tip, for ~55 ms per shot */}
         <group ref={flash} position={[(MUZZLE_FWD[shown] ?? 0.6) - 0.1, 0, -0.11]} visible={false}>

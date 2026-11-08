@@ -3,7 +3,7 @@
 import { lazy, Suspense, useState } from "react";
 import { TopBar } from "./TopBar";
 import { go } from "../App";
-import { CHARACTERS, ROSTER, OUTFITS, FINISHES, EMOTES, SKINS, previewGun, useLook } from "../game/look";
+import { CHARACTERS, ROSTER, OUTFITS, FINISHES, EMOTES, SKINS, previewGun, skinOf, useLook } from "../game/look";
 import { SkinSwatch } from "./SkinSwatch";
 import { EmoteGlyph } from "./EmoteWheel";
 import { WEAPON_NAME } from "../chain/layout";
@@ -77,7 +77,7 @@ export function Characters() {
                   </button>
                 ))}
               </div>
-              <p className="cs-note">Everyone at your table sees your operator, outfit and gun finish. Saved on this device.</p>
+              <p className="cs-note">Everyone at your table sees your operator, outfit, gun finish and skins. Saved on this device.</p>
             </>
           ) : (
             <>
@@ -90,7 +90,10 @@ export function Characters() {
                     </i>
                     <div>
                       <b>{WEAPON_NAME[w]}</b>
-                      <span>{GUN_INFO[w].type}</span>
+                      <span>
+                        {GUN_INFO[w].type}
+                        {skinOf(look, w) > 0 && <em className="gs-skin">· {SKINS[skinOf(look, w)].name}</em>}
+                      </span>
                       <em className="gs-dmg" title="damage per hit">
                         <i style={{ width: `${bar(GUN_INFO[w].dmg, 80) * 100}%` }} />
                       </em>
@@ -98,7 +101,7 @@ export function Characters() {
                   </button>
                 ))}
               </div>
-              <p className="cs-note">Finish and skin apply to every gun you carry.</p>
+              <p className="cs-note">Each gun keeps its own skin. The finish colours all of them.</p>
             </>
           )}
         </section>
@@ -110,7 +113,7 @@ export function Characters() {
             <em>{mode === "guns" ? `${gi.type} · ${gi.note}` : ch.role}</em>
           </div>
           <Suspense fallback={<div className="cs-stage" />}>
-            {mode === "guns" ? <GunStage weapon={weapon} finish={FINISHES[look.finish]?.tint} skin={look.skin ?? 0} /> : <CharacterStage look={look} weapon={weapon} emoteAt={emoteAt} />}
+            {mode === "guns" ? <GunStage weapon={weapon} finish={FINISHES[look.finish]?.tint} skin={skinOf(look, weapon)} /> : <CharacterStage look={look} weapon={weapon} emoteAt={emoteAt} />}
           </Suspense>
           {mode === "guns" && (
             <div className="gs-stats">
@@ -150,10 +153,14 @@ export function Characters() {
             <p className="lk-sub">
               {curTab === "outfit" && "The tone of your operator's gear."}
               {curTab === "finish" && "The colour of your guns' metal."}
-              {curTab === "skin" && "A pattern printed on every gun you carry."}
+              {curTab === "skin" && (
+                <>
+                  Skin for the <b>{WEAPON_NAME[weapon]}</b>. Pick another gun in the armory to give it its own.
+                </>
+              )}
               {curTab === "emote" && "Your signature. In a match press B for the wheel."}
             </p>
-            <div className={`lk-grid ${curTab === "emote" ? "wide" : ""}`}>
+            <div className={`lk-grid ${curTab === "emote" ? "wide" : curTab === "skin" ? "skins" : ""}`}>
               {curTab === "outfit" &&
                 OUTFITS.map((o, i) => (
                   <button key={o.name} className={`lk-tile op ${look.outfit === i ? "on" : ""}`} onClick={() => set({ outfit: i })}>
@@ -185,9 +192,18 @@ export function Characters() {
                 })}
               {curTab === "skin" &&
                 SKINS.map((k, i) => (
-                  <button key={k.key} className={`lk-tile ${(look.skin ?? 0) === i ? "on" : ""}`} onClick={() => set({ skin: i })}>
-                    <SkinSwatch i={i} big />
-                    <span>{k.name}</span>
+                  <button
+                    key={k.key}
+                    className={`lk-tile ${skinOf(look, weapon) === i ? "on" : ""}`}
+                    title={k.note}
+                    onClick={() => set({ skins: look.skins.map((v, w) => (w === weapon ? i : v)) })}
+                  >
+                    <SkinSwatch i={i} big gun={weapon} />
+                    {k.live && <small className="lk-live">LIVE</small>}
+                    <span>
+                      {k.name}
+                      <em>{k.note}</em>
+                    </span>
                   </button>
                 ))}
               {curTab === "emote" &&
@@ -199,6 +215,15 @@ export function Characters() {
                 ))}
             </div>
           </div>
+          {curTab === "skin" && (
+            <button
+              className="btn ghost lk-all"
+              disabled={look.skins.every((v) => v === skinOf(look, weapon))}
+              onClick={() => set({ skins: look.skins.map(() => skinOf(look, weapon)) })}
+            >
+              PUT {SKINS[skinOf(look, weapon)].name.toUpperCase()} ON EVERY GUN
+            </button>
+          )}
           <ServiceRecord />
           <button className="btn primary cs-done" onClick={() => go("/")}>
             DONE · BACK TO MENU
