@@ -2755,3 +2755,25 @@ button {
 .lk-sub b{color:var(--gold);font-weight:700}
 .gs-item span .gs-skin{font-style:normal;color:var(--gold);text-transform:none;margin-left:4px}
 @media (max-width:520px){.lk-grid.skins{grid-template-columns:repeat(3,1fr)}}
+
+/* skin sections: CLASSIC (still), LIVE (animated), LEGENDS (a story each) */
+.sk-groups{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+.sk-groups button{display:flex;align-items:center;justify-content:center;gap:6px;padding:7px 4px;border-radius:8px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);color:var(--dim);font:inherit;font-size:10px;font-weight:800;letter-spacing:.14em;cursor:pointer}
+.sk-groups button i{font-style:normal;font-weight:600;font-size:9px;padding:1px 5px;border-radius:6px;background:rgba(255,255,255,.07);letter-spacing:0}
+.sk-groups button:hover{color:var(--fg)}
+.sk-groups button.on{color:var(--fg);border-color:rgba(255,255,255,.25);background:rgba(255,255,255,.06)}
+.sk-groups button.live.on{color:#7cf7d4;border-color:rgba(124,247,212,.45);background:rgba(124,247,212,.08)}
+.sk-groups button.legend{position:relative;overflow:hidden}
+.sk-groups button.legend.on{color:#0b0d14;border-color:transparent;background:linear-gradient(100deg,#ffd166,#ff9a5a 45%,#ff7ab8 75%,#ffd166);background-size:220% 100%;animation:sk-shine 4s linear infinite}
+.sk-groups button.legend.on i{background:rgba(0,0,0,.18)}
+@keyframes sk-shine{to{background-position:-220% 0}}
+.sk-lore{position:relative;padding:10px 12px;border-radius:10px;background:linear-gradient(135deg,rgba(255,209,102,.09),rgba(255,122,184,.06));border:1px solid rgba(255,209,102,.22)}
+.sk-lore b{display:block;font-size:10px;letter-spacing:.2em;color:var(--gold);margin-bottom:4px}
+.sk-lore p{margin:0;font-size:11.5px;line-height:1.5;color:#d6d9e4;font-style:italic}
+.lk-grid.legends{grid-template-columns:repeat(3,1fr)}
+.lk-grid.legends .lk-tile{border-color:rgba(255,209,102,.18);background:linear-gradient(180deg,#14111a,#0d0f16)}
+.lk-grid.legends .lk-tile:hover{border-color:rgba(255,209,102,.5)}
+.lk-grid.legends .lk-tile.on{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold),0 0 22px -6px rgba(255,170,90,.6)}
+.lk-grid.legends .lk-tile span{font-weight:700;letter-spacing:.05em}
+.lk-grid.legends .sk-gun{background:radial-gradient(120% 90% at 50% 100%,#2a1d2c 0%,#0b0d14 72%)}
+@media (prefers-reduced-motion:reduce){.sk-groups button.legend.on{animation:none}}

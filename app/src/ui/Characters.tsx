@@ -3,7 +3,7 @@
 import { lazy, Suspense, useState } from "react";
 import { TopBar } from "./TopBar";
 import { go } from "../App";
-import { CHARACTERS, ROSTER, OUTFITS, FINISHES, EMOTES, SKINS, previewGun, skinOf, useLook } from "../game/look";
+import { CHARACTERS, ROSTER, OUTFITS, FINISHES, EMOTES, SKINS, previewGun, skinOf, useLook, type SkinGroup } from "../game/look";
 import { SkinSwatch } from "./SkinSwatch";
 import { EmoteGlyph } from "./EmoteWheel";
 import { WEAPON_NAME } from "../chain/layout";
@@ -43,6 +43,7 @@ export function Characters() {
   const [emoteAt, setEmoteAt] = useState(0);
   const [mode, setMode] = useState<"operator" | "guns">("operator");
   const [tab, setTab] = useState<"outfit" | "finish" | "skin" | "emote">("outfit");
+  const [skinGroup, setSkinGroup] = useState<SkinGroup>(() => SKINS[skinOf(look, previewGun())]?.group ?? "classic");
   const tabs = mode === "guns" ? (["finish", "skin"] as const) : (["outfit", "emote"] as const);
   const curTab = (tabs as readonly string[]).includes(tab) ? tab : tabs[0];
   const gi = GUN_INFO[weapon];
@@ -160,7 +161,35 @@ export function Characters() {
               )}
               {curTab === "emote" && "Your signature. In a match press B for the wheel."}
             </p>
-            <div className={`lk-grid ${curTab === "emote" ? "wide" : curTab === "skin" ? "skins" : ""}`}>
+            {curTab === "skin" && (
+              <div className="sk-groups">
+                {(
+                  [
+                    ["classic", "CLASSIC"],
+                    ["live", "LIVE"],
+                    ["legend", "LEGENDS"],
+                  ] as [SkinGroup, string][]
+                ).map(([g, label]) => (
+                  <button key={g} className={`${g} ${skinGroup === g ? "on" : ""}`} onClick={() => setSkinGroup(g)}>
+                    {label}
+                    <i>{SKINS.filter((k) => k.group === g).length}</i>
+                  </button>
+                ))}
+              </div>
+            )}
+            {curTab === "skin" && skinGroup === "legend" && (
+              <div className="sk-lore">
+                {SKINS[skinOf(look, weapon)]?.lore ? (
+                  <>
+                    <b>{SKINS[skinOf(look, weapon)].name.toUpperCase()}</b>
+                    <p>{SKINS[skinOf(look, weapon)].lore}</p>
+                  </>
+                ) : (
+                  <p>Each legend is a story told in motion. Pick one to read it.</p>
+                )}
+              </div>
+            )}
+            <div className={`lk-grid ${curTab === "emote" ? "wide" : curTab === "skin" ? (skinGroup === "legend" ? "skins legends" : "skins") : ""}`}>
               {curTab === "outfit" &&
                 OUTFITS.map((o, i) => (
                   <button key={o.name} className={`lk-tile op ${look.outfit === i ? "on" : ""}`} onClick={() => set({ outfit: i })}>
@@ -191,21 +220,23 @@ export function Characters() {
                   );
                 })}
               {curTab === "skin" &&
-                SKINS.map((k, i) => (
-                  <button
-                    key={k.key}
-                    className={`lk-tile ${skinOf(look, weapon) === i ? "on" : ""}`}
-                    title={k.note}
-                    onClick={() => set({ skins: look.skins.map((v, w) => (w === weapon ? i : v)) })}
-                  >
-                    <SkinSwatch i={i} big gun={weapon} />
-                    {k.live && <small className="lk-live">LIVE</small>}
-                    <span>
-                      {k.name}
-                      <em>{k.note}</em>
-                    </span>
-                  </button>
-                ))}
+                SKINS.map((k, i) => ({ k, i }))
+                  .filter(({ k }) => k.group === skinGroup)
+                  .map(({ k, i }) => (
+                    <button
+                      key={k.key}
+                      className={`lk-tile ${skinOf(look, weapon) === i ? "on" : ""}`}
+                      title={k.lore ?? k.note}
+                      onClick={() => set({ skins: look.skins.map((v, w) => (w === weapon ? i : v)) })}
+                    >
+                      <SkinSwatch i={i} big gun={weapon} />
+                      {k.group === "live" && <small className="lk-live">LIVE</small>}
+                      <span>
+                        {k.name}
+                        <em>{k.note}</em>
+                      </span>
+                    </button>
+                  ))}
               {curTab === "emote" &&
                 EMOTES.map((e, i) => (
                   <button key={e.key} className={`lk-tile emote ${look.emote === i ? "on" : ""}`} onClick={() => play(i)}>

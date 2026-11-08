@@ -10,6 +10,7 @@ import { SKINS } from "../game/look";
 
 const W = 192;
 const H = 128;
+const ROWS = 8; // 32 skins at most
 
 type Target = { canvas: HTMLCanvasElement; skin: number; drawn: boolean };
 const targets = new Set<Target>();
@@ -34,7 +35,7 @@ ${SKIN_GLSL}
 void main(){
   float y = vUv.y * 2.0 - 1.0;
   vec3 n = normalize(vec3(0.0, y * 0.9, sqrt(max(0.0, 1.0 - y * y * 0.81))));
-  vec3 p = vec3(0.2 + vUv.x * 0.36, vUv.y * 0.24, n.z * 0.02);
+  vec3 p = vec3(0.24 + vUv.x * 0.36, -0.08 + vUv.y * 0.24, n.z * 0.02);
   vec3 col; vec3 emi = vec3(0.0); float rough = 0.5; float metal = 0.1;
   skinShade(p, vec3(0.0, 0.0, 1.0), n.z, uSkinT, col, emi, rough, metal);
   vec3 L = normalize(vec3(-0.3, 0.75, 0.6));
@@ -55,7 +56,7 @@ function init() {
   try {
     gl = new THREE.WebGLRenderer({ antialias: false, alpha: false, preserveDrawingBuffer: true, powerPreference: "low-power" });
     gl.setPixelRatio(1);
-    gl.setSize(W * 4, H * 4, false);
+    gl.setSize(W * 4, H * ROWS, false);
     gl.setScissorTest(true);
     gl.toneMapping = THREE.ACESFilmicToneMapping;
     gl.toneMappingExposure = 1.15;
@@ -82,10 +83,10 @@ function matFor(skin: number) {
 }
 
 /** slot (x, y) of a skin in the atlas, in canvas pixels from the top left */
-const slot = (skin: number) => [(skin % 4) * W, Math.floor(skin / 4) * H] as const;
+const slot = (skin: number) => [(skin % 4) * W, Math.floor(skin / 4) * H] as const; // 4 across, ROWS down
 function render(skin: number) {
   const [x, y] = slot(skin);
-  const gy = 3 * H - y; // WebGL counts from the bottom
+  const gy = (ROWS - 1) * H - y; // WebGL counts from the bottom
   gl!.setViewport(x, gy, W, H);
   gl!.setScissor(x, gy, W, H);
   quad.material = matFor(skin);

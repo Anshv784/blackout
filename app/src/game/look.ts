@@ -45,24 +45,73 @@ export const FINISHES: { name: string; tint: string }[] = [
   { name: "Crimson", tint: "#d0766d" },
 ];
 /** gun skins: drawn live on the gun by a shader (scene/skins.ts); the finish tints them.
- *  At most 16 (a skin travels to the table in 4 bits). The first seven keep their old numbers. */
-export const SKINS: { key: string; name: string; note: string; live?: boolean }[] = [
-  { key: "plain", name: "Factory", note: "as it left the line" },
-  { key: "woodland", name: "Woodland", note: "four-colour forest" },
-  { key: "digital", name: "Digital", note: "urban pixels" },
-  { key: "tiger", name: "Tiger", note: "burnt orange stripes" },
-  { key: "carbon", name: "Carbon", note: "woven fibre, gloss" },
-  { key: "hex", name: "Hex Grid", note: "a pulse runs the cells", live: true },
-  { key: "ember", name: "Ember", note: "charred, still burning", live: true },
-  { key: "damascus", name: "Damascus", note: "folded steel, light sweep", live: true },
-  { key: "circuit", name: "Circuit", note: "signals race the traces", live: true },
-  { key: "molten", name: "Molten", note: "lava that never cools", live: true },
-  { key: "aurora", name: "Aurora", note: "northern lights drift", live: true },
-  { key: "void", name: "Void", note: "nebula and starlight", live: true },
-  { key: "glitch", name: "Glitch", note: "corrupted, flickering", live: true },
-  { key: "frost", name: "Frost", note: "ice crystals that glint", live: true },
-  { key: "prism", name: "Prism", note: "shifts colour as it turns", live: true },
-  { key: "toxic", name: "Toxic", note: "it bubbles", live: true },
+ *  At most 32 (a skin travels to the table in 5 bits). Numbers never change once shipped. */
+export type SkinGroup = "classic" | "live" | "legend";
+export const SKINS: { key: string; name: string; note: string; group: SkinGroup; live?: boolean; lore?: string }[] = [
+  { key: "plain", name: "Factory", note: "as it left the line", group: "classic" },
+  { key: "woodland", name: "Woodland", note: "four-colour forest", group: "classic" },
+  { key: "digital", name: "Digital", note: "urban pixels", group: "classic" },
+  { key: "tiger", name: "Tiger", note: "burnt orange stripes", group: "classic" },
+  { key: "carbon", name: "Carbon", note: "woven fibre, gloss", group: "classic" },
+  { key: "hex", name: "Hex Grid", note: "a pulse runs the cells", group: "live", live: true },
+  { key: "ember", name: "Ember", note: "charred, still burning", group: "live", live: true },
+  { key: "damascus", name: "Damascus", note: "folded steel, light sweep", group: "live", live: true },
+  { key: "circuit", name: "Circuit", note: "signals race the traces", group: "live", live: true },
+  { key: "molten", name: "Molten", note: "lava that never cools", group: "live", live: true },
+  { key: "aurora", name: "Aurora", note: "northern lights drift", group: "live", live: true },
+  { key: "void", name: "Void", note: "nebula and starlight", group: "live", live: true },
+  { key: "glitch", name: "Glitch", note: "corrupted, flickering", group: "live", live: true },
+  { key: "frost", name: "Frost", note: "ice crystals that glint", group: "live", live: true },
+  { key: "prism", name: "Prism", note: "shifts colour as it turns", group: "live", live: true },
+  { key: "toxic", name: "Toxic", note: "it bubbles", group: "live", live: true },
+  {
+    key: "monarch", name: "Monarch", note: "butterflies in migration", group: "legend", live: true,
+    lore: "Monarchs fly thousands of miles to a forest none of them has ever seen, and still find it. Wear it for the long way home through the dark.",
+  },
+  {
+    key: "dragon", name: "Dragon", note: "fire runs the scales", group: "legend", live: true,
+    lore: "A dragon sleeps on a hoard it never spends. Tonight the pot is the hoard, and the one who guards it best goes home with it.",
+  },
+  {
+    key: "koi", name: "Koi", note: "laps of a lit pond", group: "legend", live: true,
+    lore: "The koi that swims up the waterfall becomes a dragon. Every night you keep swimming against it.",
+  },
+  {
+    key: "phoenix", name: "Phoenix", note: "burns out, comes back", group: "legend", live: true,
+    lore: "Down is not dead. It burns to ash, waits, and catches again from the grip outward. For the ones who get picked back up.",
+  },
+  {
+    key: "sakura", name: "Sakura", note: "blossoms falling", group: "legend", live: true,
+    lore: "The cherry blossom lasts a week and nobody forgets it. A night lasts five minutes. Make it the one they remember.",
+  },
+  {
+    key: "storm", name: "Storm", note: "lightning in the clouds", group: "legend", live: true,
+    lore: "You see the flash before you hear the thunder, and by then it has already struck. Built for the shot nobody hears coming.",
+  },
+  {
+    key: "heartbeat", name: "Last Breath", note: "a monitor that flatlines", group: "legend", live: true,
+    lore: "Seven heartbeats go flat every night. Every fourth pass the line goes quiet too, to remind you whose is still going.",
+  },
+  {
+    key: "moon", name: "Hunter's Moon", note: "waxes, wanes, clouds cross", group: "legend", live: true,
+    lore: "The one night the moon gives everyone away. Wear it anyway: whoever hunts under it is not hiding.",
+  },
+  {
+    key: "constellation", name: "Constellation", note: "stars joined into figures", group: "legend", live: true,
+    lore: "Sailors found home by joining dots in the dark. The lines draw themselves, hold, and let go, like the people you meet in a night.",
+  },
+  {
+    key: "abyss", name: "Abyss", note: "jellyfish of the deep", group: "legend", live: true,
+    lore: "Down where no sun reaches, everything makes its own light. Nobody brings a torch to the bottom of the sea.",
+  },
+  {
+    key: "wisp", name: "Wisp", note: "spirit lights wander", group: "legend", live: true,
+    lore: "Marsh lights lead travellers off the path. Follow one and you will find someone. Maybe not who you wanted.",
+  },
+  {
+    key: "clockwork", name: "Clockwork", note: "gears that tick", group: "legend", live: true,
+    lore: "The night runs on a twenty-tick heart inside a sealed machine. You only ever need to be one tick faster.",
+  },
 ];
 export const EMOTES: { key: string; name: string; clip: string }[] = [
   { key: "salute", name: "Salute", clip: "emote_salute" },
@@ -111,21 +160,25 @@ export function mainSkin(l: Look, preview = previewGun()): number {
 }
 
 /** Write the look into bytes 13-15 of a 16-byte name (the name itself is at most 12, byte 12 is 0).
- *  v2: b13 = 11 · char(3) · outfit(3), b14 = finish(3) · emote(3) · 00, b15 = pistol skin · long-gun skin.
+ *  v2: b13 = 11 · char(3) · outfit(3), b14 = finish(3) · emote(3) · pistol skin bit 4 · long skin bit 4,
+ *  b15 = pistol skin low 4 · long-gun skin low 4. (Skins 0-15 encode exactly as before.)
  *  v1 (older clients) had 1011 in b13's high nibble, so the two never collide. */
 export function encodeLook(name16: Uint8Array, l: Look) {
+  const pistol = l.skins[0] & 0x1f;
+  const long = mainSkin(l) & 0x1f;
   name16[12] = 0;
   name16[13] = 0xc0 | ((l.char & 7) << 3) | (l.outfit & 7);
-  name16[14] = ((l.finish & 7) << 5) | ((l.emote & 7) << 2);
-  name16[15] = ((l.skins[0] & 0xf) << 4) | (mainSkin(l) & 0xf);
+  name16[14] = ((l.finish & 7) << 5) | ((l.emote & 7) << 2) | ((pistol >> 4) << 1) | (long >> 4);
+  name16[15] = ((pistol & 0xf) << 4) | (long & 0xf);
 }
 /** a seat with no look chosen (bots, older clients): a different operator per seat */
 export const seatDefault = (seat: number): Look => ({ ...DEFAULT_LOOK, char: ROSTER[seat % ROSTER.length].id, outfit: seat % 3 === 2 ? 1 : 0 });
 export function decodeLook(name16: Uint8Array, seat = 0): Look {
   const b13 = name16[13], b14 = name16[14], b15 = name16[15];
   if ((b13 & 0xc0) === 0xc0) {
-    const long = b15 & 0xf;
-    return clampLook({ char: (b13 >> 3) & 7, outfit: b13 & 7, finish: b14 >> 5, emote: (b14 >> 2) & 7, skins: [b15 >> 4, long, long, long, long, long, long, long] });
+    const pistol = (b15 >> 4) | (((b14 >> 1) & 1) << 4);
+    const long = (b15 & 0xf) | ((b14 & 1) << 4);
+    return clampLook({ char: (b13 >> 3) & 7, outfit: b13 & 7, finish: b14 >> 5, emote: (b14 >> 2) & 7, skins: [pistol, long, long, long, long, long, long, long] });
   }
   if ((b13 & 0xf0) !== MAGIC) return seatDefault(seat);
   return clampLook({ char: b14 & 0xf, outfit: b14 >> 4, finish: b15 & 0xf, emote: b15 >> 4, skin: b13 & 0xf });
