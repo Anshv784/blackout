@@ -121,8 +121,16 @@ export function Reveal({ session }: { session: Session }) {
     out.width = 1280;
     out.height = 720;
     const g = out.getContext("2d")!;
+    // Chrome and Firefox record WebM; Safari (every iPhone) only MP4. Asking for a type the browser
+    // can't record throws, which used to leave the button doing nothing on iPhones.
+    const mime = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm", "video/mp4;codecs=avc1", "video/mp4"].find((m) => MediaRecorder.isTypeSupported(m));
+    if (!mime || typeof out.captureStream !== "function") {
+      toast("Clip recording isn't supported in this browser");
+      return;
+    }
+    const ext = mime.startsWith("video/mp4") ? "mp4" : "webm";
+    const type = mime.split(";")[0];
     const stream = out.captureStream(30);
-    const mime = MediaRecorder.isTypeSupported("video/webm;codecs=vp9") ? "video/webm;codecs=vp9" : "video/webm";
     const mr = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 6_000_000 });
     const chunks: Blob[] = [];
     mr.ondataavailable = (e) => e.data.size && chunks.push(e.data);
@@ -167,12 +175,12 @@ export function Reveal({ session }: { session: Session }) {
     mr.onstop = () => {
       cancelAnimationFrame(raf);
       setRecording(null);
-      const blob = new Blob(chunks, { type: "video/webm" });
-      const name = `blackout-room${room.roomId}-match${room.matchNo}.webm`;
+      const blob = new Blob(chunks, { type });
+      const name = `blackout-room${room.roomId}-match${room.matchNo}.${ext}`;
       const won = mySeat !== null && room.winner === mySeat;
       const text = `${won ? "Won a night" : "Lost a night"} in BLACKOUT, the battle royale where nobody can see you, not even the chain. Lights on 🔦 @magicblock`;
       const url = location.origin;
-      const file = new File([blob], name, { type: "video/webm" });
+      const file = new File([blob], name, { type });
       // phones: straight into the share sheet with the clip attached
       if (navigator.canShare?.({ files: [file] })) {
         navigator.share({ files: [file], text: `${text} ${url}` }).catch(() => {});

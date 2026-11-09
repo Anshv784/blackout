@@ -1,6 +1,7 @@
 // Your service record: every night you finished, summed up on this device (nothing on-chain).
 // Written once per night from the result screen; read by the Operator page.
 import type { Room } from "../chain/layout";
+import { COUNTDOWN_TICKS } from "./sim";
 
 const KEY = "bo-career-v1";
 const TICKS_PER_SEC = 20;
@@ -49,7 +50,8 @@ export function recordNight(room: Room, seat: number): Career | null {
   if (myDeath) c.deaths += 1;
   c.kills += room.kills[seat] ?? 0;
   if (place > 0 && (c.best === 0 || place < c.best)) c.best = place;
-  c.alive += Math.max(0, Math.round(endTick / TICKS_PER_SEC));
+  // from lights-out, as the results card counts it (the countdown isn't time in the dark)
+  c.alive += Math.max(0, Math.round((endTick - COUNTDOWN_TICKS) / TICKS_PER_SEC));
   for (const f of feed) if (f.killer === seat && f.weapon < 8) c.guns[f.weapon] += 1;
   c.seen = [id, ...c.seen].slice(0, 60);
   c.recent = [place, ...c.recent].slice(0, 10);
