@@ -2806,3 +2806,14 @@ button {
   .map-picker .mp-tick{display:none}
   .stage-tag span{display:none}
 }
+/* phone controls, landscape: smaller and quieter, still a comfortable thumb target (~9 mm) */
+@media (max-height:520px) and (orientation:landscape) and (pointer:coarse){
+  .tb{width:38px!important;height:38px!important;border-width:1px}
+  .tb svg{width:18px;height:18px}
+  .tb.gadget .gadget-icon{width:19px;height:19px}
+  .tb.fire{width:62px!important;height:62px!important}
+  .tb.fire svg{width:26px;height:26px}
+  .tb.fire.left{width:48px!important;height:48px!important}
+  .tb.fire.left svg{width:21px;height:21px}
+  .tb::after{font-size:6.5px!important;opacity:.65;letter-spacing:.1em}
+}

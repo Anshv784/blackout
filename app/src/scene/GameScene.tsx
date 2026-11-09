@@ -1363,10 +1363,12 @@ function DisplayPrefs() {
 export const GameScene = memo(function GameScene({ session }: { session: Session }) {
   const mapId = useMapStore((m) => m.id);
   const p = usePrefs();
-  // phones start at 70% pixels (phone screens are dense; this is the biggest single win). On Low,
-  // computers render at 1x and drop to 80% if even that struggles (older MacBooks, Intel graphics).
-  const base = TOUCH ? 0.7 : 1;
-  const floor = TOUCH ? 0.55 : 0.8;
+  // On Low, computers render at 1x and drop to 80% if even that struggles (older MacBooks, Intel
+  // graphics). Phones start at 90% of screen pixels and climb to 115% when the frame rate has room (70% was
+  // the old start and looked soft on today's dense screens); they drop to 70% only if they struggle
+  const base = TOUCH ? 0.9 : 1;
+  const floor = TOUCH ? 0.7 : 0.8;
+  const top = TOUCH ? 1.15 : 1;
   const [dpr, setDpr] = useState(base);
   return (
     <Canvas
@@ -1418,6 +1420,7 @@ export const GameScene = memo(function GameScene({ session }: { session: Session
         }}
         onIncline={() => {
           if (dpr < base) setDpr(base);
+          else if (TOUCH && dpr < top) setDpr(top);
           else if (!TOUCH && prefs.quality === "auto" && prefs.autoTier !== "high") setPref("autoTier", "high");
         }}
         onFallback={() => {
