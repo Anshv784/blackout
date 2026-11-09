@@ -117,6 +117,7 @@ export const HeroSoldier = memo(function HeroSoldier({ color = "#ffd166" }: { co
       gl={{ alpha: true, antialias: true, premultipliedAlpha: false }}
       camera={{ fov: 30, position: [0.2, 1.7, 6.4] }}
       onCreated={({ gl, camera }) => {
+        gl.debug.checkShaderErrors = import.meta.env.DEV; // in production the check forces a synchronous compile (a hitch)
         gl.toneMapping = THREE.ACESFilmicToneMapping;
         gl.toneMappingExposure = 1.15;
         gl.setClearColor(0x000000, 0);

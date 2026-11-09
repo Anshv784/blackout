@@ -316,6 +316,7 @@ export function ReplayScene({
       camera={{ fov: 46, position: [MAP_W / 2, 48, MAP_W / 2 + 26], near: 0.1, far: 200 }}
       gl={{ antialias: !TOUCH, preserveDrawingBuffer: true }}
       onCreated={({ gl }) => {
+        gl.debug.checkShaderErrors = import.meta.env.DEV; // in production the check forces a synchronous compile (a hitch)
         gl.toneMapping = THREE.ACESFilmicToneMapping;
         gl.toneMappingExposure = 1.1;
       }}

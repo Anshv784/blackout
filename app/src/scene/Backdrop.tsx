@@ -130,6 +130,7 @@ export const Backdrop = memo(function Backdrop({ focus = "gate" }: { focus?: "ga
     <div className="backdrop">
       <Canvas shadows={!TOUCH} dpr={TOUCH ? 1 : [1, 1.25]} camera={{ fov: 42, near: 0.1, far: 160 }} gl={{ antialias: !TOUCH, powerPreference: "high-performance" }}
         onCreated={({ gl }) => {
+        gl.debug.checkShaderErrors = import.meta.env.DEV; // in production the check forces a synchronous compile (a hitch)
           gl.toneMapping = THREE.ACESFilmicToneMapping;
           gl.toneMappingExposure = 1.1;
         }}

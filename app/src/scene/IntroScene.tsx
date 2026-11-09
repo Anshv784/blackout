@@ -691,6 +691,7 @@ export function IntroScene({ onTime, onReady }: { onTime: (s: number) => void; o
       camera={{ fov: 42, position: [24, 42, 60], near: 0.1, far: 200 }}
       gl={{ antialias: !TOUCH, powerPreference: "high-performance" }}
       onCreated={({ gl }) => {
+        gl.debug.checkShaderErrors = import.meta.env.DEV; // in production the check forces a synchronous compile (a hitch)
         gl.toneMapping = THREE.ACESFilmicToneMapping;
         gl.toneMappingExposure = TOUCH ? 1.35 : 1.2;
       }}

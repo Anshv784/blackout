@@ -2249,8 +2249,12 @@ button {
 /* the lag chip never sits on top of a menu */
 .game:has(.menu-overlay) .lag-chip,.game:has(.vol-pop) .lag-chip,.game:has(.menu-overlay) .lag-tip{display:none}
 @media (max-height:520px) and (orientation:landscape) and (pointer:coarse){
-  /* ammo moves under the minimap so the jump button has the corner to itself */
-  .game.touch .hud-loadout{left:auto!important;right:10px!important;bottom:auto!important;top:88px!important;transform:scale(.46)!important;transform-origin:top right!important}
+  /* ammo sits bottom-centre, just above the health bar: the one stretch of screen no thumb or
+     button uses (under the minimap it collided with SWAP and EMOTE) */
+  .game.touch .hud-loadout{left:50%!important;right:auto!important;top:auto!important;bottom:calc(max(6px, env(safe-area-inset-bottom)) + 18px)!important;transform:translateX(-50%) scale(.46)!important;transform-origin:bottom center!important}
+  /* the counters, tools and network chip: compact, so they clear the clock and the left fire button */
+  .game.touch .game-tools button{padding:5px 7px!important;font-size:9px!important;letter-spacing:.08em}
+  .game.touch .lag-chip{transform:scale(.82);transform-origin:top left}
   .game.touch .tb-cluster .swap{bottom:200px;right:96px!important}
   .game.touch .tb-cluster .reload{bottom:140px}
 }
@@ -2777,3 +2781,28 @@ button {
 .lk-grid.legends .lk-tile span{font-weight:700;letter-spacing:.05em}
 .lk-grid.legends .sk-gun{background:radial-gradient(120% 90% at 50% 100%,#2a1d2c 0%,#0b0d14 72%)}
 @media (prefers-reduced-motion:reduce){.sk-groups button.legend.on{animation:none}}
+/* very small landscape phones (iPhone SE): the clock drops below the tools row */
+@media (max-height:340px) and (orientation:landscape) and (pointer:coarse){
+  .game.touch .game-tools .gt-word{display:none}
+}
+/* phones, portrait: page headings and their kickers sized for a 390px screen */
+@media (max-width:520px){
+  .board-head h1{font-size:28px;margin:10px 0 12px}
+  .how-hero h1{font-size:30px}
+  .board-head .kicker,.how-hero .kicker{font-size:9px;letter-spacing:.14em;line-height:1.5;padding:6px 10px}
+  .cs-title h1{font-size:32px}
+  .intro-title h1{font-size:52px}
+}
+/* lobby on short landscape phones: the map choice is a compact row under CLOSE ROOM (the full
+   cards ran under the bottom panel, hiding the second map), and the seat captions lose their
+   small print so they stop running into each other */
+@media (max-height:520px) and (orientation:landscape){
+  .map-picker{top:96px!important;left:12px!important;transform:none!important;width:128px!important;flex-direction:column!important;padding:6px!important;gap:4px!important}
+  .map-picker>label{font-size:8px}
+  .map-picker>label em{display:none}
+  .map-picker .mp-card .mp-text b,.map-picker .mp-card{font-size:10px!important}
+  .map-picker .mp-text{padding:5px 8px!important}
+  .map-picker .mp-thumb{display:none}
+  .map-picker .mp-tick{display:none}
+  .stage-tag span{display:none}
+}

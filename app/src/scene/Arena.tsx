@@ -63,11 +63,14 @@ export function wallBoxes(rows: string[] = activeMap().rows): WallBox[] {
 
 // ------------------------------------------------------------- textures
 
-function canvasTex(w: number, h: number, draw: (g: CanvasRenderingContext2D) => void) {
+/** `k` draws at a fraction of the size with the same coordinates (phones: a quarter of the memory) */
+function canvasTex(w: number, h: number, draw: (g: CanvasRenderingContext2D) => void, k = 1) {
   const c = document.createElement("canvas");
-  c.width = w;
-  c.height = h;
-  draw(c.getContext("2d")!);
+  c.width = Math.round(w * k);
+  c.height = Math.round(h * k);
+  const g = c.getContext("2d")!;
+  if (k !== 1) g.scale(k, k);
+  draw(g);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
@@ -75,12 +78,31 @@ function canvasTex(w: number, h: number, draw: (g: CanvasRenderingContext2D) => 
   return t;
 }
 
-function speckle(g: CanvasRenderingContext2D, w: number, h: number, n: number, a: number) {
+/** Grain: n tiny light or dark flecks. Written straight into the pixels (one canvas call instead of
+ *  n of them: the ground alone has 160k flecks, which took over a second on a phone). */
+function speckle(g: CanvasRenderingContext2D, w0: number, h0: number, n0: number, a: number) {
+  // the canvas may be drawn smaller than its coordinates (see canvasTex): same density of grain
+  const w = g.canvas.width;
+  const h = g.canvas.height;
+  const n = Math.round((n0 * w * h) / (w0 * h0));
+  const img = g.getImageData(0, 0, w, h);
+  const d = img.data;
   for (let i = 0; i < n; i++) {
     const v = Math.random() < 0.5 ? 0 : 255;
-    g.fillStyle = `rgba(${v},${v},${v},${Math.random() * a})`;
-    g.fillRect(Math.random() * w, Math.random() * h, 1 + Math.random() * 2, 1 + Math.random() * 2);
+    const al = Math.random() * a;
+    const x0 = (Math.random() * w) | 0;
+    const y0 = (Math.random() * h) | 0;
+    const sw = 1 + ((Math.random() * 2) | 0);
+    const sh = 1 + ((Math.random() * 2) | 0);
+    for (let y = y0; y < Math.min(h, y0 + sh); y++)
+      for (let x = x0; x < Math.min(w, x0 + sw); x++) {
+        const k = (y * w + x) * 4;
+        d[k] += (v - d[k]) * al;
+        d[k + 1] += (v - d[k + 1]) * al;
+        d[k + 2] += (v - d[k + 2]) * al;
+      }
   }
+  g.putImageData(img, 0, 0);
 }
 
 const CONTAINER_COLORS = ["#7a2e22", "#1f4e5a", "#2b3a67", "#6b5a24"];
@@ -455,7 +477,7 @@ function floorTexture() {
     g.font = "bold 150px monospace";
     g.fillStyle = "rgba(255,255,255,0.06)";
     for (const [sx, sy, label] of [[6, 21, "YARD"], [31, 3, "WAREHOUSE"], [4, 28, "OFFICES"], [29, 32, "FIELD"]] as const) g.fillText(label, sx * cell, sy * cell);
-  });
+  }, TOUCH ? 0.5 : 1);
 }
 
 /** Street lamps: a post, a warm glow on the ground, dark during the blackout. Two of them are

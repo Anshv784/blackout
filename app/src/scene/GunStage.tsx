@@ -67,6 +67,7 @@ export const GunStage = memo(function GunStage({ weapon, finish, skin }: { weapo
       }}
     >
       <Canvas dpr={TOUCH ? 1 : [1, 2]} gl={{ antialias: true, alpha: true }} camera={{ fov: 26, position: [0, 0.55, 3.2] }} onCreated={({ gl, camera }) => {
+        gl.debug.checkShaderErrors = import.meta.env.DEV; // in production the check forces a synchronous compile (a hitch)
         gl.toneMapping = THREE.ACESFilmicToneMapping;
         gl.toneMappingExposure = 1.2;
         gl.setClearColor(0x000000, 0);

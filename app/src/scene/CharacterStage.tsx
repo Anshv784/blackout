@@ -91,6 +91,7 @@ export const CharacterStage = memo(function CharacterStage({ look, weapon, emote
       onPointerUp={() => (drag.current = null)}
     >
       <Canvas shadows={!TOUCH} dpr={TOUCH ? 1 : [1, 1.75]} gl={{ antialias: true, alpha: true }} camera={{ fov: 28, position: [0, 1.05, 4.3] }} onCreated={({ gl, camera }) => {
+        gl.debug.checkShaderErrors = import.meta.env.DEV; // in production the check forces a synchronous compile (a hitch)
         gl.toneMapping = THREE.ACESFilmicToneMapping;
         gl.toneMappingExposure = 1.15;
         gl.setClearColor(0x000000, 0);

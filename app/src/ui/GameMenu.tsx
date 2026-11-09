@@ -536,7 +536,7 @@ export function GameMenu({ session, room }: { session: Session; room: Room }) {
           MAP <i>TAB</i>
         </button>
         <button onClick={() => setOpen("settings")}>
-          ⚙ SETTINGS <i>ESC</i>
+          ⚙<span className="gt-word"> SETTINGS</span> <i>ESC</i>
         </button>
         <SoundToggle />
         <FullscreenButton />

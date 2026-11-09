@@ -1378,6 +1378,7 @@ export const GameScene = memo(function GameScene({ session }: { session: Session
       // phones: no MSAA (dense screens hide jaggies, and it's a big cost on mobile GPUs)
       gl={{ antialias: !TOUCH, powerPreference: "high-performance" }}
       onCreated={({ gl }) => {
+        gl.debug.checkShaderErrors = import.meta.env.DEV; // in production the check forces a synchronous compile (a hitch)
         gl.toneMapping = THREE.ACESFilmicToneMapping;
         gl.toneMappingExposure = 1.1;
         gl.shadowMap.type = THREE.PCFShadowMap;

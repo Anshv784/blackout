@@ -246,6 +246,7 @@ export const LobbyStage = memo(function LobbyStage({ seats, onTake, onMakeHost, 
   return (
     <div className="backdrop">
       <Canvas shadows={!TOUCH} dpr={TOUCH ? 1 : [1, 1.5]} gl={{ antialias: !TOUCH }} camera={{ fov: 34, position: [0, 2.3, 9] }} onCreated={({ gl }) => {
+        gl.debug.checkShaderErrors = import.meta.env.DEV; // in production the check forces a synchronous compile (a hitch)
           gl.toneMapping = THREE.ACESFilmicToneMapping;
           gl.toneMappingExposure = 1.1;
           gl.shadowMap.type = THREE.PCFSoftShadowMap;
