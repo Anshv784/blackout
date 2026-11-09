@@ -2817,3 +2817,17 @@ button {
   .tb.fire.left svg{width:21px;height:21px}
   .tb::after{font-size:6.5px!important;opacity:.65;letter-spacing:.1em}
 }
+/* phones, every page: buttons sized for a phone (they were desktop-sized and crowded the screen).
+   Nothing goes below 36px tall, still an easy tap. */
+@media (max-width:640px), (max-height:520px) and (pointer:coarse){
+  .btn{padding:8px 12px;font-size:12px;border-radius:9px;min-height:36px}
+  .btn.big{padding:9px 16px;font-size:13px}
+  .btn.icon{width:36px;padding:8px 0}
+  .btn.huge{font-size:15px!important;padding:10px 14px!important;border-radius:11px!important;gap:2px!important}
+  .btn.huge small,.btn.huge span{font-size:9.5px!important}
+  .dock-cell.main .btn.huge,.dock .dock-cell.main .btn.huge{height:44px!important;font-size:14px!important}
+  .alt-tile{padding:9px 11px;border-radius:11px;gap:2px}
+  .alt-tile b{font-size:11.5px}
+  .alt-tile span,.alt-tile em{font-size:9.5px}
+  .alt-tile .tile-icon{width:16px;height:16px}
+}
