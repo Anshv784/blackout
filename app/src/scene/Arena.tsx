@@ -68,7 +68,9 @@ function canvasTex(w: number, h: number, draw: (g: CanvasRenderingContext2D) => 
   const c = document.createElement("canvas");
   c.width = Math.round(w * k);
   c.height = Math.round(h * k);
-  const g = c.getContext("2d")!;
+  // grain is written straight into the pixels (speckle): keep the canvas in memory so reading it
+  // back doesn't stall the GPU
+  const g = c.getContext("2d", { willReadFrequently: true })!;
   if (k !== 1) g.scale(k, k);
   draw(g);
   const t = new THREE.CanvasTexture(c);

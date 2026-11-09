@@ -173,7 +173,7 @@ function camo(src: THREE.Texture): THREE.Texture {
   const c = document.createElement("canvas");
   c.width = w;
   c.height = h;
-  const g = c.getContext("2d")!;
+  const g = c.getContext("2d", { willReadFrequently: true })!; // read back below: keep it off the GPU
   g.drawImage(img as CanvasImageSource, 0, 0);
   const d = g.getImageData(0, 0, w, h);
   // smooth value noise, a few octaves, for blotchy patches
