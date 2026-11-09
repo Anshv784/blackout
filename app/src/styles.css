@@ -2831,3 +2831,16 @@ button {
   .alt-tile span,.alt-tile em{font-size:9.5px}
   .alt-tile .tile-icon{width:16px;height:16px}
 }
+/* results card on short screens (landscape phones): everything fits, scrolls as a last resort */
+@media (max-height:520px){
+  .verdict-card{padding:12px 16px;border-radius:16px;max-height:calc(100dvh - 16px);overflow-y:auto}
+  .vc-kicker{font-size:9px}
+  .verdict-card h1{font-size:30px!important;margin:4px 0 2px}
+  .vc-killer{font-size:13px;margin:0 0 4px}
+  .vc-stats{margin:8px 0;gap:6px}
+  .vc-stats div{padding:6px 4px}
+  .vc-stats b{font-size:15px}
+  .vc-stats span{font-size:8px}
+  .vc-actions{gap:6px}
+  .verdict-card small{margin-top:6px;font-size:10px}
+}
