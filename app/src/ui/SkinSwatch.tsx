@@ -118,7 +118,29 @@ function loop(now: number) {
   raf = requestAnimationFrame(loop);
 }
 
+/** No tiles on screen for a few seconds: give the GPU context back (phones keep few of them, and a
+ *  match needs its memory). It is made again the next time a tile shows. */
+let idle = 0;
+function release() {
+  idle = 0;
+  if (targets.size || !gl) return;
+  mats.forEach((m) => m.dispose());
+  mats.clear();
+  quad.geometry.dispose();
+  gl.dispose();
+  gl.forceContextLoss();
+  gl = null;
+}
+function remove(t: Target) {
+  targets.delete(t);
+  if (!targets.size && !idle) idle = window.setTimeout(release, 4000);
+}
+
 function add(t: Target) {
+  if (idle) {
+    clearTimeout(idle);
+    idle = 0;
+  }
   if (!init()) return;
   targets.add(t);
   render(t.skin);
@@ -136,7 +158,7 @@ export function SkinSwatch({ i, big = false, gun }: { i: number; big?: boolean; 
     const t: Target = { canvas: c, skin: i, drawn: false };
     add(t);
     return () => {
-      targets.delete(t);
+      remove(t);
     };
   }, [i]);
   const w = big ? W : 32;

@@ -1269,8 +1269,13 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
           }
           if (want === 0) want = depth(1.4) > depth(-1.4) ? 1.4 : -1.4;
         }
-        // swing out fast (never let it sink in), ease back slowly
-        clearYaw.current += (want - clearYaw.current) * Math.min(1, dt * (Math.abs(want) > Math.abs(clearYaw.current) ? 30 : 8));
+        // aiming (or just fired): the gun points where the shots go and the stock sits in the shoulder
+        // pocket, where it belongs, so the swing fades out as the gun comes up
+        const aimK = raiseK.current;
+        want *= 1 - aimK;
+        // swing out fast (never let it sink in), ease back slowly, but straight back when aiming
+        const rate = Math.abs(want) > Math.abs(clearYaw.current) ? 30 : aimK > 0.3 ? 40 : 8;
+        clearYaw.current += (want - clearYaw.current) * Math.min(1, dt * rate);
         if (Math.abs(clearYaw.current) > 1e-3) {
           chestQ.setFromAxisAngle(UP, clearYaw.current);
           gr.quaternion.premultiply(chestQ);

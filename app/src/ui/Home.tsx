@@ -155,6 +155,13 @@ export function Home() {
   const toast = useStore((s) => s.toast);
   const myName = useStore((s) => s.name);
 
+  // stakes and ticket rent waiting from earlier staked nights go back to their wallets on their own
+  // (only runs if this browser ever bought a ticket)
+  useEffect(() => {
+    const k = window.setTimeout(() => void import("../game/session").then((m) => m.reclaimTickets()).catch(() => {}), 4000);
+    return () => clearTimeout(k);
+  }, []);
+
   useEffect(() => {
     let alive = true;
     const load = async () => {

@@ -595,16 +595,31 @@ export class BlackoutClient {
     return ix("close_ticket", {}, [w(ticket), w(bankPda(roomId)), w(payout)]);
   }
 
-  /** Every ticket this session key bought, for reclaiming refunds. */
-  async myTickets(): Promise<{ pubkey: PublicKey; roomId: bigint; payout: PublicKey }[]> {
+  /** Every ticket this session key bought, for reclaiming refunds. Layout (Borsh, after the 8-byte
+   *  discriminator): room_id u64 · match_no u32 · player · payout · amount u64 · expires_at i64 · consumed. */
+  async myTickets(): Promise<{ pubkey: PublicKey; roomId: bigint; matchNo: number; payout: PublicKey; expiresAt: number; consumed: boolean }[]> {
     const accounts = await this.base.getProgramAccounts(PROGRAM_ID, {
       filters: [{ dataSize: TICKET_LEN }, { memcmp: { offset: 20, bytes: this.publicKey.toBase58() } }],
     });
-    return accounts.map(({ pubkey, account }) => ({
-      pubkey,
-      roomId: new DataView(account.data.buffer, account.data.byteOffset).getBigUint64(8, true),
-      payout: new PublicKey(account.data.subarray(52, 84)),
-    }));
+    return accounts.map(({ pubkey, account }) => {
+      const dv = new DataView(account.data.buffer, account.data.byteOffset, account.data.length);
+      return {
+        pubkey,
+        roomId: dv.getBigUint64(8, true),
+        matchNo: dv.getUint32(16, true),
+        payout: new PublicKey(account.data.subarray(52, 84)),
+        expiresAt: Number(dv.getBigInt64(92, true)),
+        consumed: account.data[100] === 1,
+      };
+    });
+  }
+
+  /** The last match each room's bank has paid out (Bank: room_id u64 · paid_match u32 · …). */
+  async paidMatches(roomIds: bigint[]): Promise<Map<bigint, number>> {
+    const infos = await this.base.getMultipleAccountsInfo(roomIds.map((id) => bankPda(id)));
+    const out = new Map<bigint, number>();
+    infos.forEach((a, i) => a && a.data.length >= 20 && out.set(roomIds[i], new DataView(a.data.buffer, a.data.byteOffset, a.data.length).getUint32(16, true)));
+    return out;
   }
 
   undelegateRoomIx(roomId: bigint) {

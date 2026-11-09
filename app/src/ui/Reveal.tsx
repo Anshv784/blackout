@@ -1,7 +1,7 @@
 import { botStyle } from "../chain/layout";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../game/store";
-import type { Session } from "../game/session";
+import { reclaimTickets, type Session } from "../game/session";
 import { lazy, Suspense } from "react";
 import type { ReplayCtl } from "../scene/ReplayScene";
 const ReplayScene = lazy(() => import("../scene/ReplayScene").then((m) => ({ default: m.ReplayScene })));
@@ -83,6 +83,14 @@ export function Reveal({ session }: { session: Session }) {
     ctl.current.lightsTarget = next ? 1 : 0;
     if (next) audio.lightsOn();
   };
+
+  // a staked night: once it settles (a few seconds after the lights), the tickets it didn't use
+  // (a called-off night) and every ticket's rent go back to their wallets without anyone asking
+  useEffect(() => {
+    if (room.stake === 0n) return;
+    const ks = [12_000, 45_000].map((ms) => window.setTimeout(() => void reclaimTickets(), ms));
+    return () => ks.forEach(clearTimeout);
+  }, [room.roomId, room.matchNo, room.stake]);
 
   // auto "lights on" at the highlight the first time through
   const fired = useRef(false);

@@ -865,17 +865,22 @@ export class Session {
     tx.partialSign(client.keypair);
     const signed = await wallet.signTransaction(tx);
     const sig = await client.base.sendRawTransaction(signed.serialize(), { skipPreflight: true });
-    await client.base.confirmTransaction(sig, "confirmed");
+    // preflight is skipped, so a failure only shows here (the transfer and the ticket are one
+    // transaction: if it failed, nothing was paid)
+    const res = await client.base.confirmTransaction(sig, "confirmed");
+    if (res.value.err) throw new Error("Buying the ticket failed on Solana (nothing was paid). Check your wallet has enough SOL.");
     this.ticketMatch = matchNo;
+    try {
+      localStorage.setItem(TICKETS_FLAG, "1"); // this browser holds tickets: refunds get collected later
+    } catch {
+      /* private mode: refunds are still collected when you next take a staked seat */
+    }
   }
   ticketMatch = 0;
 
-  /** Send back any refunds waiting on this browser's old tickets. Tickets still locked just fail. */
+  /** Send back any refunds waiting on this browser's old tickets (except the one just bought). */
   async reclaimTickets(): Promise<void> {
-    for (const t of await client.myTickets().catch(() => [])) {
-      if (t.pubkey.equals(ticketPda(this.roomId, this.ticketMatch, client.publicKey))) continue;
-      await client.sendBase([client.closeTicketIx(t.roomId, t.pubkey, t.payout)]).catch(() => {});
-    }
+    await reclaimTickets(ticketPda(this.roomId, this.ticketMatch, client.publicKey), true);
   }
 
   async join(name: string, wallet: PublicKey | null, code = 0, preferSeat?: number) {
@@ -1065,4 +1070,49 @@ export class Session {
 }
 
 export const isEmptyKey = (k: PublicKey) => k.equals(PublicKey.default);
+
+/**
+ * Close every ticket this browser's session key holds, sending each one's money to its own payout
+ * wallet: the rent always, the stake too when no settled night used it (a called-off night, a seat
+ * you stood up from). The program decides what may be closed and where the money goes; a ticket
+ * whose night hasn't settled yet is refused and simply tried again next time. Each close costs the
+ * session key one transaction fee, so tickets are only looked up when this browser has bought some.
+ */
+let reclaiming = false;
+const TICKETS_FLAG = "bo-has-tickets";
+export async function reclaimTickets(skip?: PublicKey, force = false): Promise<number> {
+  let flagged = true;
+  try {
+    flagged = localStorage.getItem(TICKETS_FLAG) === "1";
+  } catch {
+    /* no storage: look anyway */
+  }
+  if (reclaiming || (!flagged && !force)) return 0;
+  reclaiming = true;
+  let closed = 0;
+  try {
+    const all = await client.myTickets().catch(() => null);
+    if (all && !all.length) {
+      try {
+        localStorage.removeItem(TICKETS_FLAG); // nothing left to collect
+      } catch {
+        /* ignore */
+      }
+    }
+    const tickets = (all ?? []).filter((t) => !(skip && t.pubkey.equals(skip)));
+    if (!tickets.length) return 0;
+    // only send what the program will accept: a failed transaction still costs its fee
+    const paid = await client.paidMatches([...new Set(tickets.map((t) => t.roomId))]).catch(() => new Map<bigint, number>());
+    const now = Date.now() / 1000;
+    for (const t of tickets) {
+      const settled = paid.has(t.roomId) && t.matchNo <= paid.get(t.roomId)!;
+      if (!t.consumed && !settled && now < t.expiresAt + 60) continue; // still in play: try again later
+      const ok = await client.sendBase([client.closeTicketIx(t.roomId, t.pubkey, t.payout)]).then(() => true).catch(() => false);
+      if (ok) closed++;
+    }
+  } finally {
+    reclaiming = false;
+  }
+  return closed;
+}
 export { ST_LOBBY, ST_STARTING, ST_COUNTDOWN, ST_LIVE, ST_ENDED, ST_REVEALED };

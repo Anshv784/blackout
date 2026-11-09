@@ -42,10 +42,16 @@ export function RoomPage({ roomId }: { roomId: bigint }) {
   const sawLive = useRef(false);
   const endedAt = useRef<number | null>(null);
   const [, rerender] = useState(0);
+  // per night: PLAY AGAIN puts the same room back in the lobby, and the next night gets its own moment
   if (room?.status === ST_LIVE) sawLive.current = true;
-  if (room && (room.status === ST_ENDED || room.status === ST_REVEALED) && endedAt.current === null) endedAt.current = performance.now();
+  else if (room?.status === ST_LOBBY) sawLive.current = false;
+  const over = !!room && (room.status === ST_ENDED || room.status === ST_REVEALED);
+  if (!over) endedAt.current = null;
+  else if (endedAt.current === null) endedAt.current = performance.now();
   const lingerFor = room && mySeat !== null && room.winner === mySeat ? 6000 : 4000;
-  const linger = !!room && room.status === ST_REVEALED && sawLive.current && endedAt.current !== null && performance.now() - endedAt.current < lingerFor;
+  // only for a seat at the table (someone just watching goes straight to the reveal)
+  const linger =
+    !!room && mySeat !== null && room.status === ST_REVEALED && sawLive.current && endedAt.current !== null && performance.now() - endedAt.current < lingerFor;
   useEffect(() => {
     if (!linger) return;
     const k = window.setTimeout(() => rerender((x) => x + 1), 400);
