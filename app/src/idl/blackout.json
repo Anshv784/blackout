@@ -2851,6 +2851,11 @@
           },
           {
             "name": "start_slot",
+            "docs": [
+              "ER slot when the match went live. In a staked lobby (where it is otherwise unused) it holds",
+              "the unix time after which the table may start: 0 until two stakers are seated, pushed back",
+              "by every new staker. See `arm_staked_start` / `staked_start_ok`."
+            ],
             "type": "u64"
           },
           {
