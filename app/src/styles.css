@@ -2897,8 +2897,25 @@ button {
 .bt-pager .btn{padding:8px 14px;font-size:12px}
 .bt-pager .btn:disabled{opacity:.35;cursor:default}
 .gate-side .pz-pot b{font-size:24px}
-.gate-side .pz-pot em{display:none}
+.gate-side .pz-pot em{font-size:11px}
 .gate-side .pz-top{display:none}
 @media (max-width:720px){.daily-board .bt-row{grid-template-columns:26px minmax(0,1fr) 64px 50px}}
 @media (max-width:420px){.pz-claim{flex-direction:column;align-items:stretch}.pz-actions{grid-template-columns:1fr}}
 .daily-board>.sub{text-align:center;max-width:620px;margin-left:auto;margin-right:auto}
+/* the prize pot */
+.pz-pot{display:grid;grid-template-columns:auto 1fr;column-gap:12px;align-items:center}
+.pz-pot>span,.pz-pot>b,.pz-pot>em{grid-column:2}
+.pz-jar{grid-row:1/4;width:86px;height:82px;overflow:visible;filter:drop-shadow(0 6px 14px rgba(0,0,0,.5))}
+.pz-jar.has{filter:drop-shadow(0 0 14px rgba(255,209,102,.35)) drop-shadow(0 6px 14px rgba(0,0,0,.5));animation:pzwobble 3.2s ease-in-out infinite;transform-origin:50% 90%}
+.pz-jar-gold{transition:y 1.2s cubic-bezier(.2,.8,.2,1)}
+.pz-jar-handle{fill:none;stroke:#4a5270;stroke-width:3.5;stroke-linecap:round}
+.pz-jar-coins{animation:pzbob 2.4s ease-in-out infinite}
+.pz-jar-spark path{fill:#fff3c4;transform-box:fill-box;transform-origin:center;animation:pztwinkle 2s ease-in-out infinite}
+.pz-jar-spark path:nth-child(2){animation-delay:1s}
+.pz-jar-drop{animation:pzdrop 1s cubic-bezier(.5,0,.8,.6) forwards}
+@keyframes pzwobble{0%,100%{transform:rotate(0)}50%{transform:rotate(-2deg)}}
+@keyframes pzbob{0%,100%{transform:translateY(0)}50%{transform:translateY(-1.2px)}}
+@keyframes pztwinkle{0%,100%{opacity:0;transform:scale(.4)}50%{opacity:1;transform:scale(1)}}
+@keyframes pzdrop{0%{transform:translateY(-14px);opacity:0}15%{opacity:1}80%{transform:translateY(34px);opacity:1}100%{transform:translateY(40px);opacity:0}}
+@media (prefers-reduced-motion:reduce){.pz-jar,.pz-jar-coins,.pz-jar-spark path,.pz-jar-drop{animation:none!important}}
+.gate-side .pz-jar{width:60px;height:56px}
