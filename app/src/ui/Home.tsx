@@ -379,6 +379,7 @@ export function Home() {
       {stakePick && (
         <StakeChoice
           rooms={rooms}
+          prize={prize}
           onClose={() => setStakePick(false)}
           onPick={(id) => {
             setStakePick(false);
