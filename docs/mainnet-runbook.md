@@ -11,17 +11,22 @@ marked. Nothing here touches the devnet game.
 - [ ] The Cloudflare API token that was pasted in chat is rotated.
 - [ ] A decision on staked tables (real-money rules where you and your players are).
 
+Local commands use the CLI key (no domain lock; never put it in the site):
+`export BASE_RPC=$(cat ~/.config/solana/blackout-mainnet-rpc-cli.txt)` and, for the TypeScript
+scripts, `VITE_BASE_RPC=$BASE_RPC`. The site's key (`VITE_BASE_RPC` secret in GitHub) only works from
+playblackout.fun, www.playblackout.fun and blackout.anshverma.tech.
+
 ## 1. Program (SPENDS ~3.22 SOL, refundable deposit; 634 KB at mainnet rent of 5,080 lamports/byte)
 
 ```bash
-BASE_RPC=<rpc url> scripts/deploy-mainnet.sh              # dry run: builds, prints size, cost and balance
-BASE_RPC=<rpc url> CONFIRM=yes scripts/deploy-mainnet.sh  # deploys pzuVHdCZDQWwxHLEa2JAaEjUZLa43nKaFauLyqZmekb
+scripts/deploy-mainnet.sh              # dry run: builds, prints size, cost and balance
+CONFIRM=yes scripts/deploy-mainnet.sh  # deploys pzuVHdCZDQWwxHLEa2JAaEjUZLa43nKaFauLyqZmekb
 ```
 
 ## 2. Boards, prize and rooms (SPENDS ~0.32 SOL, mostly refundable)
 
 ```bash
-export ADMIN_KEY=~/.config/solana/blackout-mainnet.json VITE_CLUSTER=mainnet VITE_BASE_RPC=<rpc url> \
+export ADMIN_KEY=~/.config/solana/blackout-mainnet.json VITE_CLUSTER=mainnet VITE_BASE_RPC=$BASE_RPC \
        VITE_PROGRAM_ID=pzuVHdCZDQWwxHLEa2JAaEjUZLa43nKaFauLyqZmekb
 npx tsx scripts/admin.ts board
 npx tsx scripts/admin.ts prize                              # daily challenge prize account (~0.03 SOL rent)
