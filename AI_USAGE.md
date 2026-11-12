@@ -123,10 +123,10 @@ The AI didn't count anything as done because it compiled. Each kind of change ha
 
 | Check | What it proves | Result |
 |---|---|---|
-| Rust unit tests (`cargo test`) | Sim rules, maps, weapons, throws, stances, encoding | 35 tests, plus 2 long ones run on demand |
+| Rust unit tests (`cargo test`) | Sim rules, maps, weapons, throws, stances, encoding, staked countdown and map draw | 44 tests, plus 2 long ones run on demand |
 | Golden fingerprint | A fixed replay produces exactly the same final state hash after any refactor | Must match bit for bit |
 | `scripts/mirror.ts` | The TypeScript sim matches the Rust sim | 2,000 movement steps identical; 72/72 throw cases |
-| `scripts/e2e_money.ts` | Stakes, payouts, refunds and fees on devnet, including the attack cases from the audit | 29/29 |
+| `scripts/e2e_money.ts` | Stakes, payouts, carried-over tickets and fees on devnet, including the attack cases from the audit | 41/41 |
 | `scripts/e2e_daily.ts` | The daily challenge on devnet | 14/14 |
 | `scripts/e2e.ts`, `e2e_stake.ts` | Full room lifecycle on devnet | Pass |
 | Playwright grids (`scripts/ui/*`) | Every operator × gun × action rendered to a contact sheet the AI inspected, plus phone, landscape and guest flows | Reviewed each round |

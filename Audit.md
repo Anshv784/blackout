@@ -7,9 +7,9 @@ This is a self-review backed by on-chain tests, not a professional audit. Keep s
 
 | Check | Result |
 |---|---|
-| `scripts/e2e_money.ts`: every money rule and attack, against a deployed program (devnet `CkSb4kkmhzr8n9awdmrvqhuoWka6nZUXXb8RXnrFBAKU`), incl. a full 8-seat staked night | **29 of 29 pass** |
+| `scripts/e2e_money.ts`: every money rule and attack, against a deployed program (devnet `CkSb4kkmhzr8n9awdmrvqhuoWka6nZUXXb8RXnrFBAKU`), incl. a full 8-seat staked night, the no-host countdown and carrying unused tickets over | **41 of 41 pass** (2026-11-12) |
 | `scripts/e2e_daily.ts`: the daily challenge's rules and attacks, on the same program | **14 of 14 pass** |
-| `cargo test` (incl. the byte-exact simulation fingerprint over 48 nights, One Light, death cam, bot styles, daily scoring, money rules, called-off nights) | 35 passed, plus 2 long ones run on demand |
+| `cargo test` (incl. the byte-exact simulation fingerprint over 48 nights, One Light, death cam, bot styles, daily scoring, money rules, called-off nights, the staked countdown and map draw) | 44 passed, plus 2 long ones run on demand |
 | `scripts/mirror.ts` (Rust vs browser movement) | 2,000 steps identical |
 | Crank alone, 7 bots, no client ticks | went live and kept ticking in 2 of 2 rooms (failed at tick 59 before the fix) |
 | Rollup vs Solana clock | 0-1 s apart |

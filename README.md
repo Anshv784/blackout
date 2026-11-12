@@ -229,10 +229,10 @@ The **Operator** page sets how everyone at your table sees you. It's saved on yo
 ## Verified on devnet
 
 - `scripts/e2e.ts` plays full nights against the live TEE and checks that a player can read its own View but not another's, a spectator can't read the World, VRF seeds the match, the crank holds 20 ticks/s, and after `finish` the World and Recorder are readable and `settle` runs.
-- `scripts/e2e_money.ts` (29/29) and `scripts/e2e_daily.ts` (14/14): stakes, payouts, the fee, refunds and every attack from [Audit.md](Audit.md); the daily challenge from roll to leaderboard.
+- `scripts/e2e_money.ts` (41/41) and `scripts/e2e_daily.ts` (14/14): stakes, payouts, the fee, carried-over tickets and every attack from [Audit.md](Audit.md); the daily challenge from roll to leaderboard.
 - `scripts/e2e_stake.ts`: two funded players buy tickets on Solana, play a staked night, and the winner's wallet receives the pot from the `settle` Magic Action.
 - `scripts/mirror.ts`: 2,000 random movement steps (sprint, sneak, prone, jump and stamina included) and 72 aimed throws give identical results in the Rust program and the TypeScript prediction.
-- `cargo test`: 35 tests (plus 2 long ones run on demand), including a golden fingerprint of whole nights, full 8-bot nights with valid placements, bots that actually fight, frags, duos revives, supply drops, the blackout, the house fee and called-off staked nights.
+- `cargo test`: 44 tests (plus 2 long ones run on demand), including a golden fingerprint of whole nights, full 8-bot nights with valid placements, bots that actually fight, frags, duos revives, supply drops, the blackout, the house fee and called-off staked nights.
 - After every night, the VERIFY tab re-derives every spawn, loot roll and zone circle from the revealed VRF seed and checks them against the unsealed World.
 - `scripts/ui/`: Playwright runs of the full flows (and `readme_shots.ts`, which retakes every image in this README): guest play, private rooms with codes and kicks, closing a room, ending a night, duos, the phone layout and touch controls, and a console-error audit.
 
