@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { friendlyError } from "../game/errors";
 import { client } from "../game/identity";
 import { go } from "../App";
 import { ST_LOBBY, type Room } from "../chain/layout";
@@ -18,7 +19,7 @@ export function AlreadyInRoom({ id, room, onClose, onLeft }: { id: number; room:
       onLeft?.();
       onClose();
     } catch (e: any) {
-      setErr(String(e?.message ?? e).slice(0, 120));
+      setErr(friendlyError(e));
     } finally {
       setBusy(false);
     }

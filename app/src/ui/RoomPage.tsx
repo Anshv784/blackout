@@ -1,4 +1,5 @@
 import { MapPicker } from "./MapPicker";
+import { friendlyError } from "../game/errors";
 import { EmoteWheel } from "./EmoteWheel";
 import { EMOTES, useLook } from "../game/look";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
@@ -60,7 +61,7 @@ export function RoomPage({ roomId }: { roomId: bigint }) {
 
   useEffect(() => {
     useStore.getState().set({ room: null, view: null, mySeat: null, reveal: null });
-    session.start().catch((e) => setErr(String(e?.message ?? e)));
+    session.start().catch((e) => setErr(friendlyError(e)));
     // test handles for scripts/ui (dev server only, never in the live build)
     if (import.meta.env.DEV) Object.assign(window as any, { __session: session, __controls: controls, __store: useStore });
     const bye = () => {
@@ -213,7 +214,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
     setPendingSize(n);
     session.setSize(n).catch((e) => {
       setPendingSize(null);
-      toast(String(e?.message ?? e).replace(/\(.*\)$/, "").slice(0, 120));
+      toast(friendlyError(e));
     });
   };
   const myLook = useLook((st) => st.look);
@@ -252,7 +253,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
     try {
       await f();
     } catch (e: any) {
-      toast(String(e?.message ?? e).replace(/\(.*\)$/, "").slice(0, 140));
+      toast(friendlyError(e));
     } finally {
       setBusy(null);
     }

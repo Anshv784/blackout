@@ -896,10 +896,10 @@ export class Session {
 
   async join(name: string, wallet: PublicKey | null, code = 0, preferSeat?: number) {
     const r = this.room ?? (await client.fetchRoom(this.roomId));
-    if (!r) throw new Error("Room not found");
-    if (r.status !== ST_LOBBY) throw new Error("Match in progress — wait for the lobby");
+    if (!r) throw new Error("This room doesn't exist. Go back and pick another one.");
+    if (r.status !== ST_LOBBY) throw new Error("A night is already running in this room. Wait for it to end, or pick another room.");
     const free = [0, 1, 2, 3, 4, 5, 6, 7].filter((i) => i < r.maxPlayers && r.players[i].toBase58() === DEFAULT_KEY && r.isBot[i] === 0);
-    if (!free.length) throw new Error("Room is full");
+    if (!free.length) throw new Error("This room is full. Try another room.");
     let lastErr: unknown = null;
     const order = preferSeat !== undefined && free.includes(preferSeat) ? [preferSeat, ...free.filter((x) => x !== preferSeat)] : free;
     for (const seat of order.slice(0, 3)) {

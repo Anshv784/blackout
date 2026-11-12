@@ -1,4 +1,5 @@
 import { botStyle } from "../chain/layout";
+import { friendlyError } from "../game/errors";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../game/store";
 import { reclaimTickets, type Session } from "../game/session";
@@ -215,7 +216,7 @@ export function Reveal({ session }: { session: Session }) {
     try {
       await session.reset();
     } catch (e: any) {
-      toast(String(e?.message ?? e).slice(0, 120));
+      toast(friendlyError(e));
     } finally {
       setBusy(false);
     }
@@ -476,7 +477,7 @@ export function Reveal({ session }: { session: Session }) {
                   toast("Wallet connected — your next nights will be saved", true);
                 } catch (e: any) {
                   setLinking("idle");
-                  toast(String(e?.message ?? e).slice(0, 120));
+                  toast(friendlyError(e));
                 }
               }}
             >

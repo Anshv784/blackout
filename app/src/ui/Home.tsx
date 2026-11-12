@@ -1,4 +1,5 @@
 import { Wordmark } from "./Brand";
+import { friendlyError } from "../game/errors";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { client } from "../game/identity";
 import { ALL_ROOMS, STAKED_ROOMS } from "../config";
@@ -235,7 +236,7 @@ export function Home() {
       const { id, code } = await createRoom(4, true);
       go(`/r/${id}?daily=1&code=${codeToText(code).replace("-", "")}`);
     } catch (e: any) {
-      toast(String(e?.message ?? e).replace(/\(.*\)$/, "").slice(0, 140));
+      toast(friendlyError(e));
     } finally {
       setBusy(null);
     }
@@ -257,7 +258,7 @@ export function Home() {
       const { id, code } = await createRoom(4, unlisted);
       go(`/r/${id}${code ? `?code=${codeToText(code).replace("-", "")}` : ""}`);
     } catch (e: any) {
-      toast(String(e?.message ?? e).replace(/\(.*\)$/, "").slice(0, 140));
+      toast(friendlyError(e));
     } finally {
       setBusy(null);
     }

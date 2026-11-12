@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { friendlyError } from "../game/errors";
 import { useStore } from "../game/store";
 import { WALLETS, connectWallet, localNameFor, saveWalletName, setGuest } from "../game/wallet";
 import { saveName } from "../game/identity";
@@ -110,7 +111,7 @@ export function WalletGate() {
                           gate.then();
                         }
                       } catch (e: any) {
-                        setErr(String(e?.message ?? e));
+                        setErr(friendlyError(e));
                       } finally {
                         setBusy(null);
                       }
