@@ -1,0 +1,59 @@
+// "Staked night": choose your table. Each one shows its stake, who's waiting and what's in the pot,
+// read live from the rooms (nothing here is hard-coded).
+import type { Room } from "../chain/layout";
+import { ST_LOBBY, STATUS_NAME } from "../chain/layout";
+import { STAKED_ROOMS } from "../config";
+import { stakersSeated, stakedStartAt } from "../game/session";
+
+const sol = (lamports: bigint) => {
+  const n = Number(lamports) / 1e9;
+  return n.toFixed(n < 0.1 ? 2 : 1).replace(/\.?0+$/, "");
+};
+
+export function StakeChoice({ rooms, onPick, onClose }: { rooms: Record<number, Room | null>; onPick: (id: number) => void; onClose: () => void }) {
+  const tables = STAKED_ROOMS.map((id) => [id, rooms[id] ?? null] as const)
+    .filter((t): t is readonly [number, Room] => !!t[1])
+    .sort((a, b) => Number(a[1].stake - b[1].stake));
+  return (
+    <div className="room-closed sc-overlay" onClick={onClose}>
+      <div className="room-closed-card stake-choice" onClick={(e) => e.stopPropagation()}>
+        <div className="vc-kicker">STAKED NIGHT</div>
+        <h2>Choose your table</h2>
+        <p>Everyone at a table puts in the same stake. The last one standing takes the pot, less a 5% fee.</p>
+        <div className="sc-list">
+          {tables.length === 0 && <div className="sc-empty">Reading the tables…</div>}
+          {tables.map(([id, r]) => {
+            const seated = stakersSeated(r);
+            const open = r.status === ST_LOBBY && seated < r.maxPlayers;
+            const at = stakedStartAt(r);
+            const left = at === null ? null : Math.max(0, Math.ceil(at - Date.now() / 1000));
+            const state =
+              r.status !== ST_LOBBY
+                ? `night in progress (${STATUS_NAME[r.status]?.toLowerCase()})`
+                : seated >= r.maxPlayers
+                  ? "table full"
+                  : seated === 0
+                    ? "empty: be the first to sit"
+                    : left !== null
+                      ? `${seated} waiting · starts in ${left}s`
+                      : `${seated} waiting for one more`;
+            return (
+              <button key={id} className={`sc-table ${open ? "" : "busy"}`} disabled={!open} onClick={() => onPick(id)}>
+                <b>{sol(r.stake)} SOL</b>
+                <span>
+                  {seated}/{r.maxPlayers} seated · {state}
+                </span>
+                <em>{open ? `pot up to ${sol(r.stake * BigInt(r.maxPlayers))} SOL` : "come back after this night"}</em>
+              </button>
+            );
+          })}
+        </div>
+        <div className="row center wrap">
+          <button className="btn" onClick={onClose}>
+            CANCEL
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

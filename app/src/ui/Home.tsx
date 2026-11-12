@@ -10,7 +10,8 @@ import { useStore } from "../game/store";
 import { audio } from "../game/audio";
 import { TopBar } from "./TopBar";
 import { requireRealWallet, requireWallet } from "../game/wallet";
-import { codeToText, createRoom, ensureDaily, findByCode, myRoom, pickStakedTable, playedToday, stakeLabel, sweepRooms } from "../game/rooms";
+import { codeToText, createRoom, ensureDaily, findByCode, myRoom, playedToday, stakeLabel, sweepRooms } from "../game/rooms";
+import { StakeChoice } from "./StakeChoice";
 import { AlreadyInRoom } from "./AlreadyInRoom";
 
 const Backdrop = lazy(() => import("../scene/Backdrop").then((m) => ({ default: m.Backdrop })));
@@ -194,6 +195,7 @@ export function Home() {
 
   const [code, setCode] = useState("");
   const [blocked, setBlocked] = useState(false);
+  const [stakePick, setStakePick] = useState(false);
   /** One room at a time: anything that would put you in a different room asks first. */
   const guard = async (target: number | null, then: () => void) => {
     // the room list may not have loaded yet (devnet can take a few seconds): check fresh, don't guess
@@ -318,13 +320,7 @@ export function Home() {
                 <b>{busy === "friends" ? "OPENING…" : "WITH FRIENDS"}</b>
                 <span>private · share a code</span>
               </button>
-              <button
-                className="alt-tile gold"
-                onClick={() => {
-                  const id = pickStakedTable(rooms);
-                  guard(id, () => requireRealWallet(() => go(`/r/${id}`)));
-                }}
-              >
+              <button className="alt-tile gold" onClick={() => setStakePick(true)}>
                 <TileIcon name="stake" />
                 <b>STAKED NIGHT</b>
                 <span>{stakeLabel(rooms)} · winner takes all</span>
@@ -423,6 +419,16 @@ export function Home() {
           </div>
         </div>
       </footer>
+      {stakePick && (
+        <StakeChoice
+          rooms={rooms}
+          onClose={() => setStakePick(false)}
+          onPick={(id) => {
+            setStakePick(false);
+            guard(id, () => requireRealWallet(() => go(`/r/${id}`)));
+          }}
+        />
+      )}
       {blocked && mine !== null && rooms[mine] && <AlreadyInRoom id={mine} room={rooms[mine]!} onClose={() => setBlocked(false)} onLeft={() => toast(`Left room ${mine}`)} />}
     </div>
   );

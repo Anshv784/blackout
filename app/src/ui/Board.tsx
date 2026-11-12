@@ -170,7 +170,7 @@ export function Board() {
           </div>
         </div>
 
-        {STAKED_ROOMS.map((id, n) => {
+        {STAKED_ROOMS.map((id) => {
           const table = tables[id];
           if (!table) return null;
           const stakers = stakersAt(table);
@@ -178,7 +178,7 @@ export function Board() {
             <div className="live-table" key={id}>
               <span className={`pulse st-${table.status}`} />
               <div>
-                <b>{STAKED_ROOMS.length > 1 ? `STAKED TABLE ${n + 1} · ${stakeLabel({ [id]: table }, [id])}` : "THE STAKED TABLE"}</b>
+                <b>{STAKED_ROOMS.length > 1 ? `THE ${stakeLabel({ [id]: table }, [id])} TABLE` : "THE STAKED TABLE"}</b>
                 <small>
                   {STATUS_NAME[table.status]?.toLowerCase()} · {stakers} staker{stakers === 1 ? "" : "s"} seated · pot {(Number(table.pot) / 1e9).toFixed(2)} SOL
                 </small>

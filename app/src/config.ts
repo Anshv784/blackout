@@ -1,7 +1,7 @@
 // Rooms are pre-created and delegated to the TEE by scripts/admin.ts.
 /** Room slots. Players "create" a room by claiming a free slot and becoming its host. */
 // Reserved pools: a room only ever serves its own kind of game, so private games can't use up the
-// public rooms and the other way round. Both networks: 6 public, 4 private, 2 staked (0.01 SOL).
+// public rooms and the other way round. Both networks: 6 public, 4 private, 2 staked (0.01 and 0.05 SOL).
 //   Mainnet: public 1-6, private 7-10, staked 11-12.
 //   Devnet: the same, except public room 5 is 13 (devnet's room 5 was created as a staked table
 //   and a room's stake can't change; it's retired).
