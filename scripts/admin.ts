@@ -7,6 +7,7 @@
 //   DAILY_PREFUND_SOL=0.05 npx tsx scripts/admin.ts daily   (the daily board commits about once a day)
 //   npx tsx scripts/admin.ts close 1 2 3        (get the rooms' SOL back)
 //   npx tsx scripts/admin.ts close-board
+//   npx tsx scripts/admin.ts prize              (create the daily challenge prize account, ~0.04 SOL rent)
 //   npx tsx scripts/admin.ts daily              (create + delegate the daily board)
 // Mainnet: ADMIN_KEY=~/.config/solana/blackout-mainnet.json VITE_CLUSTER=mainnet VITE_BASE_RPC=... VITE_PROGRAM_ID=...
 // Mainnet launch (12 reserved rooms; see app/src/config.ts): public 1-6, private 7-10, staked 11-12
@@ -14,7 +15,7 @@
 import { Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import fs from "fs";
 import os from "os";
-import { BlackoutClient, roomPda, worldPda, recPda, viewPda, boardPda, dailyPda, DELEGATION_PROGRAM_ID } from "../app/src/chain/client.ts";
+import { BlackoutClient, roomPda, worldPda, recPda, viewPda, boardPda, dailyPda, prizePda, DELEGATION_PROGRAM_ID } from "../app/src/chain/client.ts";
 
 const keyFile = process.env.ADMIN_KEY ?? `${os.homedir()}/.config/solana/blackout-devnet.json`;
 const admin = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(keyFile, "utf8"))));
@@ -78,6 +79,12 @@ if (cmd === "board") {
   const tee = await c.teeConn();
   for (let i = 0; i < 60 && !(await tee.getAccountInfo(dailyPda())); i++) await sleep(500);
   console.log("daily board on the TEE:", dailyPda().toBase58(), "ready", (await c.fetchDaily())?.ready);
+} else if (cmd === "prize") {
+  // the daily challenge's prize account (on Solana, never delegated): 2% of every 0.05 SOL night
+  if (await c.base.getAccountInfo(prizePda())) console.log("prize exists", prizePda().toBase58());
+  else console.log("prize", prizePda().toBase58(), await c.sendBase([c.initPrizeIx()]));
+  const p = await c.fetchPrize();
+  console.log(`day ${p?.day} pot ${p?.pot} players ${p?.entries.length} last winner ${p?.lastWinner.toBase58()} prize ${p?.lastPrize} claimed ${p?.lastClaimed}`);
 } else if (cmd === "close-board") {
   console.log("board closed", await c.sendBase([c.closeBoardIx()]));
-} else console.log("usage: board | rooms <ids...> | room <id> <stakeSol> <code> | close <ids...> | close-board");
+} else console.log("usage: board | prize | rooms <ids...> | room <id> <stakeSol> <code> | close <ids...> | close-board");

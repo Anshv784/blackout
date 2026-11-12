@@ -23,12 +23,16 @@ BASE_RPC=<rpc url> CONFIRM=yes scripts/deploy-mainnet.sh  # deploys pzuVHdCZDQWw
 ```bash
 export ADMIN_KEY=~/.config/solana/blackout-mainnet.json VITE_CLUSTER=mainnet VITE_BASE_RPC=<rpc url> \
        VITE_PROGRAM_ID=pzuVHdCZDQWwxHLEa2JAaEjUZLa43nKaFauLyqZmekb
-DAILY_PREFUND_SOL=0.05 npx tsx scripts/admin.ts board
-DAILY_PREFUND_SOL=0.05 npx tsx scripts/admin.ts daily
+npx tsx scripts/admin.ts board
+npx tsx scripts/admin.ts prize                              # daily challenge prize account (~0.04 SOL rent)
 npx tsx scripts/admin.ts rooms 1 2 3 4 5 6 7 8 9 10        # 6 public + 4 private
 npx tsx scripts/admin.ts room 11 0.01 0 0.05               # staked table, 0.01 SOL
 npx tsx scripts/admin.ts room 12 0.05 0 0.05               # staked table, 0.05 SOL
 ```
+
+The old free daily (you + 3 bots) is gone from the site, so the daily board is no longer delegated
+(saves its 0.05 SOL top-up). The daily challenge is now the 0.05 SOL table's prize: 2% of each pot
+there goes to the day's top earner (3+ nights), the fee wallet keeps 3%.
 
 Each staked table's 0.05 SOL top-up pays MagicBlock's commit fee (~0.001 SOL per staked night after
 the first 25): top it up after ~75 staked nights.
@@ -37,6 +41,8 @@ the first 25): top it up after ~75 staked nights.
 
 One free night, then one staked night at the 0.01 table with two of your own wallets. Check on the
 explorer: the winner got the pot less 5%, the fee reached the admin wallet, spent tickets returned rent.
+Optional: one night at the 0.05 table: the admin wallet gets 3% and the prize account 2%
+(`npx tsx scripts/admin.ts prize` prints today's pot).
 
 ## 4. Site
 

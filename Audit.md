@@ -93,6 +93,23 @@ Found while doing this and fixed before it shipped: the settings lock first land
 
 Accepted trade-off: with no refund path, a staked room holding anyone's unused ticket can't be closed, and if the rollup stopped for good, unused tickets would stay locked.
 
+## Daily prize (2026-11-12)
+
+The daily challenge now funnels players to the 0.05 SOL table. At that table only, 2% of each pot (`PRIZE_BPS`, taken out of the 5% fee, never on top of it) goes into a `Prize` account on Solana; the fee wallet keeps 3%. The 0.01 table is unchanged. The prize account is never delegated, so settle's Magic Action writes it directly.
+
+| Rule | How it's enforced | Tested |
+|---|---|---|
+| Only the 0.05 table feeds it | settle checks `room.stake == PRIZE_STAKE` | e2e |
+| The cut never exceeds the fee | `prize_cut = min(pot * 2%, fee)`; the winner's share is unchanged | unit + e2e |
+| The pot resets every UTC day | every write first calls `roll(today)`, which closes the previous day | unit |
+| Winner = highest net profit (won − staked) with 3+ nights that day | `Prize::leader()`; on a tie the earlier player wins | unit |
+| Only the winner can claim, once | `claim_prize` requires the signer to be `last_winner` and `last_claimed == 0` | unit + e2e |
+| Today's prize can't be claimed early | a day is only decided when the next day's first write (or a claim) rolls it | e2e |
+| Unwon or unclaimed prizes go to the fee wallet | `roll` sends the pot to `TREASURY` if nobody qualified, and forfeits an unclaimed prize when the next day is decided | unit |
+| A missing prize account can't block payouts | without it settle takes no cut and the full 5% goes to the fee wallet | code review |
+
+Known limits: the account tracks at most 100 players a day (later players are not recorded that day). Players are counted by their payout wallet, so one person with two wallets at a 2-player table can farm nights; anti-farming rules (unique opponents, minimum table size) are planned. A prize won on a quiet day is only decided when the next 0.05 night settles or the winner claims.
+
 ## How refunds stayed safe (before 2026-11-12; carry-over now uses the same timing rules)
 
 A ticket can't be refunded and also ride in a match:
@@ -121,5 +138,5 @@ A ticket can't be refunded and also ride in a match:
 ```bash
 cargo test --manifest-path programs/blackout/Cargo.toml
 npx tsx scripts/mirror.ts
-npx tsx scripts/e2e_money.ts <unused room id; it uses 3 ids>
+npx tsx scripts/e2e_money.ts <unused room id; it uses 5 ids>
 ```

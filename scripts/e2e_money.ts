@@ -6,7 +6,7 @@
 import { ComputeBudgetProgram, Keypair, SystemProgram, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import fs from "fs";
 import os from "os";
-import { BlackoutClient, roomPda, bankPda, ticketPda, boardPda, recPda } from "../app/src/chain/client.ts";
+import { BlackoutClient, roomPda, bankPda, ticketPda, boardPda, recPda, prizePda, TREASURY } from "../app/src/chain/client.ts";
 import { STATUS_NAME, ST_ENDED, ST_LOBBY, ST_LIVE, ST_COUNTDOWN } from "../app/src/chain/layout.ts";
 
 const base = BigInt(process.argv[2] ?? 900);
@@ -56,6 +56,7 @@ async function waitFor(c: BlackoutClient, id: bigint, want: number, ms = 60_000)
 // ---------------------------------------------------------------- setup
 const [stakedId, freeId, closeId, otherId, highId] = [base, base + 1n, base + 2n, base + 3n, base + 4n];
 if (!(await admin.base.getAccountInfo(boardPda()))) await admin.initBoard();
+if (!(await admin.base.getAccountInfo(prizePda()))) await admin.sendBase([admin.initPrizeIx()]);
 
 const outsider = new BlackoutClient(Keypair.generate());
 await admin.sendBase([SystemProgram.transfer({ fromPubkey: admin.publicKey, toPubkey: outsider.publicKey, lamports: 0.05 * LAMPORTS_PER_SOL })]);
@@ -194,6 +195,60 @@ for (let i = 0; i < 30 && !stakedClosed; i++) {
   stakedClosed = await admin.sendBase([admin.closeRoomIx(stakedId)]).then(() => true, () => false);
 }
 check("sending SOL to a bank can't block closing its room", stakedClosed && !(await admin.base.getAccountInfo(bankPda(stakedId))));
+
+// ---------------------------------------------------------------- the daily prize (0.05 SOL table)
+// two players, paid to their own wallets so the winner could sign a claim; the night starts after
+// the 60 s countdown (a 2-player night counts toward the 3 nights)
+{
+  const duo = [new BlackoutClient(Keypair.generate()), new BlackoutClient(Keypair.generate())];
+  const highStake = stakeLamports * 5n;
+  await admin.sendBase(duo.map((p) => SystemProgram.transfer({ fromPubkey: admin.publicKey, toPubkey: p.publicKey, lamports: highStake + BigInt(0.012 * LAMPORTS_PER_SOL) })));
+  const hm = ((await admin.fetchRoom(highId))!.matchNo) + 1;
+  for (const p of duo) await p.sendBase([p.buyTicketIx(highId, hm, p.publicKey)]);
+  await sleep(2000);
+  for (let i = 0; i < 2; i++) await duo[i].sendEr([duo[i].joinIx(highId, i, `Z${i}`, duo[i].publicKey, 0, ticketPda(highId, hm, duo[i].publicKey))]);
+  const day = Math.floor(Date.now() / 86_400_000);
+  const p0 = await admin.fetchPrize();
+  const same = p0?.day === day;
+  const entry0 = (k: PublicKey) => (same ? p0!.entries.find((e) => e.key.equals(k)) : undefined);
+  const pot0 = same ? p0!.pot : 0n;
+  let started = false;
+  for (let i = 0; i < 40 && !started; i++) {
+    await sleep(3000);
+    started = await duo[0].sendEr([ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 100 + i }), duo[0].startIx(highId, 0)]).then(() => true, () => false);
+  }
+  check("a 2-player 0.05 table starts after its countdown", started);
+  const hr = await waitFor(admin, highId, ST_ENDED, 180_000);
+  const hw = hr.payout[hr.winner];
+  const hpot = highStake * 2n;
+  const hfee = hpot / 20n;
+  const cut = (hpot * 200n) / 10_000n;
+  const [tB, pB, wB] = await Promise.all([balance(TREASURY), balance(prizePda()), balance(hw)]);
+  await duo[0].sendEr([duo[0].finishIx(highId, hw)]);
+  let paid = 0;
+  for (let i = 0; i < 40 && !paid; i++) {
+    await sleep(2000);
+    paid = (await balance(hw)) - wB;
+  }
+  check("0.05 winner still gets the pot less 5%", BigInt(paid) === hpot - hfee, `${paid / LAMPORTS_PER_SOL} SOL`);
+  const [tA, pA] = await Promise.all([balance(TREASURY), balance(prizePda())]);
+  check("the fee wallet gets 3% at the 0.05 table", BigInt(tA - tB) === hfee - cut, `${(tA - tB) / LAMPORTS_PER_SOL} SOL`);
+  check("the daily prize gets 2% at the 0.05 table", BigInt(pA - pB) === cut, `${(pA - pB) / LAMPORTS_PER_SOL} SOL`);
+  const p1 = (await admin.fetchPrize())!;
+  check("today's pot grows by the 2%", p1.day === day && p1.pot - pot0 === cut, `pot ${p1.pot}`);
+  const ok = duo.every((p) => {
+    const a = entry0(p.publicKey);
+    const b = p1.entries.find((e) => e.key.equals(p.publicKey));
+    const won = p.publicKey.equals(hw) ? hpot - hfee : 0n;
+    return !!b && b.games === (a?.games ?? 0) + 1 && b.staked === (a?.staked ?? 0n) + highStake && b.won === (a?.won ?? 0n) + won;
+  });
+  check("both players' night, stake and winnings are recorded", ok);
+  const winnerClient = duo.find((p) => p.publicKey.equals(hw))!;
+  await rejects("today's prize can't be claimed before the day ends", () => winnerClient.sendBase([winnerClient.claimPrizeIx(hw)]));
+  const loser = duo.find((p) => !p.publicKey.equals(hw))!;
+  await rejects("someone who didn't win can't claim the prize", () => loser.sendBase([loser.claimPrizeIx(loser.publicKey)]));
+  await duo[0].sendEr([duo[0].resetIx(highId)]).catch(() => {});
+}
 
 // ---------------------------------------------------------------- free rooms stay off Solana
 const f = players[0];
