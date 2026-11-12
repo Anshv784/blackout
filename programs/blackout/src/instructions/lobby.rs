@@ -90,6 +90,7 @@ pub fn handle_make_host(ctx: Context<Heartbeat>, seat: u8) -> Result<()> {
     let slot = Clock::get()?.slot;
     let mut room = ctx.accounts.room.load_mut()?;
     require!(room.status == ST_LOBBY, BlackoutError::NotInLobby);
+    require!(room.stake == 0, BlackoutError::NotReady); // staked tables have no host and fixed settings
     require!(room.host == ctx.accounts.player.key(), BlackoutError::NotHost);
     let s = seat as usize;
     require!(s < MAXP && room.is_bot[s] == 0 && room.players[s] != Pubkey::default(), BlackoutError::BadSeat);
@@ -102,6 +103,7 @@ pub fn handle_make_host(ctx: Context<Heartbeat>, seat: u8) -> Result<()> {
 pub fn handle_set_bots(ctx: Context<Heartbeat>, level: u8) -> Result<()> {
     let mut room = ctx.accounts.room.load_mut()?;
     require!(room.status == ST_LOBBY, BlackoutError::NotInLobby);
+    require!(room.stake == 0, BlackoutError::NotReady); // staked tables have no host and fixed settings
     require!(room.host == ctx.accounts.player.key(), BlackoutError::NotHost);
     room.cfg = (room.cfg & !(3 << 9)) | ((level as u32 & 3).min(2) << 9);
     Ok(())
@@ -113,6 +115,7 @@ pub fn handle_set_bots(ctx: Context<Heartbeat>, level: u8) -> Result<()> {
 pub fn handle_set_mode(ctx: Context<Heartbeat>, mode: u8) -> Result<()> {
     let mut room = ctx.accounts.room.load_mut()?;
     require!(room.status == ST_LOBBY, BlackoutError::NotInLobby);
+    require!(room.stake == 0, BlackoutError::NotReady); // staked tables have no host and fixed settings
     require!(room.host == ctx.accounts.player.key(), BlackoutError::NotHost);
     let duos = mode & 1 != 0;
     // staked nights are every player for themselves
@@ -131,6 +134,7 @@ pub fn handle_set_mode(ctx: Context<Heartbeat>, mode: u8) -> Result<()> {
 pub fn handle_set_size(ctx: Context<Heartbeat>, max_players: u8) -> Result<()> {
     let mut room = ctx.accounts.room.load_mut()?;
     require!(room.status == ST_LOBBY, BlackoutError::NotInLobby);
+    require!(room.stake == 0, BlackoutError::NotReady); // staked tables have no host and fixed settings
     require!(room.host == ctx.accounts.player.key(), BlackoutError::NotHost);
     let m = (max_players as usize).clamp(2, MAXP);
     for i in m..MAXP {
@@ -156,10 +160,6 @@ pub fn handle_leave<'info>(ctx: Context<'info, RoomAccount<'info>>, seat: u8) ->
     let rid_bytes = {
         let mut room = ctx.accounts.room.load_mut()?;
         require!(room.status == ST_LOBBY, BlackoutError::NotInLobby);
-        require!(room.stake == 0, BlackoutError::NotReady); // staked tables have no host and fixed settings
-        require!(room.stake == 0, BlackoutError::NotReady); // staked tables have no host and fixed settings
-        require!(room.stake == 0, BlackoutError::NotReady); // staked tables have no host and fixed settings
-        require!(room.stake == 0, BlackoutError::NotReady); // staked tables have no host and fixed settings
         require!(s < MAXP && room.players[s] == player, BlackoutError::BadSeat);
         room.clear_seat(s);
         // a staked table: under two stakers left, the countdown stops
