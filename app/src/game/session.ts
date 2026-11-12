@@ -857,6 +857,30 @@ export class Session {
       return;
     }
     const { Transaction, SystemProgram } = await import("@solana/web3.js");
+    // An unused ticket at this stake (you left a lobby, or a night was called off) carries over:
+    // move it to this table's next night instead of paying again. Stakes are never refunded.
+    const spare = await reusableTicket(r.stake, this.roomId, matchNo);
+    if (spare) {
+      const [rent, minBalance, have] = await Promise.all([
+        client.base.getMinimumBalanceForRentExemption(TICKET_LEN),
+        client.base.getMinimumBalanceForRentExemption(0),
+        client.base.getBalance(client.publicKey),
+      ]);
+      // the new ticket's rent is paid before the old one's comes back: top up only if short
+      const short = Math.max(0, rent + minBalance + 20_000 - have);
+      const tx = new Transaction();
+      if (short) tx.add(SystemProgram.transfer({ fromPubkey: wallet.publicKey, toPubkey: client.publicKey, lamports: short }));
+      tx.add(client.reuseTicketIx(spare, this.roomId, matchNo));
+      tx.feePayer = short ? wallet.publicKey : client.publicKey;
+      tx.recentBlockhash = (await client.base.getLatestBlockhash()).blockhash;
+      tx.partialSign(client.keypair);
+      const signed = short ? await wallet.signTransaction(tx) : tx;
+      const sig = await client.base.sendRawTransaction(signed.serialize(), { skipPreflight: true });
+      const res = await client.base.confirmTransaction(sig, "confirmed");
+      if (res.value.err) throw new Error("Moving your ticket to this table failed on Solana. Nothing was charged. Try again.");
+      this.ticketMatch = matchNo;
+      return;
+    }
     // The session key pays the stake and the ticket's rent. It also keeps a small float for the
     // fees of refunds it sends later; Solana won't let it hold less than its rent minimum, so the
     // float is that minimum plus fees, topped up only when short (not added again on every ticket).
@@ -884,12 +908,12 @@ export class Session {
     try {
       localStorage.setItem(TICKETS_FLAG, "1"); // this browser holds tickets: refunds get collected later
     } catch {
-      /* private mode: refunds are still collected when you next take a staked seat */
+      /* private mode: spent tickets are still tidied when you next take a staked seat */
     }
   }
   ticketMatch = 0;
 
-  /** Send back any refunds waiting on this browser's old tickets (except the one just bought). */
+  /** Hand back the rent of this browser's spent tickets (never the one just bought). */
   async reclaimTickets(): Promise<void> {
     await reclaimTickets(ticketPda(this.roomId, this.ticketMatch, client.publicKey), true);
   }
@@ -1096,11 +1120,24 @@ export function stakedStartAt(r: Room): number | null {
 }
 
 /**
- * Close every ticket this browser's session key holds, sending each one's money to its own payout
- * wallet: the rent always, the stake too when no settled night used it (a called-off night, a seat
- * you stood up from). The program decides what may be closed and where the money goes; a ticket
- * whose night hasn't settled yet is refused and simply tried again next time. Each close costs the
- * session key one transaction fee, so tickets are only looked up when this browser has bought some.
+ * An unused ticket this browser holds at `stake` that may move to another night: not spent, not
+ * already for `roomId`'s night `matchNo`, and its own night has settled without it or it expired.
+ * (Mirror of the program's `reuse_ticket` rule; the program has the final say.)
+ */
+export async function reusableTicket(stake: bigint, roomId: bigint, matchNo: number) {
+  const mine = await client.myTickets().catch(() => []);
+  const candidates = mine.filter((t) => !t.consumed && t.amount === stake && !(t.roomId === roomId && t.matchNo === matchNo));
+  if (!candidates.length) return null;
+  const paid = await client.paidMatches([...new Set(candidates.map((t) => t.roomId))]).catch(() => new Map<bigint, number>());
+  const now = Date.now() / 1000;
+  return candidates.find((t) => (paid.has(t.roomId) && t.matchNo <= paid.get(t.roomId)!) || now > t.expiresAt + 30) ?? null;
+}
+
+/**
+ * Close every spent ticket this browser's session key holds: each one's rent goes back to its own
+ * payout wallet. Stakes are never refunded (an unused ticket carries over to a later night), so
+ * only tickets a settled night used up are closed. Each close costs the session key one fee, so
+ * tickets are only looked up when this browser has bought some.
  */
 let reclaiming = false;
 const TICKETS_FLAG = "bo-has-tickets";
@@ -1125,12 +1162,9 @@ export async function reclaimTickets(skip?: PublicKey, force = false): Promise<n
     }
     const tickets = (all ?? []).filter((t) => !(skip && t.pubkey.equals(skip)));
     if (!tickets.length) return 0;
-    // only send what the program will accept: a failed transaction still costs its fee
-    const paid = await client.paidMatches([...new Set(tickets.map((t) => t.roomId))]).catch(() => new Map<bigint, number>());
-    const now = Date.now() / 1000;
+    // only send what the program will accept (a failed transaction still costs its fee)
     for (const t of tickets) {
-      const settled = paid.has(t.roomId) && t.matchNo <= paid.get(t.roomId)!;
-      if (!t.consumed && !settled && now < t.expiresAt + 60) continue; // still in play: try again later
+      if (!t.consumed) continue; // unused: it carries over to a later night, it's never refunded
       const ok = await client.sendBase([client.closeTicketIx(t.roomId, t.pubkey, t.payout)]).then(() => true).catch(() => false);
       if (ok) closed++;
     }

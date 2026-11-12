@@ -79,6 +79,10 @@ pub mod blackout {
         instructions::stake::handle_close_ticket(ctx)
     }
 
+    pub fn reuse_ticket(ctx: Context<ReuseTicket>, room_id: u64, match_no: u32) -> Result<()> {
+        instructions::stake::handle_reuse_ticket(ctx, room_id, match_no)
+    }
+
     pub fn settle<'info>(ctx: Context<'info, Settle<'info>>) -> Result<()> {
         instructions::stake::handle_settle(ctx)
     }

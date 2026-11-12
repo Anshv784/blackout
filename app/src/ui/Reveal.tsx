@@ -267,7 +267,7 @@ export function Reveal({ session }: { session: Session }) {
             <div className="vc-kicker">NIGHT {room.matchNo} · ROOM {room.roomId.toString()}</div>
             {room.stake > 0n && room.winner === 255 && room.place.every((p) => p === 0) ? (
               // the rollup stalled too long to settle safely: the program called the night off
-              <h1>Night called off · every stake is refunded</h1>
+              <h1>Night called off · every ticket carries to your next night</h1>
             ) : mySeat === null ? (
               <h1>{winnerName} survived the night</h1>
             ) : room.winner === mySeat ? (

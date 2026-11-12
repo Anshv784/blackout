@@ -41,24 +41,74 @@ pub fn handle_buy_ticket(ctx: Context<BuyTicket>, room_id: u64, match_no: u32, p
     Ok(())
 }
 
-/// Give back a ticket: its rent always, its stake too unless a settled match used it.
-/// Anyone may call this; the money can only go to the ticket's payout wallet.
+/// Close a spent ticket and hand its rent back to its payout wallet. Anyone may call this.
+/// Stakes are never refunded: an unused ticket can only be moved to a later night
+/// (`reuse_ticket`), and a used one's stake went into its night's pot.
 pub fn handle_close_ticket(ctx: Context<CloseTicket>) -> Result<()> {
+    require!(ctx.accounts.ticket.consumed, BlackoutError::TicketLocked);
     ctx.accounts.bank.tickets = ctx.accounts.bank.tickets.saturating_sub(1);
-    let t = &ctx.accounts.ticket;
-    if !t.consumed {
-        let now = Clock::get()?.unix_timestamp;
-        require!(t.match_no <= ctx.accounts.bank.paid_match || now > t.expires_at, BlackoutError::TicketLocked);
-        let bank = ctx.accounts.bank.to_account_info();
-        let left = bank.lamports().checked_sub(t.amount).ok_or(BlackoutError::BadAccount)?;
-        **bank.try_borrow_mut_lamports()? = left;
-        let payout = ctx.accounts.payout.to_account_info();
-        let total = payout.lamports().checked_add(t.amount).ok_or(BlackoutError::BadAccount)?;
-        **payout.try_borrow_mut_lamports()? = total;
-        let amount = t.amount;
-        let bank = &mut ctx.accounts.bank;
-        bank.outstanding = bank.outstanding.checked_sub(amount).ok_or(BlackoutError::BadAccount)?;
+    Ok(())
+}
+
+/// Carry an unused ticket to the next night of any table with the same stake (the same table,
+/// or another). No new stake is paid: the ticket's stake moves with it, bank to bank.
+///
+/// Only once the old ticket can no longer be in play: its night has settled without it, or it
+/// has expired (a night still running is called off before then, see `out_of_time`). A ticket
+/// in a lobby that hasn't played yet stays put; it's good for that table's next night as it is.
+pub fn handle_reuse_ticket(ctx: Context<ReuseTicket>, room_id: u64, match_no: u32) -> Result<()> {
+    let now = Clock::get()?.unix_timestamp;
+    let (amount, payout, old_room, old_match) = {
+        let old = &ctx.accounts.old_ticket;
+        require!(!old.consumed, BlackoutError::TicketLocked);
+        require!(old.match_no <= ctx.accounts.from_bank.paid_match || now > old.expires_at, BlackoutError::TicketLocked);
+        (old.amount, old.payout, old.room_id, old.match_no)
+    };
+    let stake = {
+        let data = ctx.accounts.room.try_borrow_data()?;
+        require!(data.len() >= 8 + core::mem::size_of::<Room>(), BlackoutError::BadAccount);
+        let room: &Room = bytemuck::from_bytes(&data[8..8 + core::mem::size_of::<Room>()]);
+        require!(room.room_id == room_id, BlackoutError::BadAccount);
+        room.stake
+    };
+    // same stake only: a 0.01 ticket never pays for a 0.05 seat
+    require!(stake > 0 && stake == amount, BlackoutError::NotStaked);
+    let same_table = old_room == room_id;
+    if same_table {
+        // one bank: passing it twice would be two copies of the same account
+        require!(ctx.accounts.to_bank.is_none(), BlackoutError::BadAccount);
+        require!(match_no > ctx.accounts.from_bank.paid_match && match_no != old_match, BlackoutError::NeedTicket);
+    } else {
+        let to_bank = ctx.accounts.to_bank.as_ref().ok_or(BlackoutError::BadAccount)?;
+        require!(to_bank.room_id == room_id, BlackoutError::BadAccount);
+        require!(match_no > to_bank.paid_match, BlackoutError::NeedTicket);
     }
+
+    let t = &mut ctx.accounts.new_ticket;
+    t.room_id = room_id;
+    t.match_no = match_no;
+    t.player = ctx.accounts.player.key();
+    t.payout = payout;
+    t.amount = amount;
+    t.expires_at = now.saturating_add(TICKET_TTL_SECS);
+    t.consumed = false;
+
+    if !same_table {
+        // the stake follows the ticket to its new table's bank
+        let from_ai = ctx.accounts.from_bank.to_account_info();
+        let left = from_ai.lamports().checked_sub(amount).ok_or(BlackoutError::BadAccount)?;
+        **from_ai.try_borrow_mut_lamports()? = left;
+        let to_bank = ctx.accounts.to_bank.as_mut().ok_or(BlackoutError::BadAccount)?;
+        let to_ai = to_bank.to_account_info();
+        let total = to_ai.lamports().checked_add(amount).ok_or(BlackoutError::BadAccount)?;
+        **to_ai.try_borrow_mut_lamports()? = total;
+        to_bank.outstanding = to_bank.outstanding.checked_add(amount).ok_or(BlackoutError::BadAccount)?;
+        to_bank.tickets = to_bank.tickets.checked_add(1).ok_or(BlackoutError::BadAccount)?;
+        let from = &mut ctx.accounts.from_bank;
+        from.outstanding = from.outstanding.checked_sub(amount).ok_or(BlackoutError::BadAccount)?;
+        from.tickets = from.tickets.saturating_sub(1);
+    }
+    // same table: one ticket closes (rent back to the player), one opens; the bank's counts stand
     Ok(())
 }
 
@@ -193,6 +243,39 @@ pub struct CloseTicket<'info> {
     /// CHECK: the ticket's own payout wallet (has_one)
     #[account(mut)]
     pub payout: UncheckedAccount<'info>,
+}
+
+#[derive(Accounts)]
+#[instruction(room_id: u64, match_no: u32)]
+pub struct ReuseTicket<'info> {
+    /// the unused ticket; closed, its rent back to the player who paid it
+    #[account(
+        mut,
+        close = player,
+        has_one = player,
+        seeds = [TICKET_SEED, &old_ticket.room_id.to_le_bytes(), &old_ticket.match_no.to_le_bytes(), player.key().as_ref()],
+        bump
+    )]
+    pub old_ticket: Account<'info, Ticket>,
+    #[account(mut, seeds = [BANK_SEED, &old_ticket.room_id.to_le_bytes()], bump = from_bank.bump)]
+    pub from_bank: Account<'info, Bank>,
+    /// CHECK: the new table's room PDA (delegated: owned by the delegation program on base); read for its stake
+    #[account(seeds = [ROOM_SEED, &room_id.to_le_bytes()], bump)]
+    pub room: UncheckedAccount<'info>,
+    /// the new table's bank; None when it's the same table
+    #[account(mut, seeds = [BANK_SEED, &room_id.to_le_bytes()], bump)]
+    pub to_bank: Option<Account<'info, Bank>>,
+    #[account(
+        init,
+        payer = player,
+        space = TICKET_LEN,
+        seeds = [TICKET_SEED, &room_id.to_le_bytes(), &match_no.to_le_bytes(), player.key().as_ref()],
+        bump
+    )]
+    pub new_ticket: Account<'info, Ticket>,
+    #[account(mut)]
+    pub player: Signer<'info>,
+    pub system_program: Program<'info, System>,
 }
 
 #[action]

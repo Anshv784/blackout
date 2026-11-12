@@ -1,7 +1,8 @@
 // Real-money rules, tested for real against a deployed program:
 //   npx tsx scripts/e2e_money.ts <freshRoomIdBase>
 // Each check prints PASS or FAIL; the process exits 1 if anything failed.
-// Uses 3 room ids from the base: staked table, free room, room to close.
+// Uses 5 room ids from the base: staked table, free room, room to close, a second table at the
+// same stake and one at a higher stake (for carrying unused tickets over).
 import { ComputeBudgetProgram, Keypair, SystemProgram, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import fs from "fs";
 import os from "os";
@@ -53,7 +54,7 @@ async function waitFor(c: BlackoutClient, id: bigint, want: number, ms = 60_000)
 }
 
 // ---------------------------------------------------------------- setup
-const [stakedId, freeId, closeId] = [base, base + 1n, base + 2n];
+const [stakedId, freeId, closeId, otherId, highId] = [base, base + 1n, base + 2n, base + 3n, base + 4n];
 if (!(await admin.base.getAccountInfo(boardPda()))) await admin.initBoard();
 
 const outsider = new BlackoutClient(Keypair.generate());
@@ -67,6 +68,8 @@ console.log(`one room costs ${closeSpent / LAMPORTS_PER_SOL} SOL to open`);
 
 await makeRoom(stakedId, stakeLamports);
 await makeRoom(freeId, 0n);
+await makeRoom(otherId, stakeLamports);
+await makeRoom(highId, stakeLamports * 5n);
 
 const players = Array.from({ length: SEATS + 1 }, () => new BlackoutClient(Keypair.generate()));
 const wallets = players.map(() => Keypair.generate().publicKey);
@@ -85,7 +88,10 @@ await sleep(2000);
 
 await rejects("can't sit at a staked table without a ticket", () => seated[0].sendEr([seated[0].joinIx(stakedId, 0, "A", wallets[0], 0)]));
 await rejects("can't sit using someone else's ticket", () => seated[0].sendEr([seated[0].joinIx(stakedId, 0, "A", wallets[0], 0, tk(1))]));
-await rejects("can't refund a live ticket early", () => seated[0].sendBase([seated[0].closeTicketIx(stakedId, tk(0), wallets[0])]));
+await rejects("an unused ticket can't be refunded", () => seated[0].sendBase([seated[0].closeTicketIx(stakedId, tk(0), wallets[0])]));
+await rejects("a ticket still waiting for its night can't move yet", () =>
+  seated[0].sendBase([seated[0].reuseTicketIx({ pubkey: tk(0), roomId: stakedId }, otherId, 1)]),
+);
 
 for (let i = 0; i < 4; i++) {
   // a different name each time, or the repeat is the same tx and the network drops it as a duplicate
@@ -147,13 +153,31 @@ const loserGot = (await balance(wallets[loser])) - loserBefore;
 check("a loser gets rent back but not their stake", BigInt(loserGot) < stakeLamports && loserGot > 0, `${loserGot / LAMPORTS_PER_SOL} SOL`);
 
 const found = await bystander.myTickets();
-check("the app can find a player's tickets to refund them", found.length === 1 && found[0].pubkey.equals(tk(SEATS)), `${found.length} found`);
-const byBefore = await balance(wallets[SEATS]);
-await outsider.sendBase([outsider.closeTicketIx(stakedId, tk(SEATS), wallets[SEATS])]);
-const byGot = (await balance(wallets[SEATS])) - byBefore;
-check("an unused ticket refunds stake + rent to its wallet, sent by anyone", BigInt(byGot) > stakeLamports, `${byGot / LAMPORTS_PER_SOL} SOL`);
-check("bank is empty afterwards (only rent left)", (await balance(bankPda(stakedId))) === bankRent, `${await balance(bankPda(stakedId))} vs ${bankRent}`);
-await rejects("a ticket can't be refunded twice", () => outsider.sendBase([outsider.closeTicketIx(stakedId, tk(SEATS), wallets[SEATS])]));
+check("the app can find a player's unused ticket", found.length === 1 && found[0].pubkey.equals(tk(SEATS)) && !found[0].consumed, `${found.length} found`);
+await rejects("a ticket the night didn't use is still never refunded", () => outsider.sendBase([outsider.closeTicketIx(stakedId, tk(SEATS), wallets[SEATS])]));
+await rejects("a spent ticket can't move to another night", () => seated[0].sendBase([seated[0].reuseTicketIx({ pubkey: tk(0), roomId: stakedId }, otherId, 1)]));
+const highMatch = ((await admin.fetchRoomBase(highId))!.matchNo) + 1;
+await rejects("an unused ticket can't pay for a seat at a different stake", () =>
+  bystander.sendBase([bystander.reuseTicketIx({ pubkey: tk(SEATS), roomId: stakedId }, highId, highMatch)]),
+);
+// carry it to the other 0.01 table: no new stake, the stake moves bank to bank
+const otherMatch = ((await admin.fetchRoomBase(otherId))!.matchNo) + 1;
+const [bankA0, bankB0, byKey0] = [await balance(bankPda(stakedId)), await balance(bankPda(otherId)), await balance(bystander.publicKey)];
+await bystander.sendBase([bystander.reuseTicketIx({ pubkey: tk(SEATS), roomId: stakedId }, otherId, otherMatch)]);
+const moved = ticketPda(otherId, otherMatch, bystander.publicKey);
+const [bankA1, bankB1, byKey1] = [await balance(bankPda(stakedId)), await balance(bankPda(otherId)), await balance(bystander.publicKey)];
+check("an unused ticket moves to another same-stake table's next night", !(await admin.base.getAccountInfo(tk(SEATS))) && !!(await admin.base.getAccountInfo(moved)));
+check("its stake moves with it, bank to bank", BigInt(bankA0 - bankA1) === stakeLamports && BigInt(bankB1 - bankB0) === stakeLamports, `${(bankA0 - bankA1) / 1e9} out, ${(bankB1 - bankB0) / 1e9} in`);
+check("moving it costs no new stake (only the fee)", byKey0 - byKey1 < 20_000, `${byKey0 - byKey1} lamports`);
+await sleep(2000);
+await bystander.sendEr([bystander.joinIx(otherId, 0, "CARRIED", wallets[SEATS], 0, moved)]);
+const otherRoom = (await admin.fetchRoom(otherId))!;
+check("the moved ticket seats its player at the new table", otherRoom.players[0].equals(bystander.publicKey) && otherRoom.pot === stakeLamports);
+await bystander.sendEr([bystander.leaveIx(otherId, 0)]);
+await rejects("after leaving that lobby the ticket stays put until the table plays (no refund)", () =>
+  bystander.sendBase([bystander.reuseTicketIx({ pubkey: moved, roomId: otherId }, stakedId, 99)]),
+);
+check("the first table's bank keeps only its rent", (await balance(bankPda(stakedId))) === bankRent, `${await balance(bankPda(stakedId))} vs ${bankRent}`);
 await seated[0].sendEr([seated[0].resetIx(stakedId)]);
 check("staked room goes back to the lobby", (await waitFor(admin, stakedId, ST_LOBBY)).nPlayers === 0);
 

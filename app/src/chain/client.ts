@@ -597,7 +597,7 @@ export class BlackoutClient {
 
   /** Every ticket this session key bought, for reclaiming refunds. Layout (Borsh, after the 8-byte
    *  discriminator): room_id u64 · match_no u32 · player · payout · amount u64 · expires_at i64 · consumed. */
-  async myTickets(): Promise<{ pubkey: PublicKey; roomId: bigint; matchNo: number; payout: PublicKey; expiresAt: number; consumed: boolean }[]> {
+  async myTickets(): Promise<{ pubkey: PublicKey; roomId: bigint; matchNo: number; payout: PublicKey; amount: bigint; expiresAt: number; consumed: boolean }[]> {
     const accounts = await this.base.getProgramAccounts(PROGRAM_ID, {
       filters: [{ dataSize: TICKET_LEN }, { memcmp: { offset: 20, bytes: this.publicKey.toBase58() } }],
     });
@@ -608,6 +608,7 @@ export class BlackoutClient {
         roomId: dv.getBigUint64(8, true),
         matchNo: dv.getUint32(16, true),
         payout: new PublicKey(account.data.subarray(52, 84)),
+        amount: dv.getBigUint64(84, true),
         expiresAt: Number(dv.getBigInt64(92, true)),
         consumed: account.data[100] === 1,
       };
@@ -638,6 +639,21 @@ export class BlackoutClient {
 
   closeRoomIx(roomId: bigint) {
     return ix("close_room", {}, [w(roomPda(roomId)), w(bankPda(roomId)), w(this.publicKey, true)]);
+  }
+
+  /** Move an unused ticket to `roomId`'s night `matchNo` (same stake). No new stake: it moves with it. */
+  reuseTicketIx(old: { pubkey: PublicKey; roomId: bigint }, roomId: bigint, matchNo: number) {
+    const sameTable = old.roomId === roomId;
+    return ix("reuse_ticket", { room_id: new BN(roomId.toString()), match_no: matchNo }, [
+      w(old.pubkey),
+      w(bankPda(old.roomId)),
+      r(roomPda(roomId)),
+      // optional account: the program's own id stands for "none" (same table, one bank)
+      sameTable ? r(PROGRAM_ID) : w(bankPda(roomId)),
+      w(ticketPda(roomId, matchNo, this.publicKey)),
+      w(this.publicKey, true),
+      r(SystemProgram.programId),
+    ]);
   }
 
   buyTicketIx(roomId: bigint, matchNo: number, payout: PublicKey) {

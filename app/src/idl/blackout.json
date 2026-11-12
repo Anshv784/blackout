@@ -1521,6 +1521,177 @@
       "args": []
     },
     {
+      "name": "reuse_ticket",
+      "discriminator": [
+        243,
+        221,
+        94,
+        135,
+        104,
+        24,
+        243,
+        241
+      ],
+      "accounts": [
+        {
+          "name": "old_ticket",
+          "docs": [
+            "the unused ticket; closed, its rent back to the player who paid it"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  105,
+                  99,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "old_ticket.room_id",
+                "account": "Ticket"
+              },
+              {
+                "kind": "account",
+                "path": "old_ticket.match_no",
+                "account": "Ticket"
+              },
+              {
+                "kind": "account",
+                "path": "player"
+              }
+            ]
+          }
+        },
+        {
+          "name": "from_bank",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  97,
+                  110,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "old_ticket.room_id",
+                "account": "Ticket"
+              }
+            ]
+          }
+        },
+        {
+          "name": "room",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  111,
+                  111,
+                  109
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "room_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "to_bank",
+          "docs": [
+            "the new table's bank; None when it's the same table"
+          ],
+          "writable": true,
+          "optional": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  97,
+                  110,
+                  107
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "room_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "new_ticket",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  105,
+                  99,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "room_id"
+              },
+              {
+                "kind": "arg",
+                "path": "match_no"
+              },
+              {
+                "kind": "account",
+                "path": "player"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "old_ticket"
+          ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "room_id",
+          "type": "u64"
+        },
+        {
+          "name": "match_no",
+          "type": "u32"
+        }
+      ]
+    },
+    {
       "name": "roll_daily",
       "discriminator": [
         56,

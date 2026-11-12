@@ -2861,3 +2861,4 @@ button {
 /* pinned to the screen, not the (scrollable) page: on phones it opens where you are */
 .sc-overlay{position:fixed!important;inset:0!important;z-index:60;display:grid;place-items:center;overflow-y:auto;padding:16px}
 @media (max-width:520px){.stake-choice h2{font-size:22px}.stake-choice p{font-size:13px}.sc-table b{font-size:17px}}
+.sc-note{font-size:11.5px!important;color:var(--dim);margin-top:-4px}
