@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { NETWORK } from "../config";
 import { useStore } from "../game/store";
 import type { Session } from "../game/session";
 import { viewPda, worldPda } from "../chain/client";
@@ -39,7 +40,7 @@ export function ChainPanel({ session }: { session: Session }) {
           <div>
             <b>Views</b> {stats.viewsRecv} private updates over the TEE websocket
           </div>
-          <div className="dim">Validator: MagicBlock devnet TEE (Intel TDX) · Private Ephemeral Rollup</div>
+          <div className="dim">Validator: MagicBlock {NETWORK} TEE (Intel TDX) · Private Ephemeral Rollup</div>
         </div>
       )}
     </div>

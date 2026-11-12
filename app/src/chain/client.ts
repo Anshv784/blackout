@@ -41,13 +41,14 @@ const BorshCoder = ns.BorshCoder ?? ns["default"]?.BorshCoder;
 // VITE_CLUSTER=mainnet + VITE_BASE_RPC=<a paid RPC URL> switches the whole app to mainnet.
 const env: Record<string, string | undefined> = (import.meta as any).env ?? {};
 export const IS_MAINNET = env.VITE_CLUSTER === "mainnet";
-export const BASE_ENDPOINT = env.VITE_BASE_RPC ?? "https://rpc.magicblock.app/devnet";
+// `||`, not `??`: an unset GitHub variable arrives as an empty string
+export const BASE_ENDPOINT = env.VITE_BASE_RPC || "https://rpc.magicblock.app/devnet";
 export const TEE_ENDPOINT = IS_MAINNET ? "https://mainnet-tee.magicblock.app" : "https://devnet-tee.magicblock.app";
 export const TEE_WS = IS_MAINNET ? "wss://mainnet-tee.magicblock.app" : "wss://devnet-tee.magicblock.app";
 export const TEE_VALIDATOR = new PublicKey("MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo");
 /** Ticket account size: 8 discriminator + room 8 + match 4 + player 32 + payout 32 + amount 8 + expiry 8 + used 1. */
 export const TICKET_LEN = 101;
-export const PROGRAM_ID = new PublicKey(env.VITE_PROGRAM_ID ?? (idl as any).address);
+export const PROGRAM_ID = new PublicKey(env.VITE_PROGRAM_ID || (idl as any).address);
 export const VRF_PROGRAM_ID = new PublicKey("Vrf1RNUjXmQGjmQrQLvJHs9SNkvDJEsRVFPkfSQUwGz");
 export const VRF_EPHEMERAL_QUEUE = new PublicKey("5hBR571xnXppuCPveTrctfTU7tJLSN94nq7kv7FRK5Tc");
 export const SLOT_HASHES = new PublicKey("SysvarS1otHashes111111111111111111111111111");

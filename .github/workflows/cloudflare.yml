@@ -39,6 +39,12 @@ jobs:
       - name: Build
         working-directory: app
         run: npm run build
+        # Mainnet switch: set repository variables VITE_CLUSTER=mainnet and VITE_PROGRAM_ID, and the
+        # secret VITE_BASE_RPC (a domain-restricted mainnet RPC; it ships inside the site). Unset = devnet.
+        env:
+          VITE_CLUSTER: ${{ vars.VITE_CLUSTER }}
+          VITE_PROGRAM_ID: ${{ vars.VITE_PROGRAM_ID }}
+          VITE_BASE_RPC: ${{ secrets.VITE_BASE_RPC }}
 
       - name: Deploy
         if: env.HAS_TOKEN == 'true'

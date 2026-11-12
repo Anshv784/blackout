@@ -2,7 +2,7 @@ import { useState } from "react";
 import { TopBar } from "./TopBar";
 import { go } from "../App";
 import { client } from "../game/identity";
-import { ROOM_POOL, explorerAddr } from "../config";
+import { NETWORK, ROOM_POOL, TEE_HOST, explorerAddr } from "../config";
 import { PROGRAM_ID, TEE_VALIDATOR, boardPda, roomPda, viewPda, worldPda } from "../chain/client";
 import { ST_LIVE, ST_REVEALED, STATUS_NAME } from "../chain/layout";
 
@@ -78,7 +78,7 @@ function PeekConsole() {
           </div>
           <h2>Try to cheat</h2>
           <p>
-            This button asks MagicBlock's TEE validator for three accounts of a real room on devnet, using a token signed by your browser's key. A wallhack would need
+            This button asks MagicBlock's TEE validator for three accounts of a real room on {NETWORK}, using a token signed by your browser's key. A wallhack would need
             the second one.
           </p>
         </div>
@@ -91,7 +91,7 @@ function PeekConsole() {
           <i />
           <i />
           <i />
-          <span>getAccountInfo → devnet-tee.magicblock.app {room && `· ${room}`}</span>
+          <span>getAccountInfo → {TEE_HOST} {room && `· ${room}`}</span>
         </div>
         {!lines.length && !busy && <div className="peek-idle">$ waiting for you to try…</div>}
         {lines.map((l, i) => (
@@ -202,7 +202,7 @@ export function How() {
 
       <header className="how-hero">
         <div className="kicker">
-          <span className="dot" /> BUILT ON MAGICBLOCK · 8 BUILDING BLOCKS · DEVNET
+          <span className="dot" /> BUILT ON MAGICBLOCK · 8 BUILDING BLOCKS · {NETWORK.toUpperCase()}
         </div>
         <h1>
           Fog of war that <em>the chain itself</em> can't break.
@@ -326,7 +326,7 @@ export function How() {
         <svg viewBox="0 0 900 470" className="diagram" role="img" aria-label="BLACKOUT architecture">
           <rect x={10} y={10} width={880} height={300} rx={14} fill="none" stroke="#a64dff" strokeDasharray="6 6" />
           <text x={28} y={36} fill="#a64dff" fontSize={13} fontWeight={700}>
-            PRIVATE EPHEMERAL ROLLUP · Intel TDX TEE · devnet-tee.magicblock.app
+            PRIVATE EPHEMERAL ROLLUP · Intel TDX TEE · {TEE_HOST}
           </text>
           <Box x={30} y={56} w={250} h={110} title="Room (public)" sub={"lobby, names, alive count,\nkill feed, zone circle\npermission: anyone"} tone="#4cc9f0" />
           <Box x={320} y={56} w={250} h={110} title="World (sealed)" sub={"all positions, bullets, loot,\nVRF seed, zone plan\npermission: ZERO readers"} tone="#ef476f" />

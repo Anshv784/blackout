@@ -7,7 +7,7 @@ import type { BoardEntry, Daily, Room } from "../chain/layout";
 import { todayUtc } from "../chain/client";
 import { STATUS_NAME } from "../chain/layout";
 import { boardPda } from "../chain/client";
-import { explorerAddr, STAKED_ROOMS } from "../config";
+import { explorerAddr, NETWORK, STAKED_ROOMS } from "../config";
 import { go } from "../App";
 import { requireRealWallet } from "../game/wallet";
 import { pickStakedTable, stakeLabel } from "../game/rooms";
@@ -191,7 +191,7 @@ export function Board() {
         })}
 
         {!data && !failed && <div className="board-loading"><div className="warden-loader" /> reading the board from Solana…</div>}
-        {failed && <div className="board-loading">Couldn't reach Solana devnet — try again in a moment.</div>}
+        {failed && <div className="board-loading">Couldn't reach Solana {NETWORK} — try again in a moment.</div>}
 
         {data && podium.length === 0 && (
           <div className="throne">

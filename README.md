@@ -222,7 +222,7 @@ The **Operator** page sets how everyone at your table sees you. It's saved on yo
 | Leaderboard | Staked nights (wins and SOL won, written by the `settle` Magic Action) and the daily challenge |
 | How it works | The live *Try to cheat* console, every building block, the timeline and the permission matrix |
 
-**Wallet optional.** Guests play free and gasless with a browser key; nothing is saved and they never appear on the leaderboard. Connecting Phantom, Solflare or Backpack keeps your callsign and lets you play **staked nights**: every staker pays 0.01 SOL into the room's bank, there are no bots, and the Magic Action pays the winner the pot less a 5% house fee. A room that never starts, or a night that can't settle in time, refunds every ticket in full.
+**Wallet optional.** Guests play free and gasless with a browser key; nothing is saved and they never appear on the leaderboard. Connecting Phantom, Solflare or Backpack keeps your callsign and lets you play **staked nights**: pick a 0.01 or 0.05 SOL table, every staker pays the same stake into its bank, there are no bots and no host (a full table starts at once, otherwise a minute after the last staker sits down), the map is drawn from the night's randomness, and the Magic Action pays the winner the pot less a 5% house fee. Stakes aren't refunded: a ticket that wasn't used (you left the lobby, or a night was called off) carries over to a later night at the same stake.
 
 ---
 

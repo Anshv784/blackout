@@ -139,7 +139,7 @@ export function WalletGate() {
             <button className="btn wide" onClick={() => setGuestStep(true)}>
               PLAY AS GUEST
             </button>
-            <small>Guests play the same game — but nothing is saved and you're not ranked. Devnet only; we never ask you to sign a payment to play.</small>
+            <small>Guests play the same game — but nothing is saved and you're not ranked. A free night never asks you to sign a payment.</small>
               </>
             )}
             </div>

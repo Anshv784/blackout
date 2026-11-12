@@ -29,7 +29,7 @@ cargo test
 
 | Where | What |
 |---|---|
-| `programs/blackout/src/instructions/` | The on-chain instructions. `stake.rs` holds all the money (tickets, refunds, settle); `night.rs` runs a night from start to reset; `lobby.rs` handles seats and host controls. |
+| `programs/blackout/src/instructions/` | The on-chain instructions. `stake.rs` holds all the money (tickets, carrying unused ones over, settle); `night.rs` runs a night from start to reset; `lobby.rs` handles seats and host controls. |
 | `programs/blackout/src/sim/` | The game itself: movement, shooting, vision, bots, the zone. It's pure, deterministic Rust with integer and fixed-point maths only, and it runs inside the TEE every tick. |
 | `app/src/game/sim.ts` | A line-for-line TypeScript mirror of the parts of the sim the browser predicts (movement, stamina, throws). |
 | `app/src/chain/` | Instruction builders and account decoders. `layout.ts` must match `state.rs` byte for byte. |

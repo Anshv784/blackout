@@ -70,7 +70,7 @@ About 60 commits in four days.
   - **High: stakes could be stuck forever** after a lost seat race, a vanished host or a dead rollup. Now anyone can send `close_ticket`, which only ever pays the ticket's own wallet.
   - **High: fake leaderboard results** from rooms on a rogue validator. Room creation and delegation are now admin-only, and only to the TEE validator.
   - **High: bot nights froze at tick 59** because every bot pathfound on the same tick and blew the compute budget. Now there's one waypoint search per tick.
-- **Refunds** for rooms that never fill, and a **5% house fee**.
+- **Carry-over tickets** for rooms that never fill (an unused stake moves to a later night, never lost), and a **5% house fee**.
 - **Deploy cost.** A smaller program size, so deploying costs less.
 - **Gameplay.** A daily challenge, "One Light" nights, a death cam, and bot personalities.
 

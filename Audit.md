@@ -81,7 +81,19 @@ Checked and found safe this pass:
 
 Fairness notes (no funds at risk, by design): ties at the 5:00 bell go to the lower seat, and a staked night ends early once every living player has sent no input for 10 s, ranked by health.
 
-## How refunds stay safe
+## Third pass (2026-11-12, staked tables before mainnet)
+
+Three changes to how staked tables work, each reviewed and tested before mainnet:
+
+- **No host at a staked table.** It starts itself: at once when full, otherwise 60 s after the last staker sits down (`STAKED_START_WAIT_SECS`; every new staker restarts it). Any seated staker may send `start_match`; the program checks the countdown (`staked_start_ok`), so an early start is refused. Seat count, bots, mode and host hand-offs are refused at staked tables: shrinking the table to "full" would otherwise skip the countdown. In a staked lobby the otherwise unused `start_slot` field holds the countdown's end, so the account layout is unchanged.
+- **The map is drawn, not picked.** A staked table's map (Yard or Meadow) comes from the night's VRF output in `on_seed`, before spawns are placed. Staked rooms never take the predictable fallback seed, so nobody can steer it.
+- **Stakes are never refunded.** `close_ticket` now only closes a spent ticket (its rent back to the payout wallet). An unused ticket carries over instead: `reuse_ticket` closes it and opens a ticket for the next night of any table with the same stake, moving its stake from one bank to the other. Rules: not spent; its own night has settled without it or it has expired; same stake; the destination night hasn't settled. A ticket still waiting in a lobby that hasn't played stays put (it's good for that table's next night as it is), because the base layer can't see the rollup's lobby and an instant move could buy two seats with one stake.
+
+Found while doing this and fixed before it shipped: the settings lock first landed in `leave` instead of the four settings instructions, which would have stopped stakers leaving a staked lobby.
+
+Accepted trade-off: with no refund path, a staked room holding anyone's unused ticket can't be closed, and if the rollup stopped for good, unused tickets would stay locked.
+
+## How refunds stayed safe (before 2026-11-12; carry-over now uses the same timing rules)
 
 A ticket can't be refunded and also ride in a match:
 

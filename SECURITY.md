@@ -16,7 +16,7 @@ Please don't test against other players' rooms or stakes. Create your own rooms 
 
 ## What's in scope
 
-- **Money:** anything that lets someone take, lock up or inflate stakes. That covers `buy_ticket`, `join`, `leave`, `start_match`, `finish`, `settle`, `close_ticket`, `reset` and the admin close paths.
+- **Money:** anything that lets someone take, lock up or inflate stakes. That covers `buy_ticket`, `join`, `leave`, `start_match`, `finish`, `settle`, `close_ticket`, `reuse_ticket`, `reset` and the admin close paths.
 - **Hidden information:** reading the sealed World, another seat's View or the recorder before lights-on. Learning the VRF seed or a future zone early also counts.
 - **Fairness:** influencing the result of a night outside the game's rules, for example ending it early, forcing a tie or predicting loot.
 - **The website:** anything that lets one player act as another, or that runs script in another player's browser.

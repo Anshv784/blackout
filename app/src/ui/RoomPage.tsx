@@ -268,7 +268,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
       if (staked) {
         const { provider } = await import("../game/wallet");
         const sol = provider();
-        if (!sol) throw new Error("Staked rooms need a Solana wallet (Phantom) on devnet");
+        if (!sol) throw new Error("Staked tables need a Solana wallet, like Phantom. Install one and try again.");
         const pk = await connectWallet();
         await session.reclaimTickets();
         await session.buyTicket(sol);

@@ -19,5 +19,9 @@ export const PRIVATE_POOL = PRIVATE_ROOMS;
 
 export const SITE_URL = typeof window !== "undefined" ? window.location.origin + window.location.pathname : "";
 export const roomLink = (id: bigint | number) => `${SITE_URL}#/r/${id}`;
-export const explorerAddr = (a: string, cluster = "devnet") => `https://explorer.solana.com/address/${a}?cluster=${cluster}`;
-export const explorerTx = (s: string) => `https://explorer.solana.com/tx/${s}?cluster=devnet`;
+/** which Solana network this build plays on, for text and links (VITE_CLUSTER at build time) */
+export const NETWORK = MAINNET ? "mainnet" : "devnet";
+export const TEE_HOST = MAINNET ? "mainnet-tee.magicblock.app" : "devnet-tee.magicblock.app";
+const cluster = MAINNET ? "" : "?cluster=devnet";
+export const explorerAddr = (a: string) => `https://explorer.solana.com/address/${a}${cluster}`;
+export const explorerTx = (s: string) => `https://explorer.solana.com/tx/${s}${cluster}`;
