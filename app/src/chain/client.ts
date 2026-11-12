@@ -500,6 +500,11 @@ export class BlackoutClient {
     return ix("set_size", { max_players: maxPlayers }, [r(this.publicKey, true), w(roomPda(roomId))]);
   }
 
+  /** a guest in a free room asks the host to start the night */
+  askStartIx(roomId: bigint) {
+    return ix("ask_start", {}, [r(this.publicKey, true), w(roomPda(roomId))]);
+  }
+
   heartbeatIx(roomId: bigint) {
     return ix("heartbeat", {}, [r(this.publicKey, true), w(roomPda(roomId))]);
   }

@@ -8,6 +8,30 @@
   },
   "instructions": [
     {
+      "name": "ask_start",
+      "discriminator": [
+        110,
+        239,
+        61,
+        193,
+        66,
+        105,
+        48,
+        60
+      ],
+      "accounts": [
+        {
+          "name": "player",
+          "signer": true
+        },
+        {
+          "name": "room",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "buy_ticket",
       "discriminator": [
         11,

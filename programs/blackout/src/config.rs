@@ -36,6 +36,9 @@ pub const SETTLE_MARGIN_SECS: i64 = 300;
 /// A staked table with two or more stakers seated starts this long after the last one sat down
 /// (a full table starts at once). There is no host: any seated staker's game may start it.
 pub const STAKED_START_WAIT_SECS: i64 = 60;
+/// ...but a staked lobby never waits longer than this from its first countdown, so leaving and
+/// sitting down again can't hold a table forever
+pub const STAKED_MAX_WAIT_SECS: i64 = 180;
 
 /// The daily prize: tables at exactly this stake (0.05 SOL) feed it. Of each such pot's 5% fee,
 /// PRIZE_BPS (2%) goes to the prize and the rest to the treasury.

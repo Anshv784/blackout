@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use bytemuck::{Pod, Zeroable};
 
-use crate::config::STAKED_START_WAIT_SECS;
+use crate::config::{STAKED_MAX_WAIT_SECS, STAKED_START_WAIT_SECS};
 
 pub const MAXP: usize = 8;
 pub const MAXB: usize = 32;
@@ -113,17 +113,40 @@ impl Room {
         (0..MAXP).filter(|&i| self.players[i] != Pubkey::default() && self.is_bot[i] == 0).count()
     }
 
-    /// A staked lobby has no host: once two stakers are seated a countdown runs, and every new
-    /// staker (`restart`) starts it again. Fewer than two seated: no countdown.
-    pub fn arm_staked_start(&mut self, now: i64, restart: bool) {
+    /// A staked lobby has no host: once two stakers are seated a countdown runs. Only a seat count
+    /// the lobby hasn't reached before (`joined`) starts it again, so leaving and sitting back down
+    /// doesn't, and it never runs past STAKED_MAX_WAIT_SECS from the first countdown. Fewer than two
+    /// seated: no countdown, and the cap starts over (so whoever sits down next still gets the full
+    /// wait). With three or more seated, nobody can stall it by leaving and coming back.
+    ///
+    /// In a staked lobby `last_tick_slot` (unused until the night begins, which clears it) holds the
+    /// first countdown's unix time (low 32 bits) and the most stakers seated so far (bits 32-39).
+    pub fn arm_staked_start(&mut self, now: i64, joined: bool) {
         if self.stake == 0 || self.status != ST_LOBBY {
             return;
         }
-        if self.humans() < 2 {
+        let n = self.humans();
+        if n == 0 {
             self.start_slot = 0;
-        } else if restart || self.start_slot == 0 {
-            self.start_slot = now.saturating_add(STAKED_START_WAIT_SECS).max(0) as u64;
+            self.last_tick_slot = 0;
+            return;
         }
+        let mut first = (self.last_tick_slot & 0xffff_ffff) as i64;
+        let high = ((self.last_tick_slot >> 32) & 0xff) as usize;
+        if n < 2 {
+            self.start_slot = 0;
+            self.last_tick_slot = (n as u64) << 32;
+            return;
+        } else {
+            if first == 0 {
+                first = now;
+            }
+            if (joined && n > high) || self.start_slot == 0 {
+                let at = now.saturating_add(STAKED_START_WAIT_SECS).min(first.saturating_add(STAKED_MAX_WAIT_SECS));
+                self.start_slot = at.max(0) as u64;
+            }
+        }
+        self.last_tick_slot = (first.max(0) as u64 & 0xffff_ffff) | ((high.max(n) as u64 & 0xff) << 32);
     }
 
     /// May this staked table start now? A full table at once; otherwise two or more stakers and
@@ -629,6 +652,72 @@ mod staked_start_tests {
         assert!(!r.staked_start_ok(1_010));
         assert!(!r.staked_start_ok(1_010 + STAKED_START_WAIT_SECS - 1));
         assert!(r.staked_start_ok(1_010 + STAKED_START_WAIT_SECS));
+    }
+
+    fn stand(r: &mut Room, i: usize, now: i64) {
+        r.players[i] = Pubkey::default();
+        r.n_players -= 1;
+        r.arm_staked_start(now, false);
+    }
+    fn rejoin(r: &mut Room, i: usize, now: i64) {
+        r.players[i] = Pubkey::new_unique();
+        r.n_players += 1;
+        r.arm_staked_start(now, true);
+    }
+
+    #[test]
+    fn leaving_and_sitting_back_down_doesnt_restart_the_countdown() {
+        let mut r = table();
+        sit(&mut r, 0, 1_000);
+        sit(&mut r, 1, 1_000);
+        sit(&mut r, 2, 1_000);
+        let due = r.start_slot;
+        stand(&mut r, 2, 1_050);
+        rejoin(&mut r, 2, 1_055);
+        assert_eq!(r.start_slot, due);
+        assert!(r.staked_start_ok(1_000 + STAKED_START_WAIT_SECS));
+    }
+
+    #[test]
+    fn a_staker_leaving_and_coming_back_cant_stall_three_or_more() {
+        let mut r = table();
+        sit(&mut r, 0, 1_000);
+        sit(&mut r, 1, 1_000);
+        sit(&mut r, 2, 1_000);
+        // one of them leaves and comes back every 50 s
+        let mut t = 1_000;
+        for _ in 0..10 {
+            t += 50;
+            stand(&mut r, 1, t);
+            rejoin(&mut r, 1, t + 1);
+        }
+        assert!(r.staked_start_ok(1_000 + STAKED_MAX_WAIT_SECS));
+    }
+
+    #[test]
+    fn new_stakers_never_push_past_three_minutes() {
+        let mut r = table();
+        sit(&mut r, 0, 1_000);
+        sit(&mut r, 1, 1_000); // first countdown: 1_000
+        for i in 2..7 {
+            sit(&mut r, i, 1_000 + 40 * i as i64);
+        }
+        assert!(r.start_slot as i64 <= 1_000 + STAKED_MAX_WAIT_SECS);
+        assert!(r.staked_start_ok(1_000 + STAKED_MAX_WAIT_SECS));
+    }
+
+    #[test]
+    fn an_emptied_lobby_starts_fresh() {
+        let mut r = table();
+        sit(&mut r, 0, 1_000);
+        sit(&mut r, 1, 1_000);
+        stand(&mut r, 0, 1_500);
+        stand(&mut r, 1, 1_500);
+        assert_eq!((r.start_slot, r.last_tick_slot), (0, 0));
+        sit(&mut r, 0, 2_000);
+        sit(&mut r, 1, 2_000);
+        assert!(!r.staked_start_ok(2_000 + STAKED_START_WAIT_SECS - 1));
+        assert!(r.staked_start_ok(2_000 + STAKED_START_WAIT_SECS));
     }
 
     #[test]

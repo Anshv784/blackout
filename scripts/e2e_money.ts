@@ -111,6 +111,15 @@ for (let i = 1; i < SEATS - 1; i++) await seated[i].sendEr([seated[i].joinIx(sta
 room = (await admin.fetchRoom(stakedId))!;
 check("a staked table has no host", room.host.equals(PublicKey.default));
 check("countdown armed once two or more stakers sit", room.startSlot > 0n, `start_slot ${room.startSlot}`);
+{
+  const due = room.startSlot;
+  await sleep(2000);
+  await seated[1].sendEr([ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 7 }), seated[1].leaveIx(stakedId, 1)]);
+  await sleep(1500);
+  await seated[1].sendEr([seated[1].joinIx(stakedId, 1, "P1b", wallets[1], 0, tk(1))]);
+  room = (await admin.fetchRoom(stakedId))!;
+  check("leaving and sitting back down doesn't restart the countdown", room.startSlot === due, `${room.startSlot} vs ${due}`);
+}
 await rejects("nobody can start a staked table before its countdown ends", () => seated[1].sendEr([seated[1].startIx(stakedId, 0)]));
 await rejects("seat count can't be changed at a staked table (would skip the countdown)", () => seated[0].sendEr([seated[0].setSizeIx(stakedId, SEATS - 1)]));
 await seated[SEATS - 1].sendEr([seated[SEATS - 1].joinIx(stakedId, SEATS - 1, `P${SEATS - 1}`, wallets[SEATS - 1], 0, tk(SEATS - 1))]);

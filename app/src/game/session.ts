@@ -344,6 +344,16 @@ export class Session {
       if (prev.aliveCount > 3 && r.aliveCount === 3) banner("FINAL THREE", "event");
       else if (prev.aliveCount > 2 && r.aliveCount === 2) banner("LAST TWO STANDING", "event", "one of you walks out");
     }
+    // a guest asked the host (me) to start: show it, once per ask
+    if (prev && r.status === ST_LOBBY && r.stake === 0n && r.startSlot !== 0n && r.startSlot !== prev.startSlot && r.host.equals(client.publicKey)) {
+      const name = r.names[Number(r.lastTickSlot)] || "A player";
+      const st = useStore.getState();
+      if (!st.startAsk || Date.now() - st.startAsk.at > 5000) {
+        st.set({ startAsk: { name, at: Date.now() } });
+        st.toast(`${name} is ready: start the night when you are`);
+        audio.countdown();
+      }
+    }
     if (prev && prev.status !== r.status) {
       if (r.status === ST_STARTING || r.status === ST_COUNTDOWN) {
         this.crates = [];
@@ -1004,6 +1014,11 @@ export class Session {
   async setSize(n: number) {
     await client.sendEr([client.setSizeIx(this.roomId, n)]);
     await this.poll();
+  }
+
+  /** ask the host to start (free rooms, not the host) */
+  async askStart() {
+    await client.sendEr([client.askStartIx(this.roomId)]);
   }
 
   async startMatch(fillTo: number) {

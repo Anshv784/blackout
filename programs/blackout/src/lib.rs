@@ -139,6 +139,10 @@ pub mod blackout {
         instructions::lobby::handle_heartbeat(ctx)
     }
 
+    pub fn ask_start(ctx: Context<Heartbeat>) -> Result<()> {
+        instructions::lobby::handle_ask_start(ctx)
+    }
+
     pub fn leave<'info>(ctx: Context<'info, RoomAccount<'info>>, seat: u8) -> Result<()> {
         instructions::lobby::handle_leave(ctx, seat)
     }

@@ -57,7 +57,7 @@ pub fn handle_join<'info>(ctx: Context<'info, RoomAccount<'info>>, seat: u8, nam
         room.last_seen[s] = slot as u32;
         room.n_players += 1;
         room.sync_pot();
-        room.arm_staked_start(now, true); // every new staker starts the countdown again
+        room.arm_staked_start(now, true); // a new high in stakers starts the countdown again (capped)
         room.room_id.to_le_bytes()
     };
     set_view_members(&ctx, &rid_bytes, seat, members_for(player))
@@ -141,6 +141,23 @@ pub fn handle_set_size(ctx: Context<Heartbeat>, max_players: u8) -> Result<()> {
         require!(room.players[i] == Pubkey::default() || room.is_bot[i] == 1, BlackoutError::SeatTaken);
     }
     room.cfg = (room.cfg & !0xff) | m as u32;
+    Ok(())
+}
+
+/// A guest in a free room asks the host to start the night. In a free lobby `start_slot` and
+/// `last_tick_slot` are unused (the night's start overwrites both), so they carry the request:
+/// when it was asked and from which seat. The host's game shows it.
+pub fn handle_ask_start(ctx: Context<Heartbeat>) -> Result<()> {
+    let slot = Clock::get()?.slot;
+    let mut room = ctx.accounts.room.load_mut()?;
+    require!(room.status == ST_LOBBY, BlackoutError::NotInLobby);
+    require!(room.stake == 0, BlackoutError::NotReady);
+    let player = ctx.accounts.player.key();
+    let seat = room.seat_of(&player).ok_or(BlackoutError::NotSeated)?;
+    require!(room.host != player, BlackoutError::NotReady);
+    room.start_slot = slot;
+    room.last_tick_slot = seat as u64;
+    room.last_seen[seat] = slot as u32;
     Ok(())
 }
 

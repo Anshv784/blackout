@@ -35,6 +35,8 @@ interface State {
   stats: ChainStats;
   reveal: { world: World | null; rec: Recording | null } | null;
   toasts: FeedItem[];
+  /** a guest asked the host to start (free rooms): who and when (ms) */
+  startAsk: { name: string; at: number } | null;
   setRoute: (r: Route) => void;
   set: (p: Partial<State>) => void;
   toast: (text: string, mine?: boolean) => void;
@@ -67,6 +69,7 @@ export const useStore = create<State>((set, get) => ({
   stats: { tick: 0, tps: 0, rtt: 0, txSent: 0, viewsRecv: 0, lastSig: "", sealed: true },
   reveal: null,
   toasts: [],
+  startAsk: null,
   setRoute: (route) => set({ route }),
   set: (p) => set(p),
   toast: (text, mine = false) => {

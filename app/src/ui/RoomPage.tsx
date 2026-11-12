@@ -170,6 +170,15 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
   const mySeat = useStore((s) => s.mySeat);
   const wallet = useStore((s) => s.wallet);
   const [busy, setBusy] = useState<string | null>(null);
+  const startAsk = useStore((s) => s.startAsk);
+  const [askedAt, setAskedAt] = useState(0);
+  const [, setNow] = useState(0);
+  useEffect(() => {
+    // the "asked" states fade after 15 s
+    if (!startAsk && !askedAt) return;
+    const k = window.setTimeout(() => setNow(Date.now()), 15100);
+    return () => clearTimeout(k);
+  }, [startAsk, askedAt]);
   const [fill, setFill] = useState(6);
   const [copied, setCopied] = useState(false);
   const quick = useRef(flags().get("quick") === "1");
@@ -557,11 +566,12 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
           ) : staked && mySeat !== null && !isDaily ? (
             <StakedCountdown room={room} />
           ) : canStart ? (
-            <button className="btn primary huge" disabled={!!busy || (staked ? humans < 2 : size < 2)} onClick={() => {
+            <button className={`btn primary huge ${startAsk && Date.now() - startAsk.at < 15000 ? "asked" : ""}`} disabled={!!busy || (staked ? humans < 2 : size < 2)} onClick={() => {
               fullscreenOnTouch();
               run("start", () => session.startMatch(staked ? 0 : size));
             }}>
               {busy === "start" ? "WAKING THE WARDEN…" : staked && humans < 2 ? `WAITING FOR ${2 - humans} MORE STAKER` : "START THE NIGHT"}
+              {startAsk && Date.now() - startAsk.at < 15000 && <small>{startAsk.name} is ready to play</small>}
             </button>
           ) : (
             <div className="waiting-card">
@@ -572,6 +582,20 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
                   {humans} of {size} seats taken · empty ones get bots
                 </span>
               </div>
+              {mySeat !== null && !staked && (
+                <button
+                  className="btn wc-ask"
+                  disabled={!!busy || Date.now() - askedAt < 15000}
+                  onClick={() =>
+                    run("ask", async () => {
+                      await session.askStart();
+                      setAskedAt(Date.now());
+                    })
+                  }
+                >
+                  {busy === "ask" ? "ASKING…" : Date.now() - askedAt < 15000 ? "ASKED ✓" : "ASK TO START"}
+                </button>
+              )}
             </div>
           )}
           <div className="dock-seats">
@@ -712,7 +736,7 @@ function StakedCountdown({ room }: { room: Room }) {
               : `Starts in 0:${String(left).padStart(2, "0")}`}
         </b>
         <span>
-          {seated} of {room.maxPlayers} seats · {at === null ? "the night starts itself once two are in" : "every new staker resets the clock · full table starts at once"}
+          {seated} of {room.maxPlayers} seats · {at === null ? "the night starts itself once two are in" : "a new staker adds time, never past 3 min · full table starts at once"}
         </span>
       </div>
     </div>
