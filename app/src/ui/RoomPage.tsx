@@ -7,7 +7,7 @@ import { PublicKey } from "@solana/web3.js";
 import { Session, stakedStartAt, stakersSeated } from "../game/session";
 import { useStore } from "../game/store";
 import { client } from "../game/identity";
-import { ST_LOBBY, ST_STARTING, ST_COUNTDOWN, ST_LIVE, ST_ENDED, ST_REVEALED, STATUS_NAME, type Room } from "../chain/layout";
+import { ST_LOBBY, ST_STARTING, ST_COUNTDOWN, ST_LIVE, ST_ENDED, ST_REVEALED, STATUS_NAME, BOT_LEVEL_NAME, type Room } from "../chain/layout";
 import { Hud } from "./Hud";
 import { Reveal } from "./Reveal";
 import { TouchControls, useTouch } from "./TouchControls";
@@ -218,7 +218,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
       if (o) setShowOther(true);
     });
   }, [room.roomId, mySeat]);
-  const LEVELS = ["MEDIUM", "EASY", "HARD"];
+  const LEVELS = BOT_LEVEL_NAME.map((n) => n.toUpperCase());
   // you were seated, the host is still here, and you didn't leave: the host removed you
   const wasIn = useRef(false);
   const leaving = useRef(false);
@@ -624,7 +624,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
               {!canStart ? (
                 <div className="ns-chips">
                   <span><i>SEATS</i>{size}</span>
-                  <span><i>BOTS</i>{["Easy", "Medium", "Hard"][room.botLevel] ?? "Easy"}</span>
+                  <span><i>BOTS</i>{BOT_LEVEL_NAME[room.botLevel] ?? "Medium"}</span>
                   <span><i>MODE</i>{room.duos ? "Duos" : "Solo"}</span>
                   <span><i>MAP</i>{room.map === 1 ? "Meadow" : "Yard"}</span>
                 </div>
@@ -647,7 +647,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
                 <div className="seg">
                   {[1, 0, 2].map((lv) => (
                     <button key={lv} className={room.botLevel === lv ? "on" : ""} disabled={!canStart || !!busy} onClick={() => room.botLevel !== lv && run("bots", () => session.setBots(lv))}>
-                      {["Medium", "Easy", "Hard"][lv]}
+                      {BOT_LEVEL_NAME[lv]}
                     </button>
                   ))}
                 </div>

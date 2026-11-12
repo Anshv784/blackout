@@ -263,6 +263,8 @@ export const VIS_WATCHED = 1024;
 export const VIS_GHILLIE = 2048;
 export const LOOT_GHILLIE = 18;
 /** Bot personalities (mirror of sim/rules.rs bot_style: public room data, never the seed) */
+/** bot difficulty by `botLevel` (cfg bits 9-10): the program numbers them 0 medium, 1 easy, 2 hard */
+export const BOT_LEVEL_NAME = ["Medium", "Easy", "Hard"];
 export const BOT_STYLE = ["", "CAMPER", "STALKER", "RUSHER"];
 export const botStyle = (matchNo: number, seat: number) => BOT_STYLE[(matchNo + seat) % 4];
 export const NIGHT_MOD_SUB = [
