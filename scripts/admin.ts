@@ -7,6 +7,8 @@
 //   DAILY_PREFUND_SOL=0.05 npx tsx scripts/admin.ts daily   (the daily board commits about once a day)
 //   npx tsx scripts/admin.ts close 1 2 3        (get the rooms' SOL back)
 //   npx tsx scripts/admin.ts close-board
+//   npx tsx scripts/admin.ts fund [ids]          (table fund + each staked table's MagicBlock wallet)
+//   npx tsx scripts/admin.ts refill <ids>        (top a staked table up from the fund now)
 //   npx tsx scripts/admin.ts prize              (create the daily challenge prize account, ~0.03 SOL rent)
 //   npx tsx scripts/admin.ts daily              (create + delegate the daily board)
 // Mainnet: ADMIN_KEY=~/.config/solana/blackout-mainnet.json VITE_CLUSTER=mainnet VITE_BASE_RPC=... VITE_PROGRAM_ID=...
@@ -15,7 +17,7 @@
 import { Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import fs from "fs";
 import os from "os";
-import { BlackoutClient, roomPda, worldPda, recPda, viewPda, boardPda, dailyPda, prizePda, DELEGATION_PROGRAM_ID } from "../app/src/chain/client.ts";
+import { BlackoutClient, roomPda, worldPda, recPda, viewPda, boardPda, dailyPda, prizePda, fundPda, DELEGATION_PROGRAM_ID } from "../app/src/chain/client.ts";
 
 const keyFile = process.env.ADMIN_KEY ?? `${os.homedir()}/.config/solana/blackout-devnet.json`;
 const admin = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(keyFile, "utf8"))));
@@ -85,6 +87,17 @@ if (cmd === "board") {
   else console.log("prize", prizePda().toBase58(), await c.sendBase([c.initPrizeIx()]));
   const p = await c.fetchPrize();
   console.log(`day ${p?.day} pot ${p?.pot} players ${p?.entries.length} last winner ${p?.lastWinner.toBase58()} prize ${p?.lastPrize} claimed ${p?.lastClaimed}`);
+} else if (cmd === "fund") {
+  // the table fund (0.001 SOL of the fee per staked night) and each staked table's MagicBlock wallet
+  const tee = await c.teeConn();
+  console.log("table fund", fundPda().toBase58(), (await c.base.getBalance(fundPda())) / LAMPORTS_PER_SOL, "SOL");
+  for (const a of args.length ? args : ["11", "12"]) {
+    const id = BigInt(a);
+    console.log(`table ${id}: wallet in the rollup ${(await tee.getBalance(roomPda(id))) / LAMPORTS_PER_SOL} SOL, needs a top-up: ${await c.tableNeedsRefill(id)}`);
+  }
+} else if (cmd === "refill") {
+  // top a staked table up from the table fund now (players' games do this on their own when it's low)
+  for (const a of args) console.log(`table ${a} refilled from the fund`, await c.sendBase([c.refillTableIx(BigInt(a))]));
 } else if (cmd === "close-board") {
   console.log("board closed", await c.sendBase([c.closeBoardIx()]));
 } else console.log("usage: board | prize | rooms <ids...> | room <id> <stakeSol> <code> | close <ids...> | close-board");

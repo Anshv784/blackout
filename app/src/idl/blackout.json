@@ -696,6 +696,30 @@
       "args": []
     },
     {
+      "name": "expire_lobby",
+      "discriminator": [
+        61,
+        190,
+        61,
+        11,
+        31,
+        211,
+        163,
+        110
+      ],
+      "accounts": [
+        {
+          "name": "player",
+          "signer": true
+        },
+        {
+          "name": "room",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "fallback_seed",
       "discriminator": [
         167,
@@ -1552,6 +1576,119 @@
       ]
     },
     {
+      "name": "refill_table",
+      "discriminator": [
+        103,
+        184,
+        29,
+        63,
+        194,
+        109,
+        2,
+        83
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "fund",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  98,
+                  108,
+                  101,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "room",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  111,
+                  111,
+                  109
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "room_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "espl_program",
+          "address": "SPLxh1LVZzEkX99H6rqYizhytLWPZVV296zyYDPagv2"
+        },
+        {
+          "name": "rent_pda",
+          "writable": true
+        },
+        {
+          "name": "lamports_pda",
+          "writable": true
+        },
+        {
+          "name": "delegate_buffer",
+          "writable": true
+        },
+        {
+          "name": "delegation_record",
+          "writable": true
+        },
+        {
+          "name": "delegation_metadata",
+          "writable": true
+        },
+        {
+          "name": "delegation_program"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "room_delegation_record"
+        }
+      ],
+      "args": [
+        {
+          "name": "room_id",
+          "type": "u64"
+        },
+        {
+          "name": "salt",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "reset",
       "discriminator": [
         23,
@@ -2093,6 +2230,29 @@
                   105,
                   122,
                   101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "fund",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  98,
+                  108,
+                  101,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100
                 ]
               }
             ]
@@ -3473,6 +3633,10 @@
           },
           {
             "name": "stake_deadline",
+            "docs": [
+              "staked rooms: earliest ticket expiry among those seated. Free rooms in the lobby: unix time",
+              "the lobby opened (0 = unknown), see `lobby_overdue`."
+            ],
             "type": "i64"
           }
         ]

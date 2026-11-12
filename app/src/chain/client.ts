@@ -23,6 +23,9 @@ import {
   PERMISSION_PROGRAM_ID,
   createTopUpEscrowInstruction,
   delegateBufferPdaFromDelegatedAccountAndOwnerProgram,
+  deriveLamportsPda,
+  deriveRentPda,
+  EPHEMERAL_SPL_TOKEN_PROGRAM_ID,
   delegationMetadataPdaFromDelegatedAccount,
   delegationRecordPdaFromDelegatedAccount,
   escrowPdaFromEscrowAuthority,
@@ -88,6 +91,13 @@ export const viewPda = (roomId: bigint | number, seat: number) => pda([Buffer.fr
 export const bankPda = (roomId: bigint | number) => pda([Buffer.from("bank"), u64le(roomId)]);
 export const boardPda = () => pda([Buffer.from("board3")]);
 export const prizePda = () => pda([Buffer.from("prize")]);
+/** the table fund: each staked night's 0.001 SOL, used to top up the tables' MagicBlock wallets */
+export const fundPda = () => pda([Buffer.from("table_fund")]);
+/** a staked table's MagicBlock wallet gets topped up below this (config.rs TABLE_REFILL is 0.02) */
+export const TABLE_LOW = 20_000_000;
+export const TABLE_REFILL = 20_000_000;
+/** what MagicBlock's transfer costs the fund on top (config.rs TABLE_REFILL_OVERHEAD) */
+export const TABLE_REFILL_OVERHEAD = 5_000_000;
 export const dailyPda = () => pda([Buffer.from("daily")]);
 export const dailySecretPda = () => pda([Buffer.from("daily-seed")]);
 /** `delegate_room` with this id delegates the daily board (mirror of config.rs DAILY_ID). */
@@ -275,6 +285,38 @@ export class BlackoutClient {
   }
 
   /** The day's winner takes the prize (signed by their wallet, which receives it). */
+  /** Move 0.02 SOL from the table fund into a staked table's MagicBlock wallet (anyone may send it). */
+  refillTableIx(roomId: bigint) {
+    const fund = fundPda();
+    const room = roomPda(roomId);
+    const salt = crypto.getRandomValues(new Uint8Array(32));
+    const [lamports] = deriveLamportsPda(fund, room, salt);
+    return ix("refill_table", { room_id: new BN(roomId.toString()), salt: Array.from(salt) }, [
+      w(this.publicKey, true),
+      w(fund),
+      w(room),
+      r(EPHEMERAL_SPL_TOKEN_PROGRAM_ID),
+      w(deriveRentPda()[0]),
+      w(lamports),
+      w(delegateBufferPdaFromDelegatedAccountAndOwnerProgram(lamports, EPHEMERAL_SPL_TOKEN_PROGRAM_ID)),
+      w(delegationRecordPdaFromDelegatedAccount(lamports)),
+      w(delegationMetadataPdaFromDelegatedAccount(lamports)),
+      r(DELEGATION_PROGRAM_ID),
+      r(SystemProgram.programId),
+      r(delegationRecordPdaFromDelegatedAccount(room)),
+    ]);
+  }
+
+  /** a staked table whose MagicBlock wallet is low, and a fund that can top it up */
+  async tableNeedsRefill(roomId: bigint) {
+    const [inRollup, fund, rent] = await Promise.all([
+      this.teeConn().then((t) => t.getBalance(roomPda(roomId))),
+      this.base.getBalance(fundPda()),
+      this.base.getMinimumBalanceForRentExemption(0),
+    ]);
+    return inRollup < TABLE_LOW && fund >= TABLE_REFILL + TABLE_REFILL_OVERHEAD + rent;
+  }
+
   claimPrizeIx(winner: PublicKey) {
     return ix("claim_prize", {}, [w(prizePda()), w(TREASURY), w(winner, true)]);
   }
@@ -498,6 +540,11 @@ export class BlackoutClient {
 
   setSizeIx(roomId: bigint, maxPlayers: number) {
     return ix("set_size", { max_players: maxPlayers }, [r(this.publicKey, true), w(roomPda(roomId))]);
+  }
+
+  /** a private lobby past its time limit: anyone may clear it so the room frees up */
+  expireLobbyIx(roomId: bigint) {
+    return ix("expire_lobby", {}, [r(this.publicKey, true), w(roomPda(roomId))]);
   }
 
   /** a guest in a free room asks the host to start the night */

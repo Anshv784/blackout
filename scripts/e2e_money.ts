@@ -6,7 +6,7 @@
 import { ComputeBudgetProgram, Keypair, SystemProgram, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import fs from "fs";
 import os from "os";
-import { BlackoutClient, roomPda, bankPda, ticketPda, boardPda, recPda, prizePda, TREASURY } from "../app/src/chain/client.ts";
+import { BlackoutClient, roomPda, bankPda, ticketPda, boardPda, recPda, prizePda, fundPda, TREASURY } from "../app/src/chain/client.ts";
 import { STATUS_NAME, ST_ENDED, ST_LOBBY, ST_LIVE, ST_COUNTDOWN } from "../app/src/chain/layout.ts";
 
 const base = BigInt(process.argv[2] ?? 900);
@@ -138,6 +138,7 @@ const winnerWallet = room.payout[winner];
 check("a human won", winner < SEATS && winnerWallet.equals(wallets[winner]), `seat ${winner}`);
 const before = await balance(winnerWallet);
 const treasuryBefore = await balance(admin.publicKey);
+const fundBefore = await balance(fundPda());
 await rejects("finish refuses a wrong winner account", () => seated[1].sendEr([seated[1].finishIx(stakedId, wallets[(winner + 1) % SEATS])]));
 await seated[1].sendEr([seated[1].finishIx(stakedId, winnerWallet)]);
 let got = 0;
@@ -149,7 +150,9 @@ const pot = stakeLamports * BigInt(SEATS);
 const fee = pot / 20n;
 check("winner is paid the pot less 5%", BigInt(got) === pot - fee, `${got / LAMPORTS_PER_SOL} SOL`);
 const earned = (await balance(admin.publicKey)) - treasuryBefore;
-check("treasury receives exactly the 5% fee", BigInt(earned) === fee, `${earned / LAMPORTS_PER_SOL} SOL`);
+const funded = (await balance(fundPda())) - fundBefore;
+check("the table fund gets 0.001 SOL of the fee", funded === 1_000_000, `${funded / LAMPORTS_PER_SOL} SOL`);
+check("treasury receives the rest of the 5% fee", BigInt(earned) === fee - 1_000_000n, `${earned / LAMPORTS_PER_SOL} SOL`);
 
 // ---------------------------------------------------------------- refunds
 const ticket0 = await admin.base.getAccountInfo(tk(0));
@@ -232,7 +235,7 @@ check("sending SOL to a bank can't block closing its room", stakedClosed && !(aw
   const hpot = highStake * 2n;
   const hfee = hpot / 20n;
   const cut = (hpot * 200n) / 10_000n;
-  const [tB, pB, wB] = await Promise.all([balance(TREASURY), balance(prizePda()), balance(hw)]);
+  const [tB, pB, wB, fB] = await Promise.all([balance(TREASURY), balance(prizePda()), balance(hw), balance(fundPda())]);
   await duo[0].sendEr([duo[0].finishIx(highId, hw)]);
   let paid = 0;
   for (let i = 0; i < 40 && !paid; i++) {
@@ -240,8 +243,9 @@ check("sending SOL to a bank can't block closing its room", stakedClosed && !(aw
     paid = (await balance(hw)) - wB;
   }
   check("0.05 winner still gets the pot less 5%", BigInt(paid) === hpot - hfee, `${paid / LAMPORTS_PER_SOL} SOL`);
-  const [tA, pA] = await Promise.all([balance(TREASURY), balance(prizePda())]);
-  check("the fee wallet gets 3% at the 0.05 table", BigInt(tA - tB) === hfee - cut, `${(tA - tB) / LAMPORTS_PER_SOL} SOL`);
+  const [tA, pA, fA] = await Promise.all([balance(TREASURY), balance(prizePda()), balance(fundPda())]);
+  check("the fee wallet gets 3% less the table fund's 0.001 at the 0.05 table", BigInt(tA - tB) === hfee - cut - 1_000_000n, `${(tA - tB) / LAMPORTS_PER_SOL} SOL`);
+  check("the table fund gets 0.001 at the 0.05 table too", fA - fB === 1_000_000, `${(fA - fB) / LAMPORTS_PER_SOL} SOL`);
   check("the daily prize gets 2% at the 0.05 table", BigInt(pA - pB) === cut, `${(pA - pB) / LAMPORTS_PER_SOL} SOL`);
   const p1 = (await admin.fetchPrize())!;
   check("today's pot grows by the 2%", p1.day === day && p1.pot - pot0 === cut, `pot ${p1.pot}`);
@@ -257,6 +261,25 @@ check("sending SOL to a bank can't block closing its room", stakedClosed && !(aw
   const loser = duo.find((p) => !p.publicKey.equals(hw))!;
   await rejects("someone who didn't win can't claim the prize", () => loser.sendBase([loser.claimPrizeIx(loser.publicKey)]));
   await duo[0].sendEr([duo[0].resetIx(highId)]).catch(() => {});
+}
+
+// ---------------------------------------------------------------- the table fund tops a table up
+{
+  const rent = await admin.base.getMinimumBalanceForRentExemption(0);
+  const need = 20_000_000 + 5_000_000 + rent + 1_000_000 - (await balance(fundPda()));
+  if (need > 0) await admin.sendBase([SystemProgram.transfer({ fromPubkey: admin.publicKey, toPubkey: fundPda(), lamports: need })]);
+  const tee = await admin.teeConn();
+  const [inRollup0, fund0] = await Promise.all([tee.getBalance(roomPda(otherId)), balance(fundPda())]);
+  await rejects("only staked tables can be refilled", () => outsider.sendBase([outsider.refillTableIx(freeId)]));
+  await outsider.sendBase([outsider.refillTableIx(otherId)]);
+  let inRollup1 = inRollup0;
+  for (let i = 0; i < 20 && inRollup1 === inRollup0; i++) {
+    await sleep(3000);
+    inRollup1 = await tee.getBalance(roomPda(otherId));
+  }
+  const fund1 = await balance(fundPda());
+  check("a refill moves 0.02 SOL into the table's MagicBlock wallet", inRollup1 - inRollup0 === 20_000_000, `${(inRollup1 - inRollup0) / LAMPORTS_PER_SOL} SOL`);
+  check("it comes out of the table fund (plus MagicBlock's small transfer cost)", fund0 - fund1 >= 20_000_000 && fund0 - fund1 <= 25_000_000, `${(fund0 - fund1) / LAMPORTS_PER_SOL} SOL`);
 }
 
 // ---------------------------------------------------------------- free rooms stay off Solana

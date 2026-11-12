@@ -104,6 +104,8 @@ export interface Room {
   seedRevealed: number;
   readyMask: number;
   lastSeen: number[];
+  /** staked: earliest ticket expiry; free room in the lobby: unix time the lobby opened (0 unknown) */
+  stakeDeadline: number;
   maxPlayers: number;
   unlisted: boolean;
   /** 0 = medium, 1 = easy, 2 = hard */
@@ -162,10 +164,11 @@ export function decodeRoom(data: Uint8Array): Room {
   const cfg = r.u32();
   const readyMask = r.u32();
   const lastSeen = r.arr(MAXP, () => r.u32());
+  const stakeDeadline = Number(BigInt.asIntN(64, r.u64()));
   return {
     roomId, stake, pot, startSlot, lastTickSlot, taskId, host, players, payout, names, looks, status, matchNo, tick,
     endTick, nPlayers, nBots, isBot, alive, kills, place, winner, aliveCount, feedHead, feed, zone, next, zonePhase,
-    privateCode, seedRevealed, readyMask, lastSeen,
+    privateCode, seedRevealed, readyMask, lastSeen, stakeDeadline,
     maxPlayers: cfg & 0xff ? Math.min(8, Math.max(2, cfg & 0xff)) : 8,
     unlisted: (cfg & 0x100) !== 0,
     botLevel: (cfg >>> 9) & 3,
@@ -263,6 +266,16 @@ export const VIS_WATCHED = 1024;
 export const VIS_GHILLIE = 2048;
 export const LOOT_GHILLIE = 18;
 /** Bot personalities (mirror of sim/rules.rs bot_style: public room data, never the seed) */
+/** the program's lobby limits (config.rs PUBLIC_/PRIVATE_LOBBY_MAX_SECS) */
+export const PUBLIC_LOBBY_MAX_SECS = 300;
+export const PRIVATE_LOBBY_MAX_SECS = 600;
+/** When a free lobby runs out of time (unix seconds): a public one then starts itself with bots,
+ *  a private one is cleared. null for staked rooms, running nights or an unknown opening time. */
+export function lobbyDeadline(r: Room): number | null {
+  if (r.stake !== 0n || r.status !== ST_LOBBY || r.stakeDeadline < 1_000_000_000) return null;
+  return r.stakeDeadline + (r.unlisted ? PRIVATE_LOBBY_MAX_SECS : PUBLIC_LOBBY_MAX_SECS);
+}
+
 /** bot difficulty by `botLevel` (cfg bits 9-10): the program numbers them 0 medium, 1 easy, 2 hard */
 export const BOT_LEVEL_NAME = ["Medium", "Easy", "Hard"];
 export const BOT_STYLE = ["", "CAMPER", "STALKER", "RUSHER"];

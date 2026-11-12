@@ -93,6 +93,30 @@ Found while doing this and fixed before it shipped: the settings lock first land
 
 Accepted trade-off: with no refund path, a staked room holding anyone's unused ticket can't be closed, and if the rollup stopped for good, unused tickets would stay locked.
 
+## Rooms can't be held (2026-11-12)
+
+Found in a review of how players could jam the game, fixed the same day:
+
+| Way to jam it | Fix |
+|---|---|
+| Leave and rejoin a staked lobby to restart its countdown forever | only a new high in seated stakers restarts it, never past 3 min from the first countdown (`STAKED_MAX_WAIT_SECS`) |
+| Hold every free room with free guest identities and never start | a free lobby records when it opened (`stake_deadline`, unused by free rooms); after 5 min anyone may start a public one (bots fill the seats), after 10 min anyone may clear a private one (`expire_lobby`). Players' games and any visitor's home page do this |
+| Keep a finished room on its replay by leaving the tab open | the room reopens 45 s after the lights come on; the replay stays on the watcher's screen |
+
+Left as is: with exactly two stakers seated, one can still keep leaving and rejoining, which only holds up the other one (who keeps their ticket); a third staker brings the 3-minute cap back.
+
+## Table fund (2026-11-12)
+
+Each staked table pays MagicBlock ~0.001 SOL per payout from its own wallet inside the rollup (the room account). So tables can't run dry and stop paying winners, settle sets 0.001 SOL of the house fee aside per staked night (`TABLE_FUND_PER_NIGHT`) in a system-owned PDA (`table_fund`). `refill_table` lets anyone move 0.02 SOL (`TABLE_REFILL`) from it into a staked table's rollup wallet through MagicBlock's lamports transfer (Ephemeral SPL Token program, instruction 20), with the fund signing as payer; MagicBlock's program checks every PDA it is given. Seated stakers' games send it when a table is under 0.02 SOL.
+
+| Rule | How | Tested |
+|---|---|---|
+| The fund's cut can't block a payout | skipped if it alone wouldn't make a new fund rent-exempt; never more than what's left of the fee | unit |
+| Fund money only goes to this game's staked tables | the room must be our room PDA and its committed copy must have a stake | e2e |
+| A refill only runs when the fund covers it | 0.02 + MagicBlock's ~0.003 transfer cost (5 mSOL margin) + rent | e2e |
+
+Cost: the fee wallet now gets 5% − 0.001 SOL a staked night (at the 0.01 table with two players that is nothing; the 0.001 fee all goes to the fund). Anyone can trigger refills, which only moves the fund's SOL into our tables (recoverable when a table closes).
+
 ## Daily prize (2026-11-12)
 
 The daily challenge now funnels players to the 0.05 SOL table. At that table only, 2% of each pot (`PRIZE_BPS`, taken out of the 5% fee, never on top of it) goes into a `Prize` account on Solana; the fee wallet keeps 3%. The 0.01 table is unchanged. The prize account is never delegated, so settle's Magic Action writes it directly.

@@ -39,6 +39,11 @@ pub const STAKED_START_WAIT_SECS: i64 = 60;
 /// ...but a staked lobby never waits longer than this from its first countdown, so leaving and
 /// sitting down again can't hold a table forever
 pub const STAKED_MAX_WAIT_SECS: i64 = 180;
+/// A free lobby can't be held forever: a public one may be started by anyone after this long
+/// (bots fill the empty seats)...
+pub const PUBLIC_LOBBY_MAX_SECS: i64 = 300;
+/// ...and a private one may be cleared by anyone after this long, so the room frees up.
+pub const PRIVATE_LOBBY_MAX_SECS: i64 = 600;
 
 /// The daily prize: tables at exactly this stake (0.05 SOL) feed it. Of each such pot's 5% fee,
 /// PRIZE_BPS (2%) goes to the prize and the rest to the treasury.
@@ -46,6 +51,17 @@ pub const PRIZE_STAKE: u64 = 50_000_000;
 pub const PRIZE_BPS: u64 = 200;
 /// Nights at the prize table a wallet must play in a day to be able to win it.
 pub const PRIZE_MIN_GAMES: u32 = 3;
+
+/// Each staked night sets this much of the house fee aside in the table fund, which keeps the
+/// tables' own MagicBlock wallets topped up (each staked night's commit costs ~0.001 SOL).
+pub const TABLE_FUND_PER_NIGHT: u64 = 1_000_000;
+/// One refill from the table fund into a table's MagicBlock wallet.
+pub const TABLE_REFILL: u64 = 20_000_000;
+/// MagicBlock's transfer also opens a few helper accounts, paid by the fund (~0.0032 SOL measured)
+pub const TABLE_REFILL_OVERHEAD: u64 = 5_000_000;
+/// MagicBlock's Ephemeral SPL Token program: its lamports transfer (instruction 20) credits a
+/// delegated account inside the rollup.
+pub const ESPL_PROGRAM: Pubkey = pubkey!("SPLxh1LVZzEkX99H6rqYizhytLWPZVV296zyYDPagv2");
 /// Smallest stake: the pot must always be enough to rent-exempt a brand new winner wallet.
 pub const MIN_STAKE: u64 = 2_000_000;
 /// VRF wait before a free room may self-seed (~5 s) or a staked start is called off (~30 s).

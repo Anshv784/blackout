@@ -139,6 +139,14 @@ pub mod blackout {
         instructions::lobby::handle_heartbeat(ctx)
     }
 
+    pub fn refill_table(ctx: Context<RefillTable>, room_id: u64, salt: [u8; 32]) -> Result<()> {
+        instructions::stake::handle_refill_table(ctx, room_id, salt)
+    }
+
+    pub fn expire_lobby(ctx: Context<Heartbeat>) -> Result<()> {
+        instructions::lobby::handle_expire_lobby(ctx)
+    }
+
     pub fn ask_start(ctx: Context<Heartbeat>) -> Result<()> {
         instructions::lobby::handle_ask_start(ctx)
     }

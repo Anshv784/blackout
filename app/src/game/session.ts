@@ -5,6 +5,7 @@ import { TOUCH } from "./device";
 import { ComputeBudgetProgram, PublicKey } from "@solana/web3.js";
 import { client } from "./identity";
 import { ticketPda, TICKET_LEN } from "../chain/client";
+import { lobbyDeadline } from "../chain/layout";
 import { useStore } from "./store";
 import {
   decodeView,
@@ -846,6 +847,25 @@ export class Session {
     if (r.status === ST_STARTING && this.startingSince && now - this.startingSince > 6500 && (now | 0) % 1000 < 110) {
       client.sendEr([client.fallbackSeedIx(this.roomId)], { confirm: false }).catch(() => {});
     }
+    // a staked table pays MagicBlock for each payout from its own wallet in the rollup: when that
+    // runs low, top it up from the table fund (the house fee's 0.001 SOL a night). Checked about
+    // once a minute by seated stakers' games, staggered by seat; the session key pays the network fee.
+    if (r.status === ST_LOBBY && r.stake > 0n && now - this.lastRefillCheck > 60_000 + this.mySeat * 7_000) {
+      this.lastRefillCheck = now;
+      const id = this.roomId;
+      client
+        .tableNeedsRefill(id)
+        .then((low) => (low ? client.sendBase([client.refillTableIx(id)]) : null))
+        .catch(() => {});
+    }
+    // a free lobby past its time limit: a public one starts itself with bots, a private one is
+    // cleared so the room frees up (anyone may do either; staggered by seat)
+    const limit = lobbyDeadline(r);
+    if (limit !== null && Date.now() / 1000 >= limit + 2 + this.mySeat * 1.5 && now - this.lastAutoStart > 4000) {
+      this.lastAutoStart = now;
+      const ix = r.unlisted ? client.expireLobbyIx(this.roomId) : client.startIx(this.roomId, r.maxPlayers);
+      client.sendEr([ix], { confirm: false }).catch(() => {});
+    }
     // a staked table has no host: when it's full, or its countdown has run out, the seated players'
     // games start it (staggered by seat; the program checks the timer, an early try just fails)
     if (r.status === ST_LOBBY && r.stake > 0n && now - this.lastAutoStart > 3000) {
@@ -873,6 +893,7 @@ export class Session {
   // ------------------------------------------------------------ actions
 
   private lastAutoStart = 0;
+  private lastRefillCheck = 0;
 
   /** Staked rooms: the wallet funds the session key and buys a ticket in one base-layer tx. */
   async buyTicket(wallet: any): Promise<void> {

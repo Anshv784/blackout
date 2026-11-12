@@ -29,7 +29,9 @@ pub fn handle_start_match<'info>(ctx: Context<'info, StartMatch<'info>>, fill_to
     let task_id = {
         let mut room = ctx.accounts.room.load_mut()?;
         require!(room.status == ST_LOBBY, BlackoutError::NotInLobby);
-        require!(room.seat_of(&player).is_some(), BlackoutError::NotSeated);
+        // a public lobby left waiting too long: anyone may start it (bots fill the seats)
+        let overdue = room.cfg & (1 << 8) == 0 && room.lobby_overdue(clock.unix_timestamp) && room.humans() > 0;
+        require!(overdue || room.seat_of(&player).is_some(), BlackoutError::NotSeated);
         if room.stake == 0 {
             for i in 0..MAXP {
                 if room.is_stale(i, slot) && room.players[i] != player {
@@ -42,7 +44,7 @@ pub fn handle_start_match<'info>(ctx: Context<'info, StartMatch<'info>>, fill_to
             // no host: any seated staker may start it, once the table is full or the countdown has run out
             require!(room.staked_start_ok(clock.unix_timestamp), BlackoutError::TooEarly);
         } else {
-            require!(room.host == player && room.host_present(slot), BlackoutError::NotHost);
+            require!(overdue || (room.host == player && room.host_present(slot)), BlackoutError::NotHost);
         }
         // bots fill free seats (free rooms only)
         let total = if room.stake == 0 {
@@ -373,6 +375,7 @@ pub fn handle_finish<'info>(ctx: Context<'info, Finish<'info>>) -> Result<()> {
         meta(ctx.accounts.winner.key(), true),
         meta(TREASURY, true),
         meta(Pubkey::find_program_address(&[PRIZE_SEED], &crate::ID).0, true),
+        meta(Pubkey::find_program_address(&[FUND_SEED], &crate::ID).0, true),
     ];
     // Derived here, not taken from the caller, so a losing player can't leave their own
     // ticket out of settle and then claim it back as unused.
@@ -420,6 +423,10 @@ pub fn handle_reset<'info>(ctx: Context<'info, Reset<'info>>) -> Result<()> {
         }
         room.n_bots = 0;
         room.cfg &= !sim::CFG_DAILY;
+        // a free room's lobby clock starts again
+        if room.stake == 0 {
+            room.stake_deadline = Clock::get()?.unix_timestamp;
+        }
         if room.stake > 0 {
             // staked seats must buy a new ticket for the next match
             room.clear_humans();

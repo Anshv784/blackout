@@ -7,7 +7,7 @@ import { PublicKey } from "@solana/web3.js";
 import { Session, stakedStartAt, stakersSeated } from "../game/session";
 import { useStore } from "../game/store";
 import { client } from "../game/identity";
-import { ST_LOBBY, ST_STARTING, ST_COUNTDOWN, ST_LIVE, ST_ENDED, ST_REVEALED, STATUS_NAME, BOT_LEVEL_NAME, type Room } from "../chain/layout";
+import { ST_LOBBY, ST_STARTING, ST_COUNTDOWN, ST_LIVE, ST_ENDED, ST_REVEALED, STATUS_NAME, BOT_LEVEL_NAME, lobbyDeadline, type Room } from "../chain/layout";
 import { Hud } from "./Hud";
 import { Reveal } from "./Reveal";
 import { TouchControls, useTouch } from "./TouchControls";
@@ -118,6 +118,34 @@ export function RoomPage({ roomId }: { roomId: bigint }) {
     );
   if (room.status !== ST_LOBBY) return <Spectate room={room} />;
   return <Lobby session={session} room={room} />;
+}
+
+/** A free lobby can't wait forever: a public one starts itself with bots, a private one closes. */
+function LobbyClock({ room }: { room: Room }) {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const k = window.setInterval(() => tick((n) => n + 1), 1000);
+    return () => clearInterval(k);
+  }, []);
+  const limit = lobbyDeadline(room);
+  if (limit === null) return null;
+  const left = Math.max(0, Math.ceil(limit - Date.now() / 1000));
+  const t = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
+  return (
+    <div className={`lobby-clock ${left <= 30 ? "soon" : ""}`}>
+      {room.unlisted ? (
+        left > 0 ? (
+          <>room closes in <b>{t}</b> unless the night starts</>
+        ) : (
+          "closing the room…"
+        )
+      ) : left > 0 ? (
+        <>night starts by itself in <b>{t}</b> · bots fill the empty seats</>
+      ) : (
+        "starting the night…"
+      )}
+    </div>
+  );
 }
 
 function Center({ title, sub, spinner }: { title: string; sub?: string; spinner?: boolean }) {
@@ -605,6 +633,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
             })}
             <span>{size - humans > 0 ? `${size - humans} ${size - humans === 1 ? "bot" : "bots"} fill the empty seats` : "every seat is taken"}</span>
           </div>
+          <LobbyClock room={room} />
           {mySeat !== null && (
             <a className="dock-leave" onClick={exit}>
               {canStart ? "close room" : "exit room"}

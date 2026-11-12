@@ -3,7 +3,7 @@ import { ComputeBudgetProgram, PublicKey } from "@solana/web3.js";
 import { client } from "./identity";
 import { useStore } from "./store";
 import { PRIVATE_ROOMS, PUBLIC_ROOMS, ROOM_POOL, STAKED_ROOMS } from "../config";
-import { ST_LOBBY, ST_ENDED, ST_REVEALED, ST_LIVE, ST_COUNTDOWN, READY_ALL, NO_SEAT, type Room, type Daily } from "../chain/layout";
+import { ST_LOBBY, ST_ENDED, ST_REVEALED, ST_LIVE, ST_COUNTDOWN, READY_ALL, NO_SEAT, lobbyDeadline, type Room, type Daily } from "../chain/layout";
 import { todayUtc } from "../chain/client";
 
 const EMPTY = "11111111111111111111111111111111";
@@ -49,6 +49,14 @@ export function sweepRooms(rooms: Record<number, Room | null>, slot: number) {
   for (const [k, r] of Object.entries(rooms)) {
     const id = Number(k);
     if (!r || now - (nudged.get(id) ?? 0) < 15000) continue;
+    // a free lobby held past its time limit (its own players' games normally handle this first)
+    const limit = lobbyDeadline(r);
+    if (limit !== null && liveHumansAt(r, slot) > 0 && now / 1000 >= limit + 10) {
+      nudged.set(id, now);
+      const ix = r.unlisted ? client.expireLobbyIx(BigInt(id)) : client.startIx(BigInt(id), r.maxPlayers);
+      client.sendEr([ix], { confirm: false }).catch(() => {});
+      continue;
+    }
     if (r.status === ST_ENDED) {
       nudged.set(id, now);
       const w = r.winner;

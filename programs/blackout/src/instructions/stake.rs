@@ -160,8 +160,15 @@ pub fn handle_settle<'info>(ctx: Context<'info, Settle<'info>>) -> Result<()> {
             let prize_ai = ctx.accounts.prize.to_account_info();
             let cut = if room.stake == PRIZE_STAKE { prize_cut(pot, fee) } else { 0 };
             let cut = if cut > 0 { add_to_prize(&prize_ai, &treasury, cut)? } else { 0 };
+            // the table fund keeps the tables' MagicBlock wallets topped up (see `refill_table`)
+            let fund_ai = ctx.accounts.fund.to_account_info();
+            let fund_cut = table_fund_cut(fee - cut, fund_ai.lamports(), min_balance);
+            if fund_cut > 0 {
+                let total = fund_ai.lamports().checked_add(fund_cut).ok_or(BlackoutError::BadAccount)?;
+                **fund_ai.try_borrow_mut_lamports()? = total;
+            }
             **bank_ai.try_borrow_mut_lamports()? -= pot;
-            let total = treasury.lamports().checked_add(fee - cut).ok_or(BlackoutError::BadAccount)?;
+            let total = treasury.lamports().checked_add(fee - cut - fund_cut).ok_or(BlackoutError::BadAccount)?;
             **treasury.try_borrow_mut_lamports()? = total;
             let winner = ctx.accounts.winner.to_account_info();
             let total = winner.lamports().checked_add(pot - fee).ok_or(BlackoutError::BadAccount)?;
@@ -401,10 +408,118 @@ pub struct Settle<'info> {
     /// CHECK: the daily prize PDA; used only if it exists (see `live_prize`)
     #[account(mut, seeds = [PRIZE_SEED], bump)]
     pub prize: UncheckedAccount<'info>,
+    /// CHECK: the table fund (system-owned PDA, may not exist yet)
+    #[account(mut, seeds = [FUND_SEED], bump)]
+    pub fund: UncheckedAccount<'info>,
     /// CHECK: escrow authority / escrow pair, verified in the handler (order-agnostic)
     pub escrow_auth: UncheckedAccount<'info>,
     /// CHECK: see above
     pub escrow: UncheckedAccount<'info>,
+}
+
+/// The table fund's share of a night's fee (what's left of it after the prize). Zero if the fund
+/// doesn't exist yet and this credit alone wouldn't make it rent-exempt (the runtime would refuse
+/// it, and nothing may block a payout).
+pub fn table_fund_cut(fee_left: u64, fund_balance: u64, min_balance: u64) -> u64 {
+    let cut = TABLE_FUND_PER_NIGHT.min(fee_left);
+    if fund_balance.saturating_add(cut) < min_balance {
+        0
+    } else {
+        cut
+    }
+}
+
+/// Anyone may move TABLE_REFILL from the table fund into a staked table's MagicBlock wallet (the
+/// room account inside the rollup, which pays its commits). The fund signs MagicBlock's lamports
+/// transfer; MagicBlock's program checks every PDA it is given. The SOL only ever goes to one of
+/// this game's staked tables.
+pub fn handle_refill_table(ctx: Context<RefillTable>, _room_id: u64, salt: [u8; 32]) -> Result<()> {
+    {
+        let data = ctx.accounts.room.try_borrow_data()?;
+        require!(data.len() >= 24, BlackoutError::BadAccount);
+        let stake = u64::from_le_bytes(data[16..24].try_into().unwrap());
+        require!(stake > 0, BlackoutError::NotStaked);
+    }
+    let fund = ctx.accounts.fund.to_account_info();
+    let min = Rent::get()?.minimum_balance(0);
+    require!(fund.lamports() >= TABLE_REFILL.saturating_add(TABLE_REFILL_OVERHEAD).saturating_add(min), BlackoutError::NotReady);
+    let mut data = Vec::with_capacity(41);
+    data.push(20u8);
+    data.extend_from_slice(&TABLE_REFILL.to_le_bytes());
+    data.extend_from_slice(&salt);
+    use anchor_lang::solana_program::instruction::{AccountMeta, Instruction};
+    let a = &ctx.accounts;
+    let ix = Instruction {
+        program_id: ESPL_PROGRAM,
+        accounts: vec![
+            AccountMeta::new(a.fund.key(), true),
+            AccountMeta::new(a.rent_pda.key(), false),
+            AccountMeta::new(a.lamports_pda.key(), false),
+            AccountMeta::new_readonly(ESPL_PROGRAM, false),
+            AccountMeta::new(a.delegate_buffer.key(), false),
+            AccountMeta::new(a.delegation_record.key(), false),
+            AccountMeta::new(a.delegation_metadata.key(), false),
+            AccountMeta::new_readonly(a.delegation_program.key(), false),
+            AccountMeta::new_readonly(a.system_program.key(), false),
+            AccountMeta::new(a.room.key(), false),
+            AccountMeta::new_readonly(a.room_delegation_record.key(), false),
+        ],
+        data,
+    };
+    anchor_lang::solana_program::program::invoke_signed(
+        &ix,
+        &[
+            a.fund.to_account_info(),
+            a.rent_pda.to_account_info(),
+            a.lamports_pda.to_account_info(),
+            a.espl_program.to_account_info(),
+            a.delegate_buffer.to_account_info(),
+            a.delegation_record.to_account_info(),
+            a.delegation_metadata.to_account_info(),
+            a.delegation_program.to_account_info(),
+            a.system_program.to_account_info(),
+            a.room.to_account_info(),
+            a.room_delegation_record.to_account_info(),
+        ],
+        &[&[FUND_SEED, &[ctx.bumps.fund]]],
+    )?;
+    Ok(())
+}
+
+#[derive(Accounts)]
+#[instruction(room_id: u64)]
+pub struct RefillTable<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    /// CHECK: the table fund (system-owned PDA); it signs as the transfer's payer
+    #[account(mut, seeds = [FUND_SEED], bump)]
+    pub fund: UncheckedAccount<'info>,
+    /// CHECK: the staked table (delegated room PDA; its committed copy says it's staked)
+    #[account(mut, seeds = [ROOM_SEED, &room_id.to_le_bytes()], bump)]
+    pub room: UncheckedAccount<'info>,
+    /// CHECK: MagicBlock's Ephemeral SPL Token program
+    #[account(address = ESPL_PROGRAM)]
+    pub espl_program: UncheckedAccount<'info>,
+    /// CHECK: checked by MagicBlock's program
+    #[account(mut)]
+    pub rent_pda: UncheckedAccount<'info>,
+    /// CHECK: checked by MagicBlock's program
+    #[account(mut)]
+    pub lamports_pda: UncheckedAccount<'info>,
+    /// CHECK: checked by MagicBlock's program
+    #[account(mut)]
+    pub delegate_buffer: UncheckedAccount<'info>,
+    /// CHECK: checked by MagicBlock's program
+    #[account(mut)]
+    pub delegation_record: UncheckedAccount<'info>,
+    /// CHECK: checked by MagicBlock's program
+    #[account(mut)]
+    pub delegation_metadata: UncheckedAccount<'info>,
+    /// CHECK: MagicBlock's delegation program
+    pub delegation_program: UncheckedAccount<'info>,
+    pub system_program: Program<'info, System>,
+    /// CHECK: the room's delegation record, checked by MagicBlock's program
+    pub room_delegation_record: UncheckedAccount<'info>,
 }
 
 /// The fee on a pot. Zero if paying it would leave the treasury below rent exemption:
@@ -444,6 +559,24 @@ mod fee_tests {
         assert_eq!(house_fee(20_000_000, 1_000_000_000, 890_880), 1_000_000);
         assert_eq!(house_fee(19, 1_000_000_000, 890_880), 0); // rounds down
         assert!(house_fee(u64::MAX, u64::MAX, 890_880) < u64::MAX);
+    }
+
+    #[test]
+    fn the_table_fund_takes_a_thousandth_of_a_sol_per_night() {
+        let rent = 890_880;
+        // 2 players at the 0.01 table: 0.001 fee, all of it to the fund
+        assert_eq!(table_fund_cut(1_000_000, 5_000_000, rent), 1_000_000);
+        // 8 at the 0.01 table: 0.004 fee, 0.001 to the fund, the rest kept
+        assert_eq!(table_fund_cut(4_000_000, 5_000_000, rent), 1_000_000);
+        // 2 at the 0.05 table: 0.005 fee - 0.002 prize = 0.003 left, 0.001 to the fund
+        assert_eq!(table_fund_cut(3_000_000, 5_000_000, rent), 1_000_000);
+        // never more than what's left of the fee
+        assert_eq!(table_fund_cut(400_000, 5_000_000, rent), 400_000);
+        // a first credit too small to open the fund is skipped, not allowed to fail the payout
+        assert_eq!(table_fund_cut(400_000, 0, rent), 0);
+        assert_eq!(table_fund_cut(1_000_000, 0, rent), 1_000_000);
+        // no fee, no cut
+        assert_eq!(table_fund_cut(0, 5_000_000, rent), 0);
     }
 
     #[test]

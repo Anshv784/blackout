@@ -82,6 +82,23 @@ pub fn handle_claim_room(ctx: Context<Heartbeat>, max_players: u8, unlisted: boo
     // private rooms are joined with a code the creator shares; public ones need none
     room.private_code = if unlisted { code.max(1) } else { 0 };
     room.host = ctx.accounts.player.key();
+    room.stake_deadline = Clock::get()?.unix_timestamp; // the lobby clock (see `lobby_overdue`)
+    Ok(())
+}
+
+/// A private lobby left waiting too long: anyone may clear it so the room frees up.
+pub fn handle_expire_lobby(ctx: Context<Heartbeat>) -> Result<()> {
+    let now = Clock::get()?.unix_timestamp;
+    let mut room = ctx.accounts.room.load_mut()?;
+    require!(room.cfg & (1 << 8) != 0 && room.lobby_overdue(now), BlackoutError::TooEarly);
+    for i in 0..MAXP {
+        if room.players[i] != Pubkey::default() && room.is_bot[i] == 0 {
+            room.clear_seat(i);
+        }
+    }
+    room.host = Pubkey::default();
+    room.sync_pot();
+    room.stake_deadline = 0;
     Ok(())
 }
 

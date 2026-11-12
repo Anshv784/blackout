@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use bytemuck::{Pod, Zeroable};
 
-use crate::config::{STAKED_MAX_WAIT_SECS, STAKED_START_WAIT_SECS};
+use crate::config::{PRIVATE_LOBBY_MAX_SECS, PUBLIC_LOBBY_MAX_SECS, STAKED_MAX_WAIT_SECS, STAKED_START_WAIT_SECS};
 
 pub const MAXP: usize = 8;
 pub const MAXB: usize = 32;
@@ -25,6 +25,8 @@ pub const TICKET_SEED: &[u8] = b"ticket";
 pub const BOARD_SEED: &[u8] = b"board3"; // staked nights only
 pub const DAILY_SEED: &[u8] = b"daily";
 pub const PRIZE_SEED: &[u8] = b"prize";
+/// the table fund: a plain system-owned PDA (no data) that only this program can spend from
+pub const FUND_SEED: &[u8] = b"table_fund";
 pub const DAILY_SECRET_SEED: &[u8] = b"daily-seed";
 pub const DAILY_SLOTS: usize = 32;
 /// One-try-per-wallet filter: 4096 bits, 3 hashes. Wrongly says "already played" for about
@@ -97,7 +99,9 @@ pub struct Room {
     pub cfg: u32,
     pub ready_mask: u32,
     pub last_seen: [u32; MAXP], // ER slot (truncated) of each seat's last lobby heartbeat
-    pub stake_deadline: i64,    // earliest ticket expiry among those seated (staked rooms)
+    /// staked rooms: earliest ticket expiry among those seated. Free rooms in the lobby: unix time
+    /// the lobby opened (0 = unknown), see `lobby_overdue`.
+    pub stake_deadline: i64,
 }
 
 impl Room {
@@ -154,6 +158,17 @@ impl Room {
     pub fn staked_start_ok(&self, now: i64) -> bool {
         let n = self.humans();
         n >= 2 && (n >= self.max_players() || (self.start_slot != 0 && now >= self.start_slot as i64))
+    }
+
+    /// A free lobby that has waited past its limit: public ones may then be started by anyone,
+    /// private ones cleared by anyone.
+    pub fn lobby_overdue(&self, now: i64) -> bool {
+        // below 1e9 it is not a time (an old daily night left its day number here)
+        if self.stake != 0 || self.status != ST_LOBBY || self.stake_deadline < 1_000_000_000 {
+            return false;
+        }
+        let limit = if self.cfg & (1 << 8) != 0 { PRIVATE_LOBBY_MAX_SECS } else { PUBLIC_LOBBY_MAX_SECS };
+        now >= self.stake_deadline.saturating_add(limit)
     }
 
     pub fn max_players(&self) -> usize {
@@ -869,5 +884,46 @@ mod prize_tests {
         assert!(p.entry_mut(&Pubkey::new_unique()).is_none());
         let first = p.entries[0].key;
         assert!(p.entry_mut(&first).is_some(), "a known wallet is still found");
+    }
+}
+
+#[cfg(test)]
+mod lobby_limit_tests {
+    use super::*;
+
+    fn lobby(private: bool, opened: i64) -> Room {
+        let opened = if opened == 0 { 0 } else { opened + 1_700_000_000 };
+        let mut r: Room = Zeroable::zeroed();
+        r.status = ST_LOBBY;
+        r.cfg = 4 | if private { 1 << 8 } else { 0 };
+        r.stake_deadline = opened;
+        r
+    }
+
+    #[test]
+    fn public_lobby_is_overdue_after_five_minutes() {
+        let r = lobby(false, 1_000);
+        assert!(!r.lobby_overdue(1_700_001_000 + PUBLIC_LOBBY_MAX_SECS - 1));
+        assert!(r.lobby_overdue(1_700_001_000 + PUBLIC_LOBBY_MAX_SECS));
+    }
+
+    #[test]
+    fn private_lobby_gets_ten_minutes() {
+        let r = lobby(true, 1_000);
+        assert!(!r.lobby_overdue(1_700_001_000 + PUBLIC_LOBBY_MAX_SECS));
+        assert!(!r.lobby_overdue(1_700_001_000 + PRIVATE_LOBBY_MAX_SECS - 1));
+        assert!(r.lobby_overdue(1_700_001_000 + PRIVATE_LOBBY_MAX_SECS));
+    }
+
+    #[test]
+    fn staked_unknown_or_running_rooms_are_never_overdue() {
+        let mut r = lobby(false, 1_000);
+        r.stake = 10_000_000;
+        assert!(!r.lobby_overdue(1_800_000_000));
+        let r = lobby(false, 0);
+        assert!(!r.lobby_overdue(1_800_000_000));
+        let mut r = lobby(false, 1_000);
+        r.status = ST_LIVE;
+        assert!(!r.lobby_overdue(1_800_000_000));
     }
 }

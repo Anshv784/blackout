@@ -35,7 +35,9 @@ The old free daily (you + 3 bots) is gone from the site, so the daily board is n
 there goes to the day's top earner (3+ nights), the fee wallet keeps 3%.
 
 Each staked table's 0.05 SOL top-up pays MagicBlock's commit fee (~0.001 SOL per staked night after
-the first 25): top it up after ~75 staked nights.
+the first 25). It refills itself: every staked night puts 0.001 SOL of the fee into the table fund,
+and players' games move 0.02 SOL from it into a table that runs low. Check with
+`npx tsx scripts/admin.ts fund`; `admin.ts refill 11` does it by hand.
 
 ## 3. Rehearsal (SPENDS ~0.02 SOL, comes back)
 

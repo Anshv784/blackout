@@ -2926,3 +2926,6 @@ button {
 .btn.primary.asked{animation:askpulse 1s ease-in-out infinite}
 .btn.primary.asked small{display:block;font-size:11px;letter-spacing:.08em;margin-top:4px;color:#4a3608;opacity:1}
 @keyframes askpulse{0%,100%{box-shadow:0 0 0 0 rgba(255,209,102,.6)}50%{box-shadow:0 0 0 10px rgba(255,209,102,0)}}
+.lobby-clock{text-align:center;font-size:11px;letter-spacing:.06em;color:var(--dim);margin-top:6px}
+.lobby-clock b{font-family:var(--mono);color:var(--fg)}
+.lobby-clock.soon b{color:var(--gold)}
