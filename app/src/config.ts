@@ -1,7 +1,7 @@
 // Rooms are pre-created and delegated to the TEE by scripts/admin.ts.
 /** Room slots. Players "create" a room by claiming a free slot and becoming its host. */
 // Devnet: 12 free rooms and one staked table. Mainnet launches smaller: 6 free rooms (1-6) and two
-// staked tables (7, 8), each with its own stake, set when scripts/admin.ts creates it.
+// staked tables (7, 8), both at the same stake (0.01 SOL), set when scripts/admin.ts creates them.
 const MAINNET = (import.meta as any).env?.VITE_CLUSTER === "mainnet";
 export const ROOM_POOL = MAINNET ? [1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13];
 export const STAKED_ROOMS = MAINNET ? [7, 8] : [5];
