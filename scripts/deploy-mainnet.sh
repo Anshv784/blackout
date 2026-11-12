@@ -1,5 +1,5 @@
 #!/bin/bash
-# First mainnet deploy. Costs ~3.12 SOL (612 KB program), nearly all of it refundable rent: the
+# First mainnet deploy. Costs ~3.24 SOL (636 KB program), nearly all of it refundable rent: the
 # temporary upload buffer is drained back to the payer before the program account is paid for,
 # so the wallet never needs twice that.
 #   BASE_RPC=<paid mainnet rpc> CONFIRM=yes scripts/deploy-mainnet.sh

@@ -5,26 +5,26 @@ marked. Nothing here touches the devnet game.
 
 ## Before the day
 
-- [ ] Admin wallet `EXu7bp1rbNw9R6UfRLnsJcxyEF4GCvqChcoHMdbHgCmx` funded with ~3.6 SOL
+- [ ] Admin wallet `EXu7bp1rbNw9R6UfRLnsJcxyEF4GCvqChcoHMdbHgCmx` funded with ~3.7 SOL (measured 2026-11-12: ~3.56 needed + margin)
       (`~/.config/solana/blackout-mainnet.json`, backed up offline). Send 0.01 first and confirm it landed.
 - [ ] A mainnet RPC key (Helius free tier is enough for ~500 players/day), restricted to playblackout.fun.
 - [ ] The Cloudflare API token that was pasted in chat is rotated.
 - [ ] A decision on staked tables (real-money rules where you and your players are).
 
-## 1. Program (SPENDS ~3.12 SOL, refundable deposit)
+## 1. Program (SPENDS ~3.24 SOL, refundable deposit; 636 KB at mainnet rent of 5,080 lamports/byte)
 
 ```bash
 BASE_RPC=<rpc url> scripts/deploy-mainnet.sh              # dry run: builds, prints size, cost and balance
 BASE_RPC=<rpc url> CONFIRM=yes scripts/deploy-mainnet.sh  # deploys pzuVHdCZDQWwxHLEa2JAaEjUZLa43nKaFauLyqZmekb
 ```
 
-## 2. Boards and rooms (SPENDS ~0.45 SOL, mostly refundable)
+## 2. Boards, prize and rooms (SPENDS ~0.32 SOL, mostly refundable)
 
 ```bash
 export ADMIN_KEY=~/.config/solana/blackout-mainnet.json VITE_CLUSTER=mainnet VITE_BASE_RPC=<rpc url> \
        VITE_PROGRAM_ID=pzuVHdCZDQWwxHLEa2JAaEjUZLa43nKaFauLyqZmekb
 npx tsx scripts/admin.ts board
-npx tsx scripts/admin.ts prize                              # daily challenge prize account (~0.04 SOL rent)
+npx tsx scripts/admin.ts prize                              # daily challenge prize account (~0.03 SOL rent)
 npx tsx scripts/admin.ts rooms 1 2 3 4 5 6 7 8 9 10        # 6 public + 4 private
 npx tsx scripts/admin.ts room 11 0.01 0 0.05               # staked table, 0.01 SOL
 npx tsx scripts/admin.ts room 12 0.05 0 0.05               # staked table, 0.05 SOL

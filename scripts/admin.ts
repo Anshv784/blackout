@@ -7,7 +7,7 @@
 //   DAILY_PREFUND_SOL=0.05 npx tsx scripts/admin.ts daily   (the daily board commits about once a day)
 //   npx tsx scripts/admin.ts close 1 2 3        (get the rooms' SOL back)
 //   npx tsx scripts/admin.ts close-board
-//   npx tsx scripts/admin.ts prize              (create the daily challenge prize account, ~0.04 SOL rent)
+//   npx tsx scripts/admin.ts prize              (create the daily challenge prize account, ~0.03 SOL rent)
 //   npx tsx scripts/admin.ts daily              (create + delegate the daily board)
 // Mainnet: ADMIN_KEY=~/.config/solana/blackout-mainnet.json VITE_CLUSTER=mainnet VITE_BASE_RPC=... VITE_PROGRAM_ID=...
 // Mainnet launch (12 reserved rooms; see app/src/config.ts): public 1-6, private 7-10, staked 11-12
