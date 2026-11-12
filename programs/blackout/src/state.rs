@@ -1,6 +1,8 @@
 use anchor_lang::prelude::*;
 use bytemuck::{Pod, Zeroable};
 
+use crate::config::STAKED_START_WAIT_SECS;
+
 pub const MAXP: usize = 8;
 pub const MAXB: usize = 32;
 pub const MAXL: usize = 12;
@@ -54,7 +56,10 @@ pub struct Room {
     pub room_id: u64,
     pub stake: u64,          // lamports per seat (0 = free)
     pub pot: u64,            // lamports in the pot for the current match
-    pub start_slot: u64,     // ER slot when the match went live
+    /// ER slot when the match went live. In a staked lobby (where it is otherwise unused) it holds
+    /// the unix time after which the table may start: 0 until two stakers are seated, pushed back
+    /// by every new staker. See `arm_staked_start` / `staked_start_ok`.
+    pub start_slot: u64,
     pub last_tick_slot: u64, // ER slot of the last simulation step
     pub task_id: u64,        // crank task driving this match
     pub host: Pubkey,
@@ -98,6 +103,31 @@ impl Room {
             return None;
         }
         (0..MAXP).find(|&i| self.players[i] == *key && self.is_bot[i] == 0)
+    }
+
+    /// Humans in seats (a staked table never seats bots).
+    pub fn humans(&self) -> usize {
+        (0..MAXP).filter(|&i| self.players[i] != Pubkey::default() && self.is_bot[i] == 0).count()
+    }
+
+    /// A staked lobby has no host: once two stakers are seated a countdown runs, and every new
+    /// staker (`restart`) starts it again. Fewer than two seated: no countdown.
+    pub fn arm_staked_start(&mut self, now: i64, restart: bool) {
+        if self.stake == 0 || self.status != ST_LOBBY {
+            return;
+        }
+        if self.humans() < 2 {
+            self.start_slot = 0;
+        } else if restart || self.start_slot == 0 {
+            self.start_slot = now.saturating_add(STAKED_START_WAIT_SECS).max(0) as u64;
+        }
+    }
+
+    /// May this staked table start now? A full table at once; otherwise two or more stakers and
+    /// the countdown has run out.
+    pub fn staked_start_ok(&self, now: i64) -> bool {
+        let n = self.humans();
+        n >= 2 && (n >= self.max_players() || (self.start_slot != 0 && now >= self.start_slot as i64))
     }
 
     pub fn max_players(&self) -> usize {
@@ -462,3 +492,86 @@ pub struct RecHeader {
 pub const WORLD_LEN: usize = core::mem::size_of::<World>();
 pub const VIEW_LEN: usize = core::mem::size_of::<View>();
 pub const REC_LEN: usize = REC_CHUNK_LEN;
+
+#[cfg(test)]
+mod staked_start_tests {
+    use super::*;
+
+    fn table() -> Room {
+        let mut r: Room = Zeroable::zeroed();
+        r.stake = 10_000_000;
+        r.status = ST_LOBBY;
+        r
+    }
+    fn sit(r: &mut Room, i: usize, now: i64) {
+        r.players[i] = Pubkey::new_unique();
+        r.n_players += 1;
+        r.arm_staked_start(now, true);
+    }
+
+    #[test]
+    fn one_staker_never_starts() {
+        let mut r = table();
+        sit(&mut r, 0, 1_000);
+        assert_eq!(r.start_slot, 0);
+        assert!(!r.staked_start_ok(1_000_000));
+    }
+
+    #[test]
+    fn two_stakers_start_after_the_countdown_only() {
+        let mut r = table();
+        sit(&mut r, 0, 1_000);
+        sit(&mut r, 1, 1_010);
+        assert!(!r.staked_start_ok(1_010));
+        assert!(!r.staked_start_ok(1_010 + STAKED_START_WAIT_SECS - 1));
+        assert!(r.staked_start_ok(1_010 + STAKED_START_WAIT_SECS));
+    }
+
+    #[test]
+    fn every_new_staker_restarts_the_countdown() {
+        let mut r = table();
+        sit(&mut r, 0, 1_000);
+        sit(&mut r, 1, 1_000);
+        sit(&mut r, 2, 1_050); // 10 s before the first countdown would have ended
+        assert!(!r.staked_start_ok(1_000 + STAKED_START_WAIT_SECS));
+        assert!(r.staked_start_ok(1_050 + STAKED_START_WAIT_SECS));
+    }
+
+    #[test]
+    fn a_full_table_starts_at_once() {
+        let mut r = table();
+        r.cfg = 3; // three seats
+        sit(&mut r, 0, 1_000);
+        sit(&mut r, 1, 1_000);
+        assert!(!r.staked_start_ok(1_001));
+        sit(&mut r, 2, 1_001);
+        assert!(r.staked_start_ok(1_001));
+    }
+
+    #[test]
+    fn dropping_below_two_stops_the_countdown() {
+        let mut r = table();
+        sit(&mut r, 0, 1_000);
+        sit(&mut r, 1, 1_000);
+        r.clear_seat(1);
+        r.arm_staked_start(1_020, false);
+        assert_eq!(r.start_slot, 0);
+        assert!(!r.staked_start_ok(1_000_000));
+        // a leaver with two still seated keeps the running countdown (it only restarts on a join)
+        sit(&mut r, 1, 2_000);
+        sit(&mut r, 2, 2_000);
+        r.clear_seat(2);
+        r.arm_staked_start(2_030, false);
+        assert_eq!(r.start_slot as i64, 2_000 + STAKED_START_WAIT_SECS);
+    }
+
+    #[test]
+    fn free_rooms_are_untouched() {
+        let mut r = table();
+        r.stake = 0;
+        r.start_slot = 777;
+        sit(&mut r, 0, 1_000);
+        sit(&mut r, 1, 1_000);
+        assert_eq!(r.start_slot, 777);
+    }
+}

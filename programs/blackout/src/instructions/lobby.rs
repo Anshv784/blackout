@@ -29,10 +29,12 @@ pub fn handle_join<'info>(ctx: Context<'info, RoomAccount<'info>>, seat: u8, nam
         if staked && room.n_players > 0 && now.saturating_add(MATCH_WINDOW_SECS) > room.stake_deadline {
             room.clear_humans();
         }
-        if staked && !room.host_present(slot) {
-            room.host = player; // staked tables: the first staker hosts
+        if staked {
+            // a staked table has no host: it starts itself (see `staked_start_ok`)
+            room.host = Pubkey::default();
+        } else {
+            require!(room.host_present(slot) || room.host == player, BlackoutError::NoHost);
         }
-        require!(room.host_present(slot) || room.host == player, BlackoutError::NoHost);
         if room.is_stale(s, slot) {
             room.clear_seat(s);
         }
@@ -55,6 +57,7 @@ pub fn handle_join<'info>(ctx: Context<'info, RoomAccount<'info>>, seat: u8, nam
         room.last_seen[s] = slot as u32;
         room.n_players += 1;
         room.sync_pot();
+        room.arm_staked_start(now, true); // every new staker starts the countdown again
         room.room_id.to_le_bytes()
     };
     set_view_members(&ctx, &rid_bytes, seat, members_for(player))
@@ -153,11 +156,16 @@ pub fn handle_leave<'info>(ctx: Context<'info, RoomAccount<'info>>, seat: u8) ->
     let rid_bytes = {
         let mut room = ctx.accounts.room.load_mut()?;
         require!(room.status == ST_LOBBY, BlackoutError::NotInLobby);
+        require!(room.stake == 0, BlackoutError::NotReady); // staked tables have no host and fixed settings
+        require!(room.stake == 0, BlackoutError::NotReady); // staked tables have no host and fixed settings
+        require!(room.stake == 0, BlackoutError::NotReady); // staked tables have no host and fixed settings
+        require!(room.stake == 0, BlackoutError::NotReady); // staked tables have no host and fixed settings
         require!(s < MAXP && room.players[s] == player, BlackoutError::BadSeat);
         room.clear_seat(s);
+        // a staked table: under two stakers left, the countdown stops
+        room.arm_staked_start(Clock::get()?.unix_timestamp, false);
         if room.host == player {
             if room.stake > 0 {
-                // the others have paid: they stay, and any of them can start
                 room.host = Pubkey::default();
             } else {
                 // the host walked out of a free room: it closes, everyone is unseated

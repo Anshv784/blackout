@@ -19,7 +19,11 @@ await B.sendEr([B.joinIx(id, 1, "STAKER-B", B.publicKey, 0, ticketPda(id, matchN
 r = (await A.fetchRoom(id))!;
 console.log("pot", r.pot, "seated", r.nPlayers);
 const before = { a: await A.base.getBalance(A.publicKey), b: await A.base.getBalance(B.publicKey) };
-await A.sendEr([A.startIx(id, 0)]);
+// no host: two stakers start a minute after the second sat down (anyone seated may send it)
+await A.sendEr([A.startIx(id, 0)]).then(() => { throw new Error("FAIL: started before the countdown"); }, () => console.log("PASS early start refused"));
+console.log("waiting out the 60 s countdown…");
+await sleep(62_000);
+await B.sendEr([B.startIx(id, 0)]);
 let seq = 0;
 while (true) {
   r = (await A.fetchRoom(id).catch(() => r))!;

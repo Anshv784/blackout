@@ -33,6 +33,9 @@ pub const MATCH_WINDOW_SECS: i64 = 1200;
 /// (no winner, every ticket refundable): `finish` needs time to settle before any
 /// seated ticket could be refunded mid-night.
 pub const SETTLE_MARGIN_SECS: i64 = 300;
+/// A staked table with two or more stakers seated starts this long after the last one sat down
+/// (a full table starts at once). There is no host: any seated staker's game may start it.
+pub const STAKED_START_WAIT_SECS: i64 = 60;
 /// Smallest stake: the pot must always be enough to rent-exempt a brand new winner wallet.
 pub const MIN_STAKE: u64 = 2_000_000;
 /// VRF wait before a free room may self-seed (~5 s) or a staked start is called off (~30 s).

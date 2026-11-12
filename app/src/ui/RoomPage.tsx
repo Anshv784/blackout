@@ -3,7 +3,7 @@ import { EmoteWheel } from "./EmoteWheel";
 import { EMOTES, useLook } from "../game/look";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { PublicKey } from "@solana/web3.js";
-import { Session } from "../game/session";
+import { Session, stakedStartAt, stakersSeated } from "../game/session";
 import { useStore } from "../game/store";
 import { client } from "../game/identity";
 import { ST_LOBBY, ST_STARTING, ST_COUNTDOWN, ST_LIVE, ST_ENDED, ST_REVEALED, STATUS_NAME, type Room } from "../chain/layout";
@@ -169,8 +169,8 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
   const hostIdx = room.players.findIndex((p, i) => room.isBot[i] === 0 && room.host.toBase58() !== EMPTY && p.equals(room.host));
   const hostPresent = hostIdx >= 0 && fresh(hostIdx);
   const effectiveHost = hostPresent ? hostIdx : -1;
-  // a staked table whose host is gone: anyone seated can start, so nobody's stake is held up
-  const canStart = mySeat !== null && (hostIdx === mySeat || (room.stake > 0n && !hostPresent));
+  // a staked table has no host (it starts itself): only free rooms have someone in charge
+  const canStart = mySeat !== null && room.stake === 0n && hostIdx === mySeat;
   const closed = !hostPresent && room.stake === 0n && !canStart && !busy;
   // only people still here count (stale seats are cleared on-chain when the night starts)
   const humans = [0, 1, 2, 3, 4, 5, 6, 7].filter(fresh).length;
@@ -538,6 +538,8 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
               {busy === "start" ? "SIGN WITH YOUR WALLET…" : humans !== 1 ? "THE DAILY IS SOLO" : "START TODAY'S DAILY"}
               <small>same night for everyone today · you + 3 bots · one try</small>
             </button>
+          ) : staked && mySeat !== null && !isDaily ? (
+            <StakedCountdown room={room} />
           ) : canStart ? (
             <button className="btn primary huge" disabled={!!busy || (staked ? humans < 2 : size < 2)} onClick={() => {
               fullscreenOnTouch();
@@ -667,6 +669,35 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
             {a}
           </span>
         ))}
+      </div>
+    </div>
+  );
+}
+
+/** A staked table starts itself: full at once, otherwise a minute after the last staker sat down. */
+function StakedCountdown({ room }: { room: Room }) {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const t = window.setInterval(() => tick((n) => n + 1), 500);
+    return () => clearInterval(t);
+  }, []);
+  const seated = stakersSeated(room);
+  const at = stakedStartAt(room);
+  const left = at === null ? null : Math.max(0, Math.ceil(at - Date.now() / 1000));
+  return (
+    <div className="waiting-card staked-count">
+      <span className="wc-pulse" />
+      <div>
+        <b>
+          {at === null
+            ? `Waiting for ${2 - Math.min(seated, 1)} more staker${seated === 0 ? "s" : ""}`
+            : left === 0
+              ? "Starting the night…"
+              : `Starts in 0:${String(left).padStart(2, "0")}`}
+        </b>
+        <span>
+          {seated} of {room.maxPlayers} seats · {at === null ? "the night starts itself once two are in" : "every new staker resets the clock · full table starts at once"}
+        </span>
       </div>
     </div>
   );

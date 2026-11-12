@@ -39,11 +39,11 @@ pub fn handle_start_match<'info>(ctx: Context<'info, StartMatch<'info>>, fill_to
         }
         if room.stake > 0 {
             require!(clock.unix_timestamp.saturating_add(MATCH_WINDOW_SECS) <= room.stake_deadline, BlackoutError::NeedTicket);
-            if !room.host_present(slot) {
-                room.host = player; // a vanished host can't hold everyone's stake hostage
-            }
+            // no host: any seated staker may start it, once the table is full or the countdown has run out
+            require!(room.staked_start_ok(clock.unix_timestamp), BlackoutError::TooEarly);
+        } else {
+            require!(room.host == player && room.host_present(slot), BlackoutError::NotHost);
         }
-        require!(room.host == player && room.host_present(slot), BlackoutError::NotHost);
         // bots fill free seats (free rooms only)
         let total = if room.stake == 0 {
             let want = if room.cfg & 0xff != 0 { room.max_players() } else { (fill_to as usize).min(MAXP) };

@@ -100,11 +100,19 @@ let room = (await admin.fetchRoom(stakedId))!;
 check("join/leave loop can't inflate the pot", room.pot === stakeLamports, `pot ${room.pot}`);
 check("seat is paid to the ticket's wallet, whatever join claims", room.payout[0].equals(wallets[0]));
 
-for (let i = 1; i < SEATS; i++) await seated[i].sendEr([seated[i].joinIx(stakedId, i, `P${i}`, wallets[i], 0, tk(i))]);
+for (let i = 1; i < SEATS - 1; i++) await seated[i].sendEr([seated[i].joinIx(stakedId, i, `P${i}`, wallets[i], 0, tk(i))]);
+room = (await admin.fetchRoom(stakedId))!;
+check("a staked table has no host", room.host.equals(PublicKey.default));
+check("countdown armed once two or more stakers sit", room.startSlot > 0n, `start_slot ${room.startSlot}`);
+await rejects("nobody can start a staked table before its countdown ends", () => seated[1].sendEr([seated[1].startIx(stakedId, 0)]));
+await rejects("seat count can't be changed at a staked table (would skip the countdown)", () => seated[0].sendEr([seated[0].setSizeIx(stakedId, SEATS - 1)]));
+await seated[SEATS - 1].sendEr([seated[SEATS - 1].joinIx(stakedId, SEATS - 1, `P${SEATS - 1}`, wallets[SEATS - 1], 0, tk(SEATS - 1))]);
 room = (await admin.fetchRoom(stakedId))!;
 check("pot is one stake per seat", room.pot === stakeLamports * BigInt(SEATS), `pot ${room.pot}`);
 
-await seated[0].sendEr([seated[0].startIx(stakedId, 0)]);
+// full table: any seated staker may start it at once (no host)
+await seated[5].sendEr([seated[5].startIx(stakedId, 0)]);
+check("a full staked table starts at once, from any staker", (await admin.fetchRoom(stakedId))!.status !== ST_LOBBY);
 await rejects("host can't end a staked night early (pot steal)", () => seated[0].sendEr([seated[0].endNowIx(stakedId)]));
 
 // ---------------------------------------------------------------- play + settle

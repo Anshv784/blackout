@@ -824,6 +824,15 @@ export class Session {
     if (r.status === ST_STARTING && this.startingSince && now - this.startingSince > 6500 && (now | 0) % 1000 < 110) {
       client.sendEr([client.fallbackSeedIx(this.roomId)], { confirm: false }).catch(() => {});
     }
+    // a staked table has no host: when it's full, or its countdown has run out, the seated players'
+    // games start it (staggered by seat; the program checks the timer, an early try just fails)
+    if (r.status === ST_LOBBY && r.stake > 0n && now - this.lastAutoStart > 3000) {
+      const due = stakedStartAt(r);
+      if (due !== null && Date.now() / 1000 >= due + 1 + this.mySeat * 1.5) {
+        this.lastAutoStart = now;
+        client.sendEr([client.startIx(this.roomId, 0)], { confirm: false }).catch(() => {});
+      }
+    }
     // lights on: someone has to call finish — stagger by seat to avoid a stampede
     if (r.status === ST_ENDED && this.endedSince && now - this.endedSince > 600 + this.mySeat * 700 && (now | 0) % 1500 < 110) {
       const w = r.winner;
@@ -833,6 +842,8 @@ export class Session {
   }
 
   // ------------------------------------------------------------ actions
+
+  private lastAutoStart = 0;
 
   /** Staked rooms: the wallet funds the session key and buys a ticket in one base-layer tx. */
   async buyTicket(wallet: any): Promise<void> {
@@ -1070,6 +1081,19 @@ export class Session {
 }
 
 export const isEmptyKey = (k: PublicKey) => k.equals(PublicKey.default);
+
+/** Stakers seated at a table (paid seats; the program counts these, not who's still heart-beating). */
+export const stakersSeated = (r: Room) => r.players.filter((p, i) => r.isBot[i] === 0 && !p.equals(PublicKey.default)).length;
+
+/** Mirror of the program's `staked_start_ok`: the unix second a staked table may start (now, if
+ *  it's full), or null while fewer than two stakers are seated. In a staked lobby `startSlot`
+ *  holds that time. */
+export function stakedStartAt(r: Room): number | null {
+  const n = stakersSeated(r);
+  if (n < 2) return null;
+  if (n >= r.maxPlayers) return 0;
+  return r.startSlot > 0n ? Number(r.startSlot) : null;
+}
 
 /**
  * Close every ticket this browser's session key holds, sending each one's money to its own payout
