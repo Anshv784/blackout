@@ -66,6 +66,9 @@ let fxId = 0;
 
 const GADGET_TAG = 1 << 20;
 
+/** how long a finished night's replay holds the room before it reopens for the next night */
+export const REOPEN_AFTER_MS = 45_000;
+
 export class Session {
   roomId: bigint;
   room: Room | null = null;
@@ -137,6 +140,13 @@ export class Session {
   private lastRoomTickAt = 0;
   private startingSince = 0;
   private endedSince = 0;
+  private revealedSince = 0;
+  /** seconds until this finished night's room reopens for the next one (null if it isn't waiting) */
+  reopenIn(): number | null {
+    if (this.room?.status !== ST_REVEALED || !this.revealedSince) return null;
+    return Math.max(0, Math.ceil((this.revealedSince + REOPEN_AFTER_MS - performance.now()) / 1000));
+  }
+  private lastReopen = 0;
   private unsubs: (() => void)[] = [];
   private timers: number[] = [];
   private closed = false;
@@ -358,6 +368,8 @@ export class Session {
     if (r.status !== ST_STARTING) this.startingSince = 0;
     if (r.status === ST_ENDED && !this.endedSince) this.endedSince = performance.now();
     if (r.status !== ST_ENDED) this.endedSince = 0;
+    if (r.status === ST_REVEALED && !this.revealedSince) this.revealedSince = performance.now();
+    if (r.status !== ST_REVEALED) this.revealedSince = 0;
     if (r.status === ST_REVEALED && !this.revealLoaded) void this.loadReveal();
     // ticks advanced over wall time, over a few seconds (arrival bursts don't inflate it)
     const now = performance.now();
@@ -832,6 +844,13 @@ export class Session {
         this.lastAutoStart = now;
         client.sendEr([client.startIx(this.roomId, 0)], { confirm: false }).catch(() => {});
       }
+    }
+    // the room reopens on its own REOPEN_AFTER_MS after the lights come on, so one open replay tab
+    // can't hold it (a staked table has no host to close it). Players still watching keep their
+    // replay on screen; it's already loaded. Staggered by seat; a late try just fails.
+    if (r.status === ST_REVEALED && this.revealedSince && now - this.revealedSince > REOPEN_AFTER_MS + this.mySeat * 1500 && now - this.lastReopen > 5000) {
+      this.lastReopen = now;
+      client.sendEr(client.withBudget(client.resetIx(this.roomId)), { confirm: false }).catch(() => {});
     }
     // lights on: someone has to call finish — stagger by seat to avoid a stampede
     if (r.status === ST_ENDED && this.endedSince && now - this.endedSince > 600 + this.mySeat * 700 && (now | 0) % 1500 < 110) {

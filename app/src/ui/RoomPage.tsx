@@ -59,6 +59,12 @@ export function RoomPage({ roomId }: { roomId: bigint }) {
     return () => clearTimeout(k);
   });
 
+  // once you're watching a replay it stays on your screen after the room reopens for the next night,
+  // until you leave it or the next night starts
+  const holding = useRef(false);
+  if (room?.status === ST_REVEALED && !linger) holding.current = true;
+  else if (room && room.status !== ST_LOBBY && room.status !== ST_REVEALED) holding.current = false;
+
   useEffect(() => {
     useStore.getState().set({ room: null, view: null, mySeat: null, reveal: null });
     session.start().catch((e) => setErr(friendlyError(e)));
@@ -80,7 +86,16 @@ export function RoomPage({ roomId }: { roomId: bigint }) {
   if (!room) return <Center title="Opening the gate…" sub="authenticating with the Warden (MagicBlock TEE)" spinner />;
 
   const playing = mySeat !== null && ([ST_STARTING, ST_COUNTDOWN, ST_LIVE, ST_ENDED].includes(room.status) || linger);
-  if (room.status === ST_REVEALED && !linger) return <Reveal session={session} />;
+  if ((room.status === ST_REVEALED && !linger) || (holding.current && room.status === ST_LOBBY))
+    return (
+      <Reveal
+        session={session}
+        onDone={() => {
+          holding.current = false;
+          rerender((x) => x + 1);
+        }}
+      />
+    );
   if (playing)
     return (
       <div className={`game ${touch ? "touch" : ""}`}>

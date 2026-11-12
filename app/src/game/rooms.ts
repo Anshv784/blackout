@@ -54,11 +54,12 @@ export function sweepRooms(rooms: Record<number, Room | null>, slot: number) {
       const w = r.winner;
       const payout = w !== NO_SEAT && r.isBot[w] === 0 ? r.payout[w] : null;
       client.sendEr(client.withBudget(client.finishIx(BigInt(id), payout, r.daily)), { confirm: false }).catch(() => {});
-    } else if (r.status === ST_REVEALED && liveHumansAt(r, slot) === 0) {
-      // nobody is watching the replay: reset after it has looked abandoned for a while
+    } else if (r.status === ST_REVEALED) {
+      // a replay holds the room: reset after 20 s if nobody is watching, after a minute if someone is
+      // (the players' own games reopen it at 45 s; this is the backstop)
       const since = abandonedSince.get(id) ?? now;
       abandonedSince.set(id, since);
-      if (now - since > 20000) {
+      if (now - since > (liveHumansAt(r, slot) === 0 ? 20000 : 60000)) {
         nudged.set(id, now);
         abandonedSince.delete(id);
         client.sendEr(client.withBudget(client.resetIx(BigInt(id))), { confirm: false }).catch(() => {});

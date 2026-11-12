@@ -1,4 +1,4 @@
-import { botStyle } from "../chain/layout";
+import { botStyle, ST_REVEALED } from "../chain/layout";
 import { friendlyError } from "../game/errors";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../game/store";
@@ -18,10 +18,21 @@ import { recordNight } from "../game/career";
 
 const EMPTY = "11111111111111111111111111111111";
 
-export function Reveal({ session }: { session: Session }) {
-  const room = useStore((s) => s.room)!;
+export function Reveal({ session, onDone }: { session: Session; onDone: () => void }) {
+  // the room may reopen for the next night while you watch: keep showing the night you played
+  const liveRoom = useStore((s) => s.room)!;
+  const liveSeat = useStore((s) => s.mySeat);
+  const snap = useRef({ room: liveRoom, seat: liveSeat });
+  if (liveRoom.status === ST_REVEALED) snap.current = { room: liveRoom, seat: liveSeat };
+  const room = snap.current.room;
+  const mySeat = snap.current.seat;
+  const reopened = liveRoom.status !== ST_REVEALED;
   const reveal = useStore((s) => s.reveal);
-  const mySeat = useStore((s) => s.mySeat);
+  const [reopenIn, setReopenIn] = useState<number | null>(null);
+  useEffect(() => {
+    const k = window.setInterval(() => setReopenIn(session.reopenIn()), 500);
+    return () => clearInterval(k);
+  }, [session]);
   const toast = useStore((s) => s.toast);
   const ctl = useRef<ReplayCtl>({ t: 0, playing: false, speed: 1, lights: 0, lightsTarget: 0, follow: true });
   const [t, setT] = useState(0);
@@ -204,7 +215,7 @@ export function Reveal({ session }: { session: Session }) {
   const closeRoom = async () => {
     setBusy(true);
     try {
-      if (mySeat !== null) await session.closeFromReveal(mySeat, iHost);
+      if (liveSeat !== null) await session.closeFromReveal(liveSeat, iHost);
     } finally {
       setBusy(false);
       go("/");
@@ -212,11 +223,15 @@ export function Reveal({ session }: { session: Session }) {
   };
 
   const playAgain = async () => {
+    if (reopened) return onDone();
     setBusy(true);
     try {
       await session.reset();
+      onDone();
     } catch (e: any) {
-      toast(friendlyError(e));
+      // it may have just reopened on its own: that's what PLAY AGAIN wanted anyway
+      if (useStore.getState().room?.status === ST_REVEALED) toast(friendlyError(e));
+      else onDone();
     } finally {
       setBusy(false);
     }
@@ -302,6 +317,15 @@ export function Reveal({ session }: { session: Session }) {
                 <span>last one standing</span>
               </div>
             </div>
+            {reopened ? (
+              <p className="vc-reopened">The room is open again for the next night. This replay stays here until you leave it.</p>
+            ) : (
+              reopenIn !== null && (
+                <p className="vc-reopened">
+                  Room reopens for the next night in <b className="vc-timer">{reopenIn}s</b>. Your replay stays on screen.
+                </p>
+              )
+            )}
             <div className="vc-actions">
               <button className="btn primary huge" onClick={playAgain} disabled={busy}>
                 {busy ? "RESEALING THE YARD…" : "PLAY AGAIN"}
@@ -375,6 +399,7 @@ export function Reveal({ session }: { session: Session }) {
           <h2>{room.winner === mySeat ? "👑 YOU WON" : `👑 ${winnerName} WINS`}</h2>
         </div>
         <div className="reveal-actions">
+          <span className="ra-reopen">{reopened ? "room open again" : reopenIn !== null ? <>room reopens in <b className="vc-timer">{reopenIn}s</b></> : null}</span>
           {mySeat !== null && (
             <button className="btn ghost-danger" onClick={() => setAskClose(true)} disabled={busy}>
               {iHost ? "CLOSE ROOM" : "LEAVE ROOM"}
