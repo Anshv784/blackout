@@ -192,7 +192,7 @@ pub fn handle_settle<'info>(ctx: Context<'info, Settle<'info>>) -> Result<()> {
         }
         let key = room.payout[s];
         let won = has_winner && w == s;
-        let n = board.count as usize;
+        let n = (board.count as usize).min(BOARD_SLOTS);
         let fresh = BoardEntry { key, name: [0; 16], wins: 0, kills: 0, games: 0, best_place: 99, earned: 0 };
         let idx = match board.entries[..n].iter().position(|e| e.key == key) {
             Some(i) => Some(i),
@@ -202,6 +202,7 @@ pub fn handle_settle<'info>(ctx: Context<'info, Settle<'info>>) -> Result<()> {
                 Some(n)
             }
             None if won => {
+                board.count = BOARD_SLOTS as u32;
                 let i = board.entries.iter().enumerate().min_by_key(|(_, e)| (e.wins, e.kills)).map_or(0, |(i, _)| i);
                 board.entries[i] = fresh;
                 Some(i)

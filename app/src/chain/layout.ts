@@ -419,12 +419,15 @@ export interface BoardEntry {
   earned: bigint;
 }
 
+/** programs/blackout/src/state.rs BOARD_SLOTS */
+export const BOARD_SLOTS = 60;
+
 export function decodeBoard(data: Uint8Array): { matches: bigint; entries: BoardEntry[] } {
   const r = new Reader(dvOf(data), 8);
   const matches = r.u64();
   const count = r.u32();
   r.u32();
-  const entries = r.arr(64, () => ({ key: r.key(), name: decodeName(r.bytes(16)), wins: r.u32(), kills: r.u32(), games: r.u32(), bestPlace: r.u32(), earned: r.u64() })).slice(0, count);
+  const entries = r.arr(BOARD_SLOTS, () => ({ key: r.key(), name: decodeName(r.bytes(16)), wins: r.u32(), kills: r.u32(), games: r.u32(), bestPlace: r.u32(), earned: r.u64() })).slice(0, count);
   return { matches, entries };
 }
 

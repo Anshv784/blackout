@@ -34,7 +34,10 @@ pub const DAILY_SLOTS: usize = 32;
 pub const DAILY_BLOOM_WORDS: usize = 128;
 /// Daily nights are 4 seats: you and three bots.
 pub const DAILY_SEATS: usize = 4;
-pub const BOARD_SLOTS: usize = 64;
+/// the staked leaderboard holds this many wallets; when full, a newcomer gets on by winning a night
+/// (pushing off the entry with the fewest wins, then kills). Entries are the last field, so an older,
+/// bigger board account still reads correctly (count is clamped).
+pub const BOARD_SLOTS: usize = 60;
 /// wallets the daily prize can track in one day (more than that and late arrivals aren't counted)
 pub const PRIZE_SLOTS: usize = 100;
 
