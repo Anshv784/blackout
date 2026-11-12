@@ -1,13 +1,14 @@
 // Rooms are pre-created and delegated to the TEE by scripts/admin.ts.
 /** Room slots. Players "create" a room by claiming a free slot and becoming its host. */
 // Reserved pools: a room only ever serves its own kind of game, so private games can't use up the
-// public rooms and the other way round.
-//   Mainnet: public 1-6, private 7-10, staked 11-12 (both 0.01 SOL, set when scripts/admin.ts creates them).
-//   Devnet (the rooms that already exist): public 1-4 and 6-9, private 10-13, staked 5.
+// public rooms and the other way round. Both networks: 6 public, 4 private, 2 staked (0.01 SOL).
+//   Mainnet: public 1-6, private 7-10, staked 11-12.
+//   Devnet: the same, except public room 5 is 13 (devnet's room 5 was created as a staked table
+//   and a room's stake can't change; it's retired).
 const MAINNET = (import.meta as any).env?.VITE_CLUSTER === "mainnet";
-export const PUBLIC_ROOMS = MAINNET ? [1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 6, 7, 8, 9];
-export const PRIVATE_ROOMS = MAINNET ? [7, 8, 9, 10] : [10, 11, 12, 13];
-export const STAKED_ROOMS = MAINNET ? [11, 12] : [5];
+export const PUBLIC_ROOMS = MAINNET ? [1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 6, 13];
+export const PRIVATE_ROOMS = [7, 8, 9, 10];
+export const STAKED_ROOMS = [11, 12];
 /** every free room (public and private) */
 export const ROOM_POOL = [...PUBLIC_ROOMS, ...PRIVATE_ROOMS];
 /** every room there is */
