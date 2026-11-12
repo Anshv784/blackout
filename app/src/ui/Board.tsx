@@ -10,6 +10,7 @@ import { boardPda } from "../chain/client";
 import { explorerAddr, STAKED_ROOMS } from "../config";
 import { go } from "../App";
 import { requireRealWallet } from "../game/wallet";
+import { pickStakedTable, stakeLabel } from "../game/rooms";
 
 const Backdrop = lazy(() => import("../scene/Backdrop").then((m) => ({ default: m.Backdrop })));
 
@@ -97,18 +98,22 @@ export function Board() {
   const [failed, setFailed] = useState(false);
   const wallet = useStore((s) => s.wallet);
   const mine = new Set([client.publicKey.toBase58(), ...(wallet ? [wallet] : [])]);
-  const [table, setTable] = useState<Room | null>(null);
+  const [tables, setTables] = useState<Record<number, Room | null>>({});
   useEffect(() => {
     client
       .fetchBoard()
       .then(setData)
       .catch(() => setFailed(true));
-    const load = () => client.fetchRoom(STAKED_ROOMS[0]).then(setTable).catch(() => {});
+    const load = () =>
+      Promise.all(STAKED_ROOMS.map(async (id) => [id, await client.fetchRoom(id).catch(() => null)] as const))
+        .then((l) => setTables(Object.fromEntries(l)))
+        .catch(() => {});
     load();
     const t = setInterval(load, 5000);
     return () => clearInterval(t);
   }, []);
-  const stakers = table ? table.players.filter((p, i) => table.isBot[i] === 0 && p.toBase58() !== "11111111111111111111111111111111").length : 0;
+  const stakersAt = (t: Room) => t.players.filter((p, i) => t.isBot[i] === 0 && p.toBase58() !== "11111111111111111111111111111111").length;
+  const best = pickStakedTable(tables);
   const rows = [...(data?.entries ?? [])].sort((a, b) => b.wins - a.wins || Number(b.earned - a.earned) || b.kills - a.kills || b.games - a.games);
   // only winners stand on the podium (a staker who played and lost is in the table, not on a medal)
   const podium = rows.filter((e) => e.wins > 0 || e.earned > 0n).slice(0, 3);
@@ -165,20 +170,25 @@ export function Board() {
           </div>
         </div>
 
-        {table && (
-          <div className="live-table">
-            <span className={`pulse st-${table.status}`} />
-            <div>
-              <b>THE STAKED TABLE</b>
-              <small>
-                {STATUS_NAME[table.status]?.toLowerCase()} · {stakers} staker{stakers === 1 ? "" : "s"} seated · pot {(Number(table.pot) / 1e9).toFixed(2)} SOL
-              </small>
+        {STAKED_ROOMS.map((id) => {
+          const table = tables[id];
+          if (!table) return null;
+          const stakers = stakersAt(table);
+          return (
+            <div className="live-table" key={id}>
+              <span className={`pulse st-${table.status}`} />
+              <div>
+                <b>{STAKED_ROOMS.length > 1 ? `THE ${stakeLabel({ [id]: table }, [id])} TABLE` : "THE STAKED TABLE"}</b>
+                <small>
+                  {STATUS_NAME[table.status]?.toLowerCase()} · {stakers} staker{stakers === 1 ? "" : "s"} seated · pot {(Number(table.pot) / 1e9).toFixed(2)} SOL
+                </small>
+              </div>
+              <button className="btn gold-outline" onClick={() => requireRealWallet(() => go(`/r/${id}`))}>
+                {stakers ? "JOIN THE TABLE" : "OPEN THE TABLE"}
+              </button>
             </div>
-            <button className="btn gold-outline" onClick={() => requireRealWallet(() => go(`/r/${STAKED_ROOMS[0]}`))}>
-              {stakers ? "JOIN THE TABLE" : "OPEN THE TABLE"}
-            </button>
-          </div>
-        )}
+          );
+        })}
 
         {!data && !failed && <div className="board-loading"><div className="warden-loader" /> reading the board from Solana…</div>}
         {failed && <div className="board-loading">Couldn't reach Solana devnet — try again in a moment.</div>}
@@ -269,7 +279,7 @@ export function Board() {
           {myIdx < 0 ? (
             <div className="board-cta">
               <span>{rows.length ? "You're not on the board yet. Win a staked night to get on it." : "Be the first."}</span>
-              <button className="btn primary" onClick={() => requireRealWallet(() => go(`/r/${STAKED_ROOMS[0]}`))}>
+              <button className="btn primary" onClick={() => requireRealWallet(() => go(`/r/${best}`))}>
                 PLAY A STAKED NIGHT
               </button>
             </div>

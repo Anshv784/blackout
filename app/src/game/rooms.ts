@@ -112,6 +112,28 @@ export async function ensureDaily(): Promise<Daily> {
 }
 
 /** Has this wallet already played today's daily? (Best effort: the program has the final say.) */
+/** Which staked table a "play staked" button opens: the one where stakers are already waiting in the
+ *  lobby with a seat free (most of them first), else the open table with the smallest stake, else
+ *  the first table. With one table this is always that table. */
+export function pickStakedTable(rooms: Record<number, Room | null>, ids: number[] = STAKED_ROOMS): number {
+  const humans = (r: Room) => r.players.filter((p, i) => r.isBot[i] === 0 && p.toBase58() !== EMPTY).length;
+  const tables = ids.map((id) => [id, rooms[id] ?? null] as const).filter((t): t is readonly [number, Room] => !!t[1]);
+  const open = tables.filter(([, r]) => r.status === ST_LOBBY && humans(r) < r.maxPlayers);
+  const waiting = open.filter(([, r]) => humans(r) > 0).sort((a, b) => humans(b[1]) - humans(a[1]));
+  if (waiting.length) return waiting[0][0];
+  const cheapest = [...open].sort((a, b) => Number(a[1].stake - b[1].stake));
+  return cheapest.length ? cheapest[0][0] : ids[0];
+}
+
+/** "0.01 SOL", or "0.01–0.05 SOL" across tables (from the rooms themselves; nothing hard-coded). */
+export function stakeLabel(rooms: Record<number, Room | null>, ids: number[] = STAKED_ROOMS): string {
+  const stakes = ids.map((id) => rooms[id]?.stake).filter((s): s is bigint => !!s && s > 0n).map((s) => Number(s) / 1e9);
+  if (!stakes.length) return "real SOL";
+  const fmt = (n: number) => n.toFixed(n < 0.1 ? 2 : 1).replace(/\.?0+$/, "") || "0";
+  const lo = Math.min(...stakes), hi = Math.max(...stakes);
+  return lo === hi ? `${fmt(lo)} SOL` : `${fmt(lo)}–${fmt(hi)} SOL`;
+}
+
 export const playedToday = (d: Daily, wallet: string) => d.entries.some((e) => e.key.toBase58() === wallet);
 
 export async function createRoom(maxPlayers: number, unlisted: boolean): Promise<{ id: number; code: number }> {

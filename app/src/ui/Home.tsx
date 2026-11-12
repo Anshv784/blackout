@@ -9,7 +9,7 @@ import { useStore } from "../game/store";
 import { audio } from "../game/audio";
 import { TopBar } from "./TopBar";
 import { requireRealWallet, requireWallet } from "../game/wallet";
-import { codeToText, createRoom, ensureDaily, findByCode, myRoom, playedToday, sweepRooms } from "../game/rooms";
+import { codeToText, createRoom, ensureDaily, findByCode, myRoom, pickStakedTable, playedToday, stakeLabel, sweepRooms } from "../game/rooms";
 import { AlreadyInRoom } from "./AlreadyInRoom";
 
 const Backdrop = lazy(() => import("../scene/Backdrop").then((m) => ({ default: m.Backdrop })));
@@ -316,10 +316,16 @@ export function Home() {
                 <b>{busy === "friends" ? "OPENING…" : "WITH FRIENDS"}</b>
                 <span>private · share a code</span>
               </button>
-              <button className="alt-tile gold" onClick={() => guard(STAKED_ROOMS[0], () => requireRealWallet(() => go(`/r/${STAKED_ROOMS[0]}`)))}>
+              <button
+                className="alt-tile gold"
+                onClick={() => {
+                  const id = pickStakedTable(rooms);
+                  guard(id, () => requireRealWallet(() => go(`/r/${id}`)));
+                }}
+              >
                 <TileIcon name="stake" />
                 <b>STAKED NIGHT</b>
-                <span>0.01 SOL · winner takes all</span>
+                <span>{stakeLabel(rooms)} · winner takes all</span>
               </button>
             </div>
             <form
