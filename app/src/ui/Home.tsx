@@ -1,7 +1,7 @@
 import { Wordmark } from "./Brand";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { client } from "../game/identity";
-import { PUBLIC_ROOMS, PRIVATE_POOL, QUICK_ROOMS, STAKED_ROOMS } from "../config";
+import { ALL_ROOMS, STAKED_ROOMS } from "../config";
 import { ST_LOBBY, ST_LIVE, ST_COUNTDOWN, ST_STARTING, ST_REVEALED, ST_ENDED, type Room, type BoardEntry, type Daily } from "../chain/layout";
 import { todayUtc } from "../chain/client";
 import { go } from "../App";
@@ -166,7 +166,8 @@ export function Home() {
     let alive = true;
     const load = async () => {
       const out: Record<number, Room | null> = {};
-      await Promise.all([...PUBLIC_ROOMS, ...STAKED_ROOMS].map(async (id) => (out[id] = await client.fetchRoom(id).catch(() => null))));
+      // every room, private ones too (never listed): they still need sweeping, and you may be seated in one
+      await Promise.all(ALL_ROOMS.map(async (id) => (out[id] = await client.fetchRoom(id).catch(() => null))));
       const sl = await (await client.teeConn()).getSlot().catch(() => 0);
       if (alive) {
         setRooms(out);
@@ -197,7 +198,7 @@ export function Home() {
     // the room list may not have loaded yet (devnet can take a few seconds): check fresh, don't guess
     let list = Object.entries(rooms).map(([id, r]) => [Number(id), r] as const);
     if (!list.length) {
-      list = await Promise.all([...PUBLIC_ROOMS, ...STAKED_ROOMS].map(async (id) => [id, await client.fetchRoom(id).catch(() => null)] as const));
+      list = await Promise.all(ALL_ROOMS.map(async (id) => [id, await client.fetchRoom(id).catch(() => null)] as const));
       const fresh: Record<number, Room | null> = {};
       for (const [id, r] of list) fresh[id] = r;
       setRooms(fresh);
@@ -268,7 +269,7 @@ export function Home() {
     return i >= 0 && ((slot >>> 0) - r.lastSeen[i]) >>> 0 <= 4500;
   };
   const openRooms = entries.filter(([, r]) => r.status === ST_LOBBY && !r.unlisted && slot > 0 && hostHere(r) && liveHumans(r, slot) < r.maxPlayers);
-  const liveMatches = entries.filter(([, r]) => r.status === ST_LIVE || r.status === ST_COUNTDOWN);
+  const liveMatches = entries.filter(([, r]) => !r.unlisted && (r.status === ST_LIVE || r.status === ST_COUNTDOWN));
   const mine = myRoom(Object.entries(rooms).map(([id, r]) => [Number(id), r] as const));
   const live = Object.values(rooms).filter((r) => r && (r.status === ST_LIVE || r.status === ST_COUNTDOWN)).length;
   const players = Object.values(rooms).reduce((n, r) => n + (r ? (slot ? liveHumans(r, slot) : humansIn(r)) : 0), 0);

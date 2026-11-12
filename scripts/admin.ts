@@ -9,8 +9,8 @@
 //   npx tsx scripts/admin.ts close-board
 //   npx tsx scripts/admin.ts daily              (create + delegate the daily board)
 // Mainnet: ADMIN_KEY=~/.config/solana/blackout-mainnet.json VITE_CLUSTER=mainnet VITE_BASE_RPC=... VITE_PROGRAM_ID=...
-// Mainnet launch (6 free rooms, two staked tables; see app/src/config.ts):
-//   rooms 1 2 3 4 5 6 · room 7 0.01 0 0.05 · room 8 0.01 0 0.05 · DAILY_PREFUND_SOL=0.05 daily
+// Mainnet launch (12 reserved rooms; see app/src/config.ts): public 1-6, private 7-10, staked 11-12
+//   rooms 1 2 3 4 5 6 7 8 9 10 · room 11 0.01 0 0.05 · room 12 0.01 0 0.05 · DAILY_PREFUND_SOL=0.05 daily
 import { Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import fs from "fs";
 import os from "os";

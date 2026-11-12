@@ -2,7 +2,7 @@
 import { ComputeBudgetProgram, PublicKey } from "@solana/web3.js";
 import { client } from "./identity";
 import { useStore } from "./store";
-import { ROOM_POOL, STAKED_ROOMS } from "../config";
+import { PRIVATE_ROOMS, PUBLIC_ROOMS, ROOM_POOL, STAKED_ROOMS } from "../config";
 import { ST_LOBBY, ST_ENDED, ST_REVEALED, ST_LIVE, ST_COUNTDOWN, READY_ALL, NO_SEAT, type Room, type Daily } from "../chain/layout";
 import { todayUtc } from "../chain/client";
 
@@ -140,14 +140,16 @@ export async function createRoom(maxPlayers: number, unlisted: boolean): Promise
   const rooms = await Promise.all(ROOM_POOL.map(async (id) => [id, await client.fetchRoom(id).catch(() => null)] as const));
   // one room at a time: if you're already seated somewhere, go back there
   const mine = myRoom(rooms);
+  // a private game only takes a private room, a public one only a public room
+  const pool = new Set(unlisted ? PRIVATE_ROOMS : PUBLIC_ROOMS);
   if (mine !== null) return { id: mine, code: rooms.find(([i]) => i === mine)?.[1]?.privateCode ?? 0 };
   const slot = await (await client.teeConn()).getSlot().catch(() => 0);
   const hostGone = (r: Room) => {
     const i = r.players.findIndex((p, k) => r.isBot[k] === 0 && p.toBase58() !== EMPTY && p.equals(r.host));
     return i < 0 || ((slot >>> 0) - r.lastSeen[i]) >>> 0 > 4500;
   };
-  const free = rooms.filter(([, r]) => r && r.status === ST_LOBBY && r.readyMask === READY_ALL && r.stake === 0n && (liveHumansAt(r, slot) === 0 || hostGone(r)));
-  if (!free.length) throw new Error("Every room is in use right now — try again in a minute");
+  const free = rooms.filter(([id, r]) => pool.has(id) && r && r.status === ST_LOBBY && r.readyMask === READY_ALL && r.stake === 0n && (liveHumansAt(r, slot) === 0 || hostGone(r)));
+  if (!free.length) throw new Error(`Every ${unlisted ? "private" : "public"} room is in use right now — try again in a minute`);
   // shuffle so two people creating at once rarely collide
   free.sort(() => Math.random() - 0.5);
   const st = useStore.getState();

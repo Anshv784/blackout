@@ -1,14 +1,20 @@
 // Rooms are pre-created and delegated to the TEE by scripts/admin.ts.
 /** Room slots. Players "create" a room by claiming a free slot and becoming its host. */
-// Devnet: 12 free rooms and one staked table. Mainnet launches smaller: 6 free rooms (1-6) and two
-// staked tables (7, 8), both at the same stake (0.01 SOL), set when scripts/admin.ts creates them.
+// Reserved pools: a room only ever serves its own kind of game, so private games can't use up the
+// public rooms and the other way round.
+//   Mainnet: public 1-6, private 7-10, staked 11-12 (both 0.01 SOL, set when scripts/admin.ts creates them).
+//   Devnet (the rooms that already exist): public 1-4 and 6-9, private 10-13, staked 5.
 const MAINNET = (import.meta as any).env?.VITE_CLUSTER === "mainnet";
-export const ROOM_POOL = MAINNET ? [1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13];
-export const STAKED_ROOMS = MAINNET ? [7, 8] : [5];
+export const PUBLIC_ROOMS = MAINNET ? [1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 6, 7, 8, 9];
+export const PRIVATE_ROOMS = MAINNET ? [7, 8, 9, 10] : [10, 11, 12, 13];
+export const STAKED_ROOMS = MAINNET ? [11, 12] : [5];
+/** every free room (public and private) */
+export const ROOM_POOL = [...PUBLIC_ROOMS, ...PRIVATE_ROOMS];
+/** every room there is */
+export const ALL_ROOMS = [...ROOM_POOL, ...STAKED_ROOMS];
 // kept for older imports
-export const PUBLIC_ROOMS = ROOM_POOL;
-export const QUICK_ROOMS = ROOM_POOL;
-export const PRIVATE_POOL = ROOM_POOL;
+export const QUICK_ROOMS = PUBLIC_ROOMS;
+export const PRIVATE_POOL = PRIVATE_ROOMS;
 
 export const SITE_URL = typeof window !== "undefined" ? window.location.origin + window.location.pathname : "";
 export const roomLink = (id: bigint | number) => `${SITE_URL}#/r/${id}`;
