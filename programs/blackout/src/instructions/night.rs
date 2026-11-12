@@ -353,12 +353,8 @@ pub fn handle_finish<'info>(ctx: Context<'info, Finish<'info>>) -> Result<()> {
         false,
         !is_daily,
     )?;
-    if is_daily {
-        // the daily board is the account after the recorder pairs
-        let daily = ctx.remaining_accounts.get(REC_CHUNKS * 2).ok_or(BlackoutError::BadAccount)?;
-        let room = ctx.accounts.room.load()?;
-        super::daily::post_score(daily, &room)?;
-    }
+    // (the old free daily mode, which posted a score here, was removed before mainnet: nothing can
+    // set CFG_DAILY any more, so `is_daily` is always false)
     if !staked {
         return Ok(());
     }

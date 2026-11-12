@@ -62,6 +62,8 @@ pub const TABLE_REFILL_OVERHEAD: u64 = 5_000_000;
 /// MagicBlock's Ephemeral SPL Token program: its lamports transfer (instruction 20) credits a
 /// delegated account inside the rollup.
 pub const ESPL_PROGRAM: Pubkey = pubkey!("SPLxh1LVZzEkX99H6rqYizhytLWPZVV296zyYDPagv2");
+/// MagicBlock's delegation program (pinned so no stand-in can receive the fund's signature)
+pub const DELEGATION_PROGRAM: Pubkey = pubkey!("DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh");
 /// Smallest stake: the pot must always be enough to rent-exempt a brand new winner wallet.
 pub const MIN_STAKE: u64 = 2_000_000;
 /// VRF wait before a free room may self-seed (~5 s) or a staked start is called off (~30 s).

@@ -105,22 +105,6 @@ export function myRoom(rooms: (readonly [number, Room | null])[]): number | null
   return hit ? hit[0] : null;
 }
 
-/** Today's daily board, rolling today's sealed seed first if nobody has yet. */
-export async function ensureDaily(): Promise<Daily> {
-  let d = await client.fetchDaily();
-  if (!d) throw new Error("The daily challenge isn't open yet");
-  if (d.day === todayUtc()) return d;
-  // anyone can roll the day's seed; if someone else already is, this one just fails
-  await client.sendEr([ComputeBudgetProgram.setComputeUnitLimit({ units: 600_000 }), client.rollDailyIx()]).catch(() => {});
-  for (let i = 0; i < 30; i++) {
-    await new Promise((r) => setTimeout(r, 1000));
-    d = await client.fetchDaily();
-    if (d && d.day === todayUtc()) return d;
-  }
-  throw new Error("Today's seed is still on its way from the VRF oracle: try again in a moment");
-}
-
-/** Has this wallet already played today's daily? (Best effort: the program has the final say.) */
 /** Which staked table a "play staked" button opens: the one where stakers are already waiting in the
  *  lobby with a seat free (most of them first), else the open table with the smallest stake, else
  *  the first table. With one table this is always that table. */

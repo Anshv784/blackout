@@ -82,7 +82,8 @@ pub fn handle_claim_room(ctx: Context<Heartbeat>, max_players: u8, unlisted: boo
     // private rooms are joined with a code the creator shares; public ones need none
     room.private_code = if unlisted { code.max(1) } else { 0 };
     room.host = ctx.accounts.player.key();
-    room.stake_deadline = Clock::get()?.unix_timestamp; // the lobby clock (see `lobby_overdue`)
+    // the lobby clock (see `lobby_overdue`); leaving and claiming again doesn't restart it
+    room.stake_deadline = Room::lobby_clock_on_claim(room.stake_deadline, Clock::get()?.unix_timestamp, unlisted);
     Ok(())
 }
 

@@ -165,17 +165,8 @@ pub mod blackout {
 
     // ---- The daily challenge
 
-    pub fn roll_daily(ctx: Context<RollDaily>, client_seed: u8) -> Result<()> {
-        instructions::daily::handle_roll_daily(ctx, client_seed)
-    }
 
-    pub fn on_daily_seed(ctx: Context<OnDailySeed>, randomness: [u8; 32]) -> Result<()> {
-        instructions::daily::handle_on_daily_seed(ctx, randomness)
-    }
 
-    pub fn start_daily<'info>(ctx: Context<'info, StartDaily<'info>>) -> Result<()> {
-        instructions::daily::handle_start_daily(ctx)
-    }
 
     // ---- Rollup: the night
 

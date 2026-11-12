@@ -1047,16 +1047,6 @@ export class Session {
     await this.poll();
   }
 
-  /** Today's daily: you and three bots on the day's sealed seed. Your wallet signs: one try a day. */
-  async startDaily(wallet: any) {
-    const { PublicKey, ComputeBudgetProgram } = await import("@solana/web3.js");
-    const pk = new PublicKey(wallet.publicKey.toString());
-    await client.sendEr([ComputeBudgetProgram.setComputeUnitLimit({ units: 1_000_000 }), client.startDailyIx(this.roomId, pk)], {
-      cosign: (tx) => wallet.signTransaction(tx),
-    });
-    await this.poll();
-  }
-
   /** From the verdict screen: put the room back in the lobby, then give up your seat.
    *  For the host that closes the room for everyone. */
   async closeFromReveal(seat: number, host: boolean) {

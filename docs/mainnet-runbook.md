@@ -5,13 +5,13 @@ marked. Nothing here touches the devnet game.
 
 ## Before the day
 
-- [ ] Admin wallet `EXu7bp1rbNw9R6UfRLnsJcxyEF4GCvqChcoHMdbHgCmx` funded with ~3.7 SOL (measured 2026-11-12: ~3.56 needed + margin)
+- [ ] Admin wallet `EXu7bp1rbNw9R6UfRLnsJcxyEF4GCvqChcoHMdbHgCmx` funded with ~3.7 SOL (measured 2026-11-12 after the pre-mainnet audit: ~3.55 needed + margin)
       (`~/.config/solana/blackout-mainnet.json`, backed up offline). Send 0.01 first and confirm it landed.
 - [ ] A mainnet RPC key (Helius free tier is enough for ~500 players/day), restricted to playblackout.fun.
 - [ ] The Cloudflare API token that was pasted in chat is rotated.
 - [ ] A decision on staked tables (real-money rules where you and your players are).
 
-## 1. Program (SPENDS ~3.24 SOL, refundable deposit; 636 KB at mainnet rent of 5,080 lamports/byte)
+## 1. Program (SPENDS ~3.22 SOL, refundable deposit; 634 KB at mainnet rent of 5,080 lamports/byte)
 
 ```bash
 BASE_RPC=<rpc url> scripts/deploy-mainnet.sh              # dry run: builds, prints size, cost and balance

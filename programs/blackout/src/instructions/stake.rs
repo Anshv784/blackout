@@ -480,6 +480,23 @@ pub fn table_fund_cut(fee_left: u64, fund_balance: u64, min_balance: u64) -> u64
 /// transfer; MagicBlock's program checks every PDA it is given. The SOL only ever goes to one of
 /// this game's staked tables.
 pub fn handle_refill_table(ctx: Context<RefillTable>, _room_id: u64, salt: [u8; 32]) -> Result<()> {
+    // The fund signs this transfer, and a signature carries into every program it reaches. So every
+    // account handed to MagicBlock is derived here, exactly as MagicBlock derives it, and nothing
+    // else is accepted: no stand-in account or program can ever be given the fund's signature.
+    {
+        let a = &ctx.accounts;
+        let fund = a.fund.key();
+        let room = a.room.key();
+        let pda = |seeds: &[&[u8]], program: &Pubkey| Pubkey::find_program_address(seeds, program).0;
+        let lamports = pda(&[b"lamports", fund.as_ref(), room.as_ref(), &salt], &ESPL_PROGRAM);
+        require_keys_eq!(a.rent_pda.key(), pda(&[b"rent"], &ESPL_PROGRAM), BlackoutError::BadAccount);
+        require_keys_eq!(a.lamports_pda.key(), lamports, BlackoutError::BadAccount);
+        require_keys_eq!(a.delegate_buffer.key(), pda(&[b"buffer", lamports.as_ref()], &ESPL_PROGRAM), BlackoutError::BadAccount);
+        require_keys_eq!(a.delegation_record.key(), pda(&[b"delegation", lamports.as_ref()], &DELEGATION_PROGRAM), BlackoutError::BadAccount);
+        require_keys_eq!(a.delegation_metadata.key(), pda(&[b"delegation-metadata", lamports.as_ref()], &DELEGATION_PROGRAM), BlackoutError::BadAccount);
+        require_keys_eq!(a.delegation_program.key(), DELEGATION_PROGRAM, BlackoutError::BadAccount);
+        require_keys_eq!(a.room_delegation_record.key(), pda(&[b"delegation", room.as_ref()], &DELEGATION_PROGRAM), BlackoutError::BadAccount);
+    }
     {
         let data = ctx.accounts.room.try_borrow_data()?;
         require!(data.len() >= 24, BlackoutError::BadAccount);

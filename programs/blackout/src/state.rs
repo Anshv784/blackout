@@ -165,6 +165,18 @@ impl Room {
         n >= 2 && (n >= self.max_players() || (self.start_slot != 0 && now >= self.start_slot as i64))
     }
 
+    /// The lobby clock for a room being claimed at `now`. A lobby that opened less than its limit
+    /// ago keeps its clock, so leaving and claiming the room again can't buy more time; otherwise
+    /// the clock starts now.
+    pub fn lobby_clock_on_claim(prev: i64, now: i64, private: bool) -> i64 {
+        let limit = if private { PRIVATE_LOBBY_MAX_SECS } else { PUBLIC_LOBBY_MAX_SECS };
+        if prev >= 1_000_000_000 && prev <= now && now - prev < limit {
+            prev
+        } else {
+            now
+        }
+    }
+
     /// A free lobby that has waited past its limit: public ones may then be started by anyone,
     /// private ones cleared by anyone.
     pub fn lobby_overdue(&self, now: i64) -> bool {
@@ -216,7 +228,8 @@ impl Room {
     pub fn sync_pot(&mut self) {
         let seated = (0..MAXP).filter(|&i| self.players[i] != Pubkey::default() && self.is_bot[i] == 0).count();
         self.pot = self.stake.saturating_mul(seated as u64);
-        if seated == 0 {
+        // (a free room keeps its lobby clock when it empties: see `lobby_clock_on_claim`)
+        if seated == 0 && self.stake > 0 {
             self.stake_deadline = 0;
         }
     }
@@ -1048,6 +1061,26 @@ mod lobby_limit_tests {
         r.cfg = 4 | if private { 1 << 8 } else { 0 };
         r.stake_deadline = opened;
         r
+    }
+
+    #[test]
+    fn leaving_and_claiming_again_keeps_the_clock() {
+        let t0 = 1_700_000_000;
+        // claimed again 4 minutes into a public lobby: the clock carries on
+        assert_eq!(Room::lobby_clock_on_claim(t0, t0 + 240, false), t0);
+        // ...so the limit still lands at t0 + 5 min
+        let mut r = lobby(false, 0);
+        r.stake_deadline = Room::lobby_clock_on_claim(t0, t0 + 240, false);
+        assert!(r.lobby_overdue(t0 + PUBLIC_LOBBY_MAX_SECS));
+        // a room that has been quiet past its limit starts fresh
+        assert_eq!(Room::lobby_clock_on_claim(t0, t0 + PUBLIC_LOBBY_MAX_SECS, false), t0 + PUBLIC_LOBBY_MAX_SECS);
+        // private lobbies carry their clock for 10 minutes
+        assert_eq!(Room::lobby_clock_on_claim(t0, t0 + 540, true), t0);
+        assert_eq!(Room::lobby_clock_on_claim(t0, t0 + 600, true), t0 + 600);
+        // no clock yet, or a stray value (an old daily night's day number, a time in the future)
+        assert_eq!(Room::lobby_clock_on_claim(0, t0, false), t0);
+        assert_eq!(Room::lobby_clock_on_claim(20_400, t0, false), t0);
+        assert_eq!(Room::lobby_clock_on_claim(t0 + 99, t0, false), t0);
     }
 
     #[test]

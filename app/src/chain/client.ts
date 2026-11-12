@@ -375,43 +375,6 @@ export class BlackoutClient {
     ]);
   }
 
-  /** Anyone, once a day: roll today's sealed seed (the first ever roll also sets the board up). */
-  rollDailyIx() {
-    const daily = dailyPda();
-    const secret = dailySecretPda();
-    return ix("roll_daily", { client_seed: Math.floor(Math.random() * 256) }, [
-      w(this.publicKey, true),
-      w(daily),
-      w(secret),
-      w(VRF_EPHEMERAL_QUEUE),
-      w(permissionPdaFromAccount(secret)),
-      w(permissionPdaFromAccount(daily)),
-      r(PERMISSION_PROGRAM_ID),
-      w(EPHEMERAL_VAULT_ID),
-      r(MAGIC_PROGRAM_ID),
-      r(programIdentityPda()),
-      r(VRF_PROGRAM_ID),
-      r(SLOT_HASHES),
-      r(SystemProgram.programId),
-    ]);
-  }
-
-  /** Start today's daily in a room you host alone. `wallet` must also sign (sendEr cosign). */
-  startDailyIx(roomId: bigint, wallet: PublicKey) {
-    const keys = [
-      w(this.publicKey, true),
-      r(wallet, true),
-      w(roomPda(roomId)),
-      w(worldPda(roomId)),
-      w(dailyPda()),
-      w(dailySecretPda()),
-      r(MAGIC_PROGRAM_ID),
-    ];
-    for (let s = 0; s < MAXP; s++) keys.push(w(viewPda(roomId, s)));
-    for (const rp of recPdas(roomId)) keys.push(w(rp));
-    return ix("start_daily", {}, keys);
-  }
-
   async fetchDaily(): Promise<Daily | null> {
     const conn = await this.teeConn();
     const info = await conn.getAccountInfo(dailyPda()).catch(() => null);

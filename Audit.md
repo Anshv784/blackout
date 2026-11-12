@@ -1,15 +1,16 @@
 # BLACKOUT · Program audit
 
-Done 2026-11-03 before the first mainnet deploy, and again on 2026-11-08 (see "Second pass"). The results below are from the 2026-11-08 run against the upgraded devnet program.
+Done 2026-11-03, again on 2026-11-08 and 2026-11-12 (third pass), and a fourth, pre-mainnet pass on 2026-11-12 (see "Fourth pass"). The results below are from that last run against the upgraded devnet program.
 This is a self-review backed by on-chain tests, not a professional audit. Keep stakes small.
 
 ## Results
 
 | Check | Result |
 |---|---|
-| `scripts/e2e_money.ts`: every money rule and attack, against a deployed program (devnet `CkSb4kkmhzr8n9awdmrvqhuoWka6nZUXXb8RXnrFBAKU`), incl. a full 8-seat staked night, the no-host countdown and carrying unused tickets over | **41 of 41 pass** (2026-11-12) |
-| `scripts/e2e_daily.ts`: the daily challenge's rules and attacks, on the same program | **14 of 14 pass** |
-| `cargo test` (incl. the byte-exact simulation fingerprint over 48 nights, One Light, death cam, bot styles, daily scoring, money rules, called-off nights, the staked countdown and map draw) | 44 passed, plus 2 long ones run on demand |
+| `scripts/e2e_money.ts`: every money rule and attack, against a deployed program (devnet `CkSb4kkmhzr8n9awdmrvqhuoWka6nZUXXb8RXnrFBAKU`), incl. a full 8-seat staked night, the no-host countdown and its rejoin rule, carrying unused tickets over, the daily prize (2%/3% split, players beaten, early and wrong claims), the table fund and a real refill | **56 of 56 pass, twice** (2026-11-12) |
+| `scripts/e2e_lobby.ts`: free lobbies can't be held (public start after 5 min, private clear after 10, nothing early, fresh clock after) | **12 of 12 pass** |
+| `scripts/e2e_stake.ts`: a 2-player staked night started by the 60 s countdown, paid out | winner paid 0.019 of 0.02 (fee 0.001 to the table fund) |
+| `cargo test` (incl. the byte-exact simulation fingerprint over 48 nights, money rules, the prize's players-beaten rule, the table fund, lobby limits and clock carry-over, the staked countdown cap, called-off nights and map draw) | 65 passed, plus 2 long ones run on demand |
 | `scripts/mirror.ts` (Rust vs browser movement) | 2,000 steps identical |
 | Crank alone, 7 bots, no client ticks | went live and kept ticking in 2 of 2 rooms (failed at tick 59 before the fix) |
 | Rollup vs Solana clock | 0-1 s apart |
@@ -93,6 +94,20 @@ Found while doing this and fixed before it shipped: the settings lock first land
 
 Accepted trade-off: with no refund path, a staked room holding anyone's unused ticket can't be closed, and if the rollup stopped for good, unused tickets would stay locked.
 
+## Fourth pass (2026-11-12, before mainnet)
+
+Every instruction re-read for who may call it, which accounts it trusts and how it moves lamports.
+
+| Severity | Finding | Fix |
+|---|---|---|
+| High | `refill_table` passed seven accounts to MagicBlock's token program unchecked while the table fund signed. A signature carries into every program it reaches, so a stand-in "delegation program" could have been handed the fund's signature and drained it. | Every account is now derived in the program exactly as MagicBlock derives it (`rent`, `lamports` from fund + room + salt, buffer, delegation record and metadata, the room's delegation record) and the delegation program is pinned; anything else is refused. Re-verified with a real refill on devnet. |
+| Medium | The free-lobby time limit could be dodged: leave and claim the room again in one transaction, which emptied the room (clearing its clock) and started a fresh one. | A claim keeps a lobby clock that is still inside its limit (`lobby_clock_on_claim`); an emptied free room no longer clears it. Unit-tested. |
+| Info (cost) | The old free daily mode (`roll_daily`, `start_daily`, `on_daily_seed`) was unused since the daily prize replaced it. | Removed: −41.9 KB, about 0.21 SOL less deposit on mainnet. Nothing can set `CFG_DAILY` any more; account layouts and error codes are unchanged. |
+
+Checked and fine: `on_seed` only accepts MagicBlock's VRF oracle (the `#[vrf_callback]` macro adds a `vrf_program_identity` signer pinned to this program's scoped identity); `settle` only runs as the post-commit Magic Action (escrow signer); `buy_ticket` and `reuse_ticket` read the stake from the pinned room PDA; `close_ticket` can only refund the ticket's own payout wallet (`has_one`); `close_room`/`close_board`/`undelegate_room`/`create_room`/`init_*`/`reset_prize` are admin-only and never touch stakes; `claim_prize` only pays `last_winner`; the mainnet build's program id, admin/treasury (`EXu7…`) and TEE validator match the key files. The app renders no raw HTML; `npm audit` shows the same 10 advisories in third-party Solana/MagicBlock packages.
+
+Not fixable by a program, left as known risks below: a script with many free identities can keep re-claiming a private room right after it is cleared (others get a window each time; public rooms stay joinable); collusion and aim assistance (flagged by the fair-play report); MagicBlock is trusted; one hot admin key.
+
 ## Rooms can't be held (2026-11-12)
 
 Found in a review of how players could jam the game, fixed the same day:
@@ -163,7 +178,7 @@ A ticket can't be refunded and also ride in a match:
 | Medium | **Paid RPC key in the browser.** `VITE_BASE_RPC` ships in the app bundle. Use a key restricted to the site's domain. |
 | Low | 10 npm advisories (2 high), all in third-party Solana/MagicBlock dependencies, none fed untrusted input by our code. |
 | Low | Private room codes are readable in the public Room account, so "private" means unlisted. |
-| Low | A settle that fails leaves the winner unpaid. Everyone gets refunds instead; nobody loses a stake. |
+| Low | A settle that fails leaves the winner unpaid. No stake is lost: it stays in the bank and the night's unused tickets can move to a later night after an hour. The table fund keeps each table's MagicBlock wallet topped up so commits don't run dry. |
 | Legal | Real-money play may be illegal where players or the operator are. India's Online Gaming Act 2025 bans online money games, and the house fee makes the operator part of it. Get legal advice before enabling stakes. |
 
 ## Re-running
@@ -172,4 +187,6 @@ A ticket can't be refunded and also ride in a match:
 cargo test --manifest-path programs/blackout/Cargo.toml
 npx tsx scripts/mirror.ts
 npx tsx scripts/e2e_money.ts <unused room id; it uses 5 ids>
+npx tsx scripts/e2e_lobby.ts <free public room> <free private room>   # ~11 minutes
+npx tsx scripts/e2e_stake.ts <staked 0.01 table>
 ```

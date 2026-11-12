@@ -187,7 +187,7 @@ The **Operator** page sets how everyone at your table sees you. It's saved on yo
 | **Move** | Shift sprints (1.5×, loud, burns stamina), C crouches to sneak (slow and silent), Ctrl goes prone (a crawl, seen at under half the usual range), Space jumps. Stamina, crouch, prone and jump are simulated on-chain and mirrored bit-for-bit for prediction. |
 | **Guns** | eight original guns: VESPER pistol, HORNET SMG, MAUL shotgun, KESTREL rifle, TALON sniper, LANCE marksman rifle, BULWARK LMG and the silent WHISPER crossbow; two slots, aim down sights, recoil. Seven are real CC-BY models, held in both hands along the recorded grip. Each has its own layered sound: crack, body, tail, and the slide, pump or bolt. |
 | **Gadgets** | Frag, smoke, flashbang, decoy, motion sensor and night vision. Hold G to see the arc and where it lands, let go to throw. The can flies, bounces off walls and rolls on-chain; you see and hear it. |
-| **Daily challenge** | One sealed night a day: the same seed for everyone, you and three bots, one try per wallet, ranked on its own board. |
+| **Daily challenge** | A daily prize at the 0.05 SOL table: 2% of every pot there goes into the day's pot (the house keeps 3%). Play 3 nights and beat as many *different* players as you can; the most players beaten wins the pot (net profit breaks ties), claimed by the winner until the next day is decided. |
 | **Events** | Supply drops, a mid-night BLACKOUT that kills the lamps, and a bounty on the kill leader. |
 | **Duos** | Partners see each other through walls, get downed instead of dying, and revive by standing over each other. |
 | **Loot** | Medkits, armor, every gun and gadget above, and the flare, which lets you see everyone for 5 seconds. Supply drops carry the best of it. |
@@ -214,12 +214,12 @@ The **Operator** page sets how everyone at your table sees you. It's saved on yo
 
 | Screen | What's there |
 |---|---|
-| Home | Play now, create a room, play with friends (private, with a code), the staked night, join by code, today's daily challenge and open rooms, beside your own operator |
+| Home | Play now, create a room, play with friends (private, with a code), the staked night (choose your table), join by code, the daily challenge with today's prize pot, and open rooms, beside your own operator |
 | Operator | Pick an operator, outfit and emote; the Gunsmith for finishes and skins |
 | Lobby | Map picker, 3D pedestals per seat (click yours to emote), host controls (seats, bot skill, solo or duos, make host, kick), invite link or room code |
 | Match | Compass, countdown clock with the zone schedule, minimap and full map (Tab), a fullscreen button (phones go fullscreen and sideways on their own), phone controls (move stick, drag to look, labelled fire/scope/jump/crouch/reload/swap/gadget buttons), the emote wheel (B), settings (Esc) in five tabs: controls, camera, crosshair, display and audio |
 | Verdict | Results, replay, clip export, and a VERIFY tab that re-derives the night from its VRF seed in your browser |
-| Leaderboard | Staked nights (wins and SOL won, written by the `settle` Magic Action) and the daily challenge |
+| Leaderboard | The daily challenge's top 10 and yesterday's winner, and every staked player (60 kept on chain), 20 a page (written by the `settle` Magic Action) |
 | How it works | The live *Try to cheat* console, every building block, the timeline and the permission matrix |
 
 **Wallet optional.** Guests play free and gasless with a browser key; nothing is saved and they never appear on the leaderboard. Connecting Phantom, Solflare or Backpack keeps your callsign and lets you play **staked nights**: pick a 0.01 or 0.05 SOL table, every staker pays the same stake into its bank, there are no bots and no host (a full table starts at once, otherwise a minute after the last staker sits down), the map is drawn from the night's randomness, and the Magic Action pays the winner the pot less a 5% house fee. Stakes aren't refunded: a ticket that wasn't used (you left the lobby, or a night was called off) carries over to a later night at the same stake.
@@ -229,7 +229,7 @@ The **Operator** page sets how everyone at your table sees you. It's saved on yo
 ## Verified on devnet
 
 - `scripts/e2e.ts` plays full nights against the live TEE and checks that a player can read its own View but not another's, a spectator can't read the World, VRF seeds the match, the crank holds 20 ticks/s, and after `finish` the World and Recorder are readable and `settle` runs.
-- `scripts/e2e_money.ts` (41/41) and `scripts/e2e_daily.ts` (14/14): stakes, payouts, the fee, carried-over tickets and every attack from [Audit.md](Audit.md); the daily challenge from roll to leaderboard.
+- `scripts/e2e_money.ts` (all pass) and `scripts/e2e_lobby.ts` (12/12): stakes, payouts, the fee, the daily prize, the table fund, carried-over tickets, lobby time limits and every attack from [Audit.md](Audit.md).
 - `scripts/e2e_stake.ts`: two funded players buy tickets on Solana, play a staked night, and the winner's wallet receives the pot from the `settle` Magic Action.
 - `scripts/mirror.ts`: 2,000 random movement steps (sprint, sneak, prone, jump and stamina included) and 72 aimed throws give identical results in the Rust program and the TypeScript prediction.
 - `cargo test`: 44 tests (plus 2 long ones run on demand), including a golden fingerprint of whole nights, full 8-bot nights with valid placements, bots that actually fight, frags, duos revives, supply drops, the blackout, the house fee and called-off staked nights.
@@ -244,7 +244,7 @@ programs/blackout/       Anchor program
   src/config.rs          addresses, fee, timings
   src/state.rs           account layouts
   src/error.rs           error codes
-  src/instructions/      admin, stake (money), setup, lobby, night, daily, room_account
+  src/instructions/      admin, stake (money, prize, table fund), setup, lobby, night, room_account
   src/sim/               deterministic simulation: rules, math, seed, step, sight, bots, recorder, tests
   src/gen.rs             map and trig tables (generated by scripts/gen.py)
 app/                     Vite + React + react-three-fiber client
