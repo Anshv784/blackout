@@ -372,6 +372,7 @@ pub fn handle_finish<'info>(ctx: Context<'info, Finish<'info>>) -> Result<()> {
         meta(room_ai.key(), false),
         meta(ctx.accounts.winner.key(), true),
         meta(TREASURY, true),
+        meta(Pubkey::find_program_address(&[PRIZE_SEED], &crate::ID).0, true),
     ];
     // Derived here, not taken from the caller, so a losing player can't leave their own
     // ticket out of settle and then claim it back as unused.

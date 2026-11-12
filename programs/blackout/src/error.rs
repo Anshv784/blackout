@@ -48,4 +48,8 @@ pub enum BlackoutError {
     DailyPlayed,
     #[msg("Tickets for this room still exist: run scripts/sweep_tickets.ts first")]
     StakesOutstanding,
+    #[msg("There is no daily prize to claim")]
+    NoPrize,
+    #[msg("Only the day's winner can claim its prize")]
+    NotPrizeWinner,
 }

@@ -123,6 +123,22 @@ pub struct InitBoard<'info> {
     pub system_program: Program<'info, System>,
 }
 
+/// Admin: create the daily prize account (once). Settle skips the prize until it exists.
+pub fn handle_init_prize(ctx: Context<InitPrize>) -> Result<()> {
+    require_keys_eq!(ctx.accounts.payer.key(), ADMIN, BlackoutError::NotAdmin);
+    ctx.accounts.prize.load_init()?;
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct InitPrize<'info> {
+    #[account(init, payer = payer, space = 8 + core::mem::size_of::<Prize>(), seeds = [PRIZE_SEED], bump)]
+    pub prize: AccountLoader<'info, Prize>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
 #[derive(Accounts)]
 #[instruction(room_id: u64)]
 pub struct CreateRoom<'info> {

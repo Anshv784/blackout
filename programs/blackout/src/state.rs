@@ -24,6 +24,7 @@ pub const BANK_SEED: &[u8] = b"bank";
 pub const TICKET_SEED: &[u8] = b"ticket";
 pub const BOARD_SEED: &[u8] = b"board3"; // staked nights only
 pub const DAILY_SEED: &[u8] = b"daily";
+pub const PRIZE_SEED: &[u8] = b"prize";
 pub const DAILY_SECRET_SEED: &[u8] = b"daily-seed";
 pub const DAILY_SLOTS: usize = 32;
 /// One-try-per-wallet filter: 4096 bits, 3 hashes. Wrongly says "already played" for about
@@ -32,6 +33,8 @@ pub const DAILY_BLOOM_WORDS: usize = 128;
 /// Daily nights are 4 seats: you and three bots.
 pub const DAILY_SEATS: usize = 4;
 pub const BOARD_SLOTS: usize = 64;
+/// wallets the daily prize can track in one day (more than that and late arrivals aren't counted)
+pub const PRIZE_SLOTS: usize = 100;
 
 pub const BOT_EASY: u32 = 1;
 pub const BOT_HARD: u32 = 2;
@@ -202,6 +205,107 @@ pub struct KillEvent {
     pub killer: u32, // NO_SEAT = the zone
     pub victim: u32,
     pub weapon: u32,
+}
+
+/// The daily prize, on the base layer (never delegated). Settle of every night at a PRIZE_STAKE
+/// table adds 2% of the pot and each staker's games, stake and winnings for the UTC day. When a
+/// new day starts (the first settle or claim after midnight UTC), the day closes: the wallet with
+/// the highest net profit (won - staked) among those with PRIZE_MIN_GAMES nights wins the pot and
+/// can claim it until the next day closes. No winner, or not claimed by then: it goes to the
+/// treasury. The account's lamports are its rent + `pot` + `last_prize` (while unclaimed).
+#[account(zero_copy)]
+#[repr(C)]
+pub struct Prize {
+    /// UTC day being counted (unix seconds / 86400); 0 before the first night
+    pub day: u32,
+    pub count: u32,
+    /// lamports set aside for today so far
+    pub pot: u64,
+    pub last_day: u32,
+    /// 1 once the last day's prize is paid (or there was none)
+    pub last_claimed: u32,
+    pub last_winner: Pubkey,
+    pub last_prize: u64,
+    pub entries: [PrizeEntry; PRIZE_SLOTS],
+}
+
+#[zero_copy]
+#[repr(C)]
+pub struct PrizeEntry {
+    /// the staker's payout wallet (the same key the leaderboard uses)
+    pub key: Pubkey,
+    pub staked: u64,
+    pub won: u64,
+    pub games: u32,
+    pub _pad: u32,
+}
+
+impl Prize {
+    /// Net profit of an entry, in lamports.
+    pub fn profit(e: &PrizeEntry) -> i128 {
+        e.won as i128 - e.staked as i128
+    }
+
+    /// Today's leader among those who played enough nights: highest net profit, the earlier
+    /// entry on a tie. None if nobody qualifies.
+    pub fn leader(&self) -> Option<usize> {
+        let mut best: Option<usize> = None;
+        for i in 0..(self.count as usize).min(PRIZE_SLOTS) {
+            let e = &self.entries[i];
+            if e.games < crate::config::PRIZE_MIN_GAMES {
+                continue;
+            }
+            if best.map_or(true, |b| Self::profit(e) > Self::profit(&self.entries[b])) {
+                best = Some(i);
+            }
+        }
+        best
+    }
+
+    /// Close the day if `today` is a new one. Returns the lamports that leave for the treasury:
+    /// an unclaimed earlier prize, and today's pot if nobody qualified. The caller moves them.
+    pub fn roll(&mut self, today: u32) -> u64 {
+        if self.day == today {
+            return 0;
+        }
+        let mut to_treasury = 0u64;
+        if self.last_claimed == 0 {
+            to_treasury = to_treasury.saturating_add(self.last_prize);
+        }
+        match self.leader() {
+            Some(i) if self.day != 0 && self.pot > 0 => {
+                self.last_winner = self.entries[i].key;
+                self.last_prize = self.pot;
+                self.last_claimed = 0;
+            }
+            _ => {
+                to_treasury = to_treasury.saturating_add(self.pot);
+                self.last_winner = Pubkey::default();
+                self.last_prize = 0;
+                self.last_claimed = 1;
+            }
+        }
+        self.last_day = self.day;
+        self.day = today;
+        self.pot = 0;
+        self.count = 0;
+        self.entries = [PrizeEntry::zeroed(); PRIZE_SLOTS];
+        to_treasury
+    }
+
+    /// The entry for `key`, added if there's room. None once the day's slots are full.
+    pub fn entry_mut(&mut self, key: &Pubkey) -> Option<&mut PrizeEntry> {
+        let n = (self.count as usize).min(PRIZE_SLOTS);
+        if let Some(i) = self.entries[..n].iter().position(|e| e.key == *key) {
+            return Some(&mut self.entries[i]);
+        }
+        if n < PRIZE_SLOTS {
+            self.entries[n] = PrizeEntry { key: *key, ..PrizeEntry::zeroed() };
+            self.count += 1;
+            return Some(&mut self.entries[n]);
+        }
+        None
+    }
 }
 
 /// Global leaderboard on the base layer: staked nights only, updated by a Magic Action after each one.
@@ -573,5 +677,108 @@ mod staked_start_tests {
         sit(&mut r, 0, 1_000);
         sit(&mut r, 1, 1_000);
         assert_eq!(r.start_slot, 777);
+    }
+}
+
+#[cfg(test)]
+mod prize_tests {
+    use super::*;
+
+    fn prize(day: u32) -> Box<Prize> {
+        let mut p: Box<Prize> = Box::new(Zeroable::zeroed());
+        p.day = day;
+        p.last_claimed = 1;
+        p
+    }
+    fn night(p: &mut Prize, key: &Pubkey, staked: u64, won: u64) {
+        let e = p.entry_mut(key).unwrap();
+        e.games += 1;
+        e.staked += staked;
+        e.won += won;
+    }
+
+    #[test]
+    fn three_nights_needed_to_win() {
+        let mut p = prize(10);
+        let (a, b) = (Pubkey::new_unique(), Pubkey::new_unique());
+        night(&mut p, &a, 50, 190); // a: one big win, only 2 nights
+        night(&mut p, &a, 50, 0);
+        for _ in 0..3 {
+            night(&mut p, &b, 50, 60); // b: three nights, small profit
+        }
+        assert_eq!(p.leader(), Some(1), "only b has played three nights");
+        night(&mut p, &a, 50, 0);
+        assert_eq!(p.leader(), Some(0), "now a qualifies with the higher profit (90 vs 30)");
+    }
+
+    #[test]
+    fn highest_net_profit_wins_and_ties_go_to_the_earlier() {
+        let mut p = prize(10);
+        let (a, b, c) = (Pubkey::new_unique(), Pubkey::new_unique(), Pubkey::new_unique());
+        for _ in 0..3 {
+            night(&mut p, &a, 50, 50);
+            night(&mut p, &b, 50, 50);
+            night(&mut p, &c, 50, 0);
+        }
+        assert_eq!(p.leader(), Some(0), "a and b tie at 0: a was first");
+        night(&mut p, &c, 50, 400);
+        assert_eq!(p.leader(), Some(2), "c: -150 + 350 = +200");
+    }
+
+    #[test]
+    fn the_day_closes_with_a_winner_and_resets_to_zero() {
+        let mut p = prize(10);
+        let a = Pubkey::new_unique();
+        for _ in 0..3 {
+            night(&mut p, &a, 50, 100);
+        }
+        p.pot = 7_000;
+        assert_eq!(p.roll(10), 0, "same day: nothing happens");
+        assert_eq!(p.roll(11), 0, "a winner: nothing leaves yet");
+        assert_eq!((p.last_winner, p.last_prize, p.last_claimed, p.last_day), (a, 7_000, 0, 10));
+        assert_eq!((p.day, p.pot, p.count), (11, 0, 0), "today starts from zero");
+    }
+
+    #[test]
+    fn no_qualifier_sends_the_pot_to_the_treasury() {
+        let mut p = prize(10);
+        let a = Pubkey::new_unique();
+        night(&mut p, &a, 50, 100); // only one night
+        p.pot = 4_000;
+        assert_eq!(p.roll(11), 4_000);
+        assert_eq!((p.last_prize, p.last_claimed), (0, 1));
+    }
+
+    #[test]
+    fn an_unclaimed_prize_goes_to_the_treasury_when_the_next_day_closes() {
+        let mut p = prize(10);
+        let a = Pubkey::new_unique();
+        for _ in 0..3 {
+            night(&mut p, &a, 50, 100);
+        }
+        p.pot = 5_000;
+        p.roll(11); // a wins 5,000, doesn't claim
+        p.pot = 2_000; // day 11: nobody qualifies
+        assert_eq!(p.roll(12), 7_000, "a's unclaimed 5,000 and day 11's 2,000");
+        assert_eq!(p.last_claimed, 1);
+    }
+
+    #[test]
+    fn the_very_first_day_never_crowns_anyone() {
+        let mut p = prize(0);
+        p.pot = 0;
+        assert_eq!(p.roll(20), 0);
+        assert_eq!((p.day, p.last_claimed), (20, 1));
+    }
+
+    #[test]
+    fn a_full_day_stops_tracking_newcomers() {
+        let mut p = prize(10);
+        for _ in 0..PRIZE_SLOTS {
+            assert!(p.entry_mut(&Pubkey::new_unique()).is_some());
+        }
+        assert!(p.entry_mut(&Pubkey::new_unique()).is_none());
+        let first = p.entries[0].key;
+        assert!(p.entry_mut(&first).is_some(), "a known wallet is still found");
     }
 }

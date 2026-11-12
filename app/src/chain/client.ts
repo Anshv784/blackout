@@ -31,7 +31,7 @@ import {
   permissionPdaFromAccount,
 } from "@magicblock-labs/ephemeral-rollups-sdk";
 import idl from "../idl/blackout.json";
-import { MAXP, decodeRoom, decodeView, decodeWorld, decodeRecording, decodeBoard, decodeDaily, type Room, type Daily } from "./layout";
+import { MAXP, decodeRoom, decodeView, decodeWorld, decodeRecording, decodeBoard, decodeDaily, decodePrize, type Room, type Daily } from "./layout";
 
 // CJS (node/tsx) exposes the API on `default`, the browser build as named exports
 const ns: any = anchorNs;
@@ -46,6 +46,8 @@ export const BASE_ENDPOINT = env.VITE_BASE_RPC || "https://rpc.magicblock.app/de
 export const TEE_ENDPOINT = IS_MAINNET ? "https://mainnet-tee.magicblock.app" : "https://devnet-tee.magicblock.app";
 export const TEE_WS = IS_MAINNET ? "wss://mainnet-tee.magicblock.app" : "wss://devnet-tee.magicblock.app";
 export const TEE_VALIDATOR = new PublicKey("MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo");
+/** the fee wallet compiled into each program (config.rs TREASURY = ADMIN) */
+export const TREASURY = new PublicKey(IS_MAINNET ? "EXu7bp1rbNw9R6UfRLnsJcxyEF4GCvqChcoHMdbHgCmx" : "9Sg12k15Ann4SKSxcA85bq5fbpq7WMLH9bLCTUbTRkQV");
 /** Ticket account size: 8 discriminator + room 8 + match 4 + player 32 + payout 32 + amount 8 + expiry 8 + used 1. */
 export const TICKET_LEN = 101;
 export const PROGRAM_ID = new PublicKey(env.VITE_PROGRAM_ID || (idl as any).address);
@@ -85,6 +87,7 @@ export const recPdas = (roomId: bigint | number) => Array.from({ length: REC_CHU
 export const viewPda = (roomId: bigint | number, seat: number) => pda([Buffer.from("view"), u64le(roomId), Buffer.from([seat])]);
 export const bankPda = (roomId: bigint | number) => pda([Buffer.from("bank"), u64le(roomId)]);
 export const boardPda = () => pda([Buffer.from("board3")]);
+export const prizePda = () => pda([Buffer.from("prize")]);
 export const dailyPda = () => pda([Buffer.from("daily")]);
 export const dailySecretPda = () => pda([Buffer.from("daily-seed")]);
 /** `delegate_room` with this id delegates the daily board (mirror of config.rs DAILY_ID). */
@@ -264,6 +267,21 @@ export class BlackoutClient {
     const infos = await conn.getMultipleAccountsInfo(recPdas(roomId));
     if (infos.some((i) => !i)) return null;
     return decodeRecording(infos.map((i) => i!.data));
+  }
+
+  async fetchPrize() {
+    const info = await this.base.getAccountInfo(prizePda());
+    return info ? decodePrize(info.data) : null;
+  }
+
+  /** The day's winner takes the prize (signed by their wallet, which receives it). */
+  claimPrizeIx(winner: PublicKey) {
+    return ix("claim_prize", {}, [w(prizePda()), w(TREASURY), w(winner, true)]);
+  }
+
+  /** Admin, once: create the daily prize account. */
+  initPrizeIx() {
+    return ix("init_prize", {}, [w(prizePda()), w(this.publicKey, true), r(SystemProgram.programId)]);
   }
 
   async fetchBoard() {

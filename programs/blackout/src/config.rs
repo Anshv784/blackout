@@ -36,6 +36,13 @@ pub const SETTLE_MARGIN_SECS: i64 = 300;
 /// A staked table with two or more stakers seated starts this long after the last one sat down
 /// (a full table starts at once). There is no host: any seated staker's game may start it.
 pub const STAKED_START_WAIT_SECS: i64 = 60;
+
+/// The daily prize: tables at exactly this stake (0.05 SOL) feed it. Of each such pot's 5% fee,
+/// PRIZE_BPS (2%) goes to the prize and the rest to the treasury.
+pub const PRIZE_STAKE: u64 = 50_000_000;
+pub const PRIZE_BPS: u64 = 200;
+/// Nights at the prize table a wallet must play in a day to be able to win it.
+pub const PRIZE_MIN_GAMES: u32 = 3;
 /// Smallest stake: the pot must always be enough to rent-exempt a brand new winner wallet.
 pub const MIN_STAKE: u64 = 2_000_000;
 /// VRF wait before a free room may self-seed (~5 s) or a staked start is called off (~30 s).

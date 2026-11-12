@@ -413,6 +413,59 @@ export function decodeBoard(data: Uint8Array): { matches: bigint; entries: Board
   return { matches, entries };
 }
 
+/** The daily prize (0.05 SOL tables). See programs/blackout/src/state.rs `Prize`. */
+export interface PrizeEntry {
+  key: PublicKey;
+  staked: bigint;
+  won: bigint;
+  games: number;
+  /** won - staked, lamports */
+  profit: bigint;
+}
+export interface Prize {
+  day: number;
+  pot: bigint;
+  lastDay: number;
+  lastClaimed: boolean;
+  lastWinner: PublicKey;
+  lastPrize: bigint;
+  entries: PrizeEntry[];
+}
+export const PRIZE_SLOTS = 100;
+export const PRIZE_MIN_GAMES = 3;
+export const PRIZE_STAKE = 50_000_000n;
+
+export function decodePrize(data: Uint8Array): Prize {
+  const r = new Reader(dvOf(data), 8);
+  const day = r.u32();
+  const count = r.u32();
+  const pot = r.u64();
+  const lastDay = r.u32();
+  const lastClaimed = r.u32() === 1;
+  const lastWinner = r.key();
+  const lastPrize = r.u64();
+  const entries = r
+    .arr(PRIZE_SLOTS, () => {
+      const key = r.key();
+      const staked = r.u64();
+      const won = r.u64();
+      const games = r.u32();
+      r.u32();
+      return { key, staked, won, games, profit: won - staked };
+    })
+    .slice(0, count);
+  return { day, pot, lastDay, lastClaimed, lastWinner, lastPrize, entries };
+}
+
+/** Mirror of the program's `Prize::leader`: highest net profit among those with enough nights, earlier on a tie. */
+export function prizeLeader(p: Prize): number {
+  let best = -1;
+  p.entries.forEach((e, i) => {
+    if (e.games >= PRIZE_MIN_GAMES && (best < 0 || e.profit > p.entries[best].profit)) best = i;
+  });
+  return best;
+}
+
 export interface DailyEntry {
   key: PublicKey;
   name: string;

@@ -156,12 +156,19 @@ pub fn handle_settle<'info>(ctx: Context<'info, Settle<'info>>) -> Result<()> {
             let treasury = ctx.accounts.treasury.to_account_info();
             let min_balance = Rent::get()?.minimum_balance(0);
             fee = house_fee(pot, treasury.lamports(), min_balance);
+            // a prize table: 2% of the pot (out of the 5% fee) goes to the day's prize
+            let prize_ai = ctx.accounts.prize.to_account_info();
+            let cut = if room.stake == PRIZE_STAKE { prize_cut(pot, fee) } else { 0 };
+            let cut = if cut > 0 { add_to_prize(&prize_ai, &treasury, cut)? } else { 0 };
             **bank_ai.try_borrow_mut_lamports()? -= pot;
-            let total = treasury.lamports().checked_add(fee).ok_or(BlackoutError::BadAccount)?;
+            let total = treasury.lamports().checked_add(fee - cut).ok_or(BlackoutError::BadAccount)?;
             **treasury.try_borrow_mut_lamports()? = total;
             let winner = ctx.accounts.winner.to_account_info();
             let total = winner.lamports().checked_add(pot - fee).ok_or(BlackoutError::BadAccount)?;
             **winner.try_borrow_mut_lamports()? = total;
+            if room.stake == PRIZE_STAKE {
+                record_prize_night(&prize_ai, &treasury, &room, w, pot - fee)?;
+            }
         }
     }
 
@@ -245,6 +252,103 @@ pub struct CloseTicket<'info> {
     pub payout: UncheckedAccount<'info>,
 }
 
+/// The prize's share of a pot: PRIZE_BPS of it, never more than the fee it comes out of.
+pub fn prize_cut(pot: u64, fee: u64) -> u64 {
+    ((pot as u128 * PRIZE_BPS as u128 / 10_000) as u64).min(fee)
+}
+
+/// Run `f` on the prize account if it has been created (settle works without it: the whole fee
+/// then goes to the treasury). Closes yesterday first if a new UTC day has started, sending what
+/// that frees to the treasury.
+fn with_prize<R>(prize_ai: &AccountInfo, treasury_ai: &AccountInfo, f: impl FnOnce(&mut Prize) -> R) -> Result<Option<R>> {
+    if prize_ai.owner != &crate::ID || prize_ai.data_len() < 8 + core::mem::size_of::<Prize>() {
+        return Ok(None);
+    }
+    let today = (Clock::get()?.unix_timestamp / 86_400) as u32;
+    let (to_treasury, out) = {
+        let mut data = prize_ai.try_borrow_mut_data()?;
+        require!(data[..8] == *<Prize as anchor_lang::Discriminator>::DISCRIMINATOR, BlackoutError::BadAccount);
+        let p: &mut Prize = bytemuck::from_bytes_mut(&mut data[8..8 + core::mem::size_of::<Prize>()]);
+        let to_treasury = p.roll(today);
+        (to_treasury, f(p))
+    };
+    if to_treasury > 0 {
+        move_lamports(prize_ai, treasury_ai, to_treasury)?;
+    }
+    Ok(Some(out))
+}
+
+/// Put `cut` into today's prize. Returns what was actually set aside (0 without a prize account).
+fn add_to_prize(prize_ai: &AccountInfo, treasury_ai: &AccountInfo, cut: u64) -> Result<u64> {
+    let added = with_prize(prize_ai, treasury_ai, |p| {
+        p.pot = p.pot.saturating_add(cut);
+    })?;
+    if added.is_none() {
+        return Ok(0);
+    }
+    let total = prize_ai.lamports().checked_add(cut).ok_or(BlackoutError::BadAccount)?;
+    **prize_ai.try_borrow_mut_lamports()? = total;
+    Ok(cut)
+}
+
+/// Count this night for every staker at the prize table: a game, their stake, and the winner's take.
+fn record_prize_night(prize_ai: &AccountInfo, treasury_ai: &AccountInfo, room: &Room, winner_seat: usize, winnings: u64) -> Result<()> {
+    with_prize(prize_ai, treasury_ai, |p| {
+        for s in 0..MAXP {
+            let key = room.payout[s];
+            if room.is_bot[s] == 1 || room.players[s] == Pubkey::default() || key == Pubkey::default() {
+                continue;
+            }
+            if let Some(e) = p.entry_mut(&key) {
+                e.games = e.games.saturating_add(1);
+                e.staked = e.staked.saturating_add(room.stake);
+                if s == winner_seat {
+                    e.won = e.won.saturating_add(winnings);
+                }
+            }
+        }
+    })?;
+    Ok(())
+}
+
+fn move_lamports(from: &AccountInfo, to: &AccountInfo, amount: u64) -> Result<()> {
+    let left = from.lamports().checked_sub(amount).ok_or(BlackoutError::BadAccount)?;
+    **from.try_borrow_mut_lamports()? = left;
+    let total = to.lamports().checked_add(amount).ok_or(BlackoutError::BadAccount)?;
+    **to.try_borrow_mut_lamports()? = total;
+    Ok(())
+}
+
+/// The day's winner takes the prize. Closes the day first if it has ended. Signed by the winning
+/// payout wallet; the money goes only to it.
+pub fn handle_claim_prize(ctx: Context<ClaimPrize>) -> Result<()> {
+    let today = (Clock::get()?.unix_timestamp / 86_400) as u32;
+    let prize_ai = ctx.accounts.prize.to_account_info();
+    let (to_treasury, amount) = {
+        let mut p = ctx.accounts.prize.load_mut()?;
+        let to_treasury = p.roll(today);
+        require!(p.last_claimed == 0 && p.last_prize > 0, BlackoutError::NoPrize);
+        require_keys_eq!(ctx.accounts.claimer.key(), p.last_winner, BlackoutError::NotPrizeWinner);
+        p.last_claimed = 1;
+        (to_treasury, p.last_prize)
+    };
+    if to_treasury > 0 {
+        move_lamports(&prize_ai, &ctx.accounts.treasury.to_account_info(), to_treasury)?;
+    }
+    move_lamports(&prize_ai, &ctx.accounts.claimer.to_account_info(), amount)
+}
+
+#[derive(Accounts)]
+pub struct ClaimPrize<'info> {
+    #[account(mut, seeds = [PRIZE_SEED], bump)]
+    pub prize: AccountLoader<'info, Prize>,
+    /// CHECK: the fixed fee wallet (gets yesterday's prize if nobody qualified or claimed)
+    #[account(mut, address = TREASURY)]
+    pub treasury: UncheckedAccount<'info>,
+    #[account(mut)]
+    pub claimer: Signer<'info>,
+}
+
 #[derive(Accounts)]
 #[instruction(room_id: u64, match_no: u32)]
 pub struct ReuseTicket<'info> {
@@ -294,6 +398,9 @@ pub struct Settle<'info> {
     /// CHECK: the fixed fee wallet
     #[account(mut, address = TREASURY)]
     pub treasury: UncheckedAccount<'info>,
+    /// CHECK: the daily prize PDA; used only if it exists (see `live_prize`)
+    #[account(mut, seeds = [PRIZE_SEED], bump)]
+    pub prize: UncheckedAccount<'info>,
     /// CHECK: escrow authority / escrow pair, verified in the handler (order-agnostic)
     pub escrow_auth: UncheckedAccount<'info>,
     /// CHECK: see above
@@ -337,6 +444,15 @@ mod fee_tests {
         assert_eq!(house_fee(20_000_000, 1_000_000_000, 890_880), 1_000_000);
         assert_eq!(house_fee(19, 1_000_000_000, 890_880), 0); // rounds down
         assert!(house_fee(u64::MAX, u64::MAX, 890_880) < u64::MAX);
+    }
+
+    #[test]
+    fn the_prize_takes_two_of_the_five_percent() {
+        // a 4-player 0.05 table: 0.2 SOL pot, 0.01 fee, 0.004 to the prize, 0.006 kept
+        let pot = 200_000_000;
+        let fee = house_fee(pot, 1_000_000_000, 890_880);
+        assert_eq!((fee, prize_cut(pot, fee)), (10_000_000, 4_000_000));
+        assert_eq!(prize_cut(pot, 0), 0, "no fee (empty treasury): no prize cut either");
     }
 
     #[test]

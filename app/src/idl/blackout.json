@@ -118,6 +118,50 @@
       ]
     },
     {
+      "name": "claim_prize",
+      "discriminator": [
+        157,
+        233,
+        139,
+        121,
+        246,
+        62,
+        234,
+        235
+      ],
+      "accounts": [
+        {
+          "name": "prize",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  105,
+                  122,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "treasury",
+          "writable": true,
+          "address": "9Sg12k15Ann4SKSxcA85bq5fbpq7WMLH9bLCTUbTRkQV"
+        },
+        {
+          "name": "claimer",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "claim_room",
       "discriminator": [
         62,
@@ -911,6 +955,49 @@
           "type": "u64"
         }
       ]
+    },
+    {
+      "name": "init_prize",
+      "discriminator": [
+        82,
+        65,
+        199,
+        28,
+        169,
+        16,
+        205,
+        68
+      ],
+      "accounts": [
+        {
+          "name": "prize",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  105,
+                  122,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
     },
     {
       "name": "input",
@@ -1970,6 +2057,24 @@
           "address": "9Sg12k15Ann4SKSxcA85bq5fbpq7WMLH9bLCTUbTRkQV"
         },
         {
+          "name": "prize",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  105,
+                  122,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
           "name": "escrow_auth"
         },
         {
@@ -2580,6 +2685,19 @@
       ]
     },
     {
+      "name": "Prize",
+      "discriminator": [
+        207,
+        94,
+        143,
+        55,
+        253,
+        127,
+        70,
+        211
+      ]
+    },
+    {
       "name": "Room",
       "discriminator": [
         156,
@@ -2721,6 +2839,16 @@
       "code": 6022,
       "name": "StakesOutstanding",
       "msg": "Tickets for this room still exist: run scripts/sweep_tickets.ts first"
+    },
+    {
+      "code": 6023,
+      "name": "NoPrize",
+      "msg": "There is no daily prize to claim"
+    },
+    {
+      "code": 6024,
+      "name": "NotPrizeWinner",
+      "msg": "Only the day's winner can claim its prize"
     }
   ],
   "types": [
@@ -2990,6 +3118,111 @@
           },
           {
             "name": "weapon",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Prize",
+      "docs": [
+        "The daily prize, on the base layer (never delegated). Settle of every night at a PRIZE_STAKE",
+        "table adds 2% of the pot and each staker's games, stake and winnings for the UTC day. When a",
+        "new day starts (the first settle or claim after midnight UTC), the day closes: the wallet with",
+        "the highest net profit (won - staked) among those with PRIZE_MIN_GAMES nights wins the pot and",
+        "can claim it until the next day closes. No winner, or not claimed by then: it goes to the",
+        "treasury. The account's lamports are its rent + `pot` + `last_prize` (while unclaimed)."
+      ],
+      "serialization": "bytemuck",
+      "repr": {
+        "kind": "c"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "day",
+            "docs": [
+              "UTC day being counted (unix seconds / 86400); 0 before the first night"
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "count",
+            "type": "u32"
+          },
+          {
+            "name": "pot",
+            "docs": [
+              "lamports set aside for today so far"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "last_day",
+            "type": "u32"
+          },
+          {
+            "name": "last_claimed",
+            "docs": [
+              "1 once the last day's prize is paid (or there was none)"
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "last_winner",
+            "type": "pubkey"
+          },
+          {
+            "name": "last_prize",
+            "type": "u64"
+          },
+          {
+            "name": "entries",
+            "type": {
+              "array": [
+                {
+                  "defined": {
+                    "name": "PrizeEntry"
+                  }
+                },
+                100
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "PrizeEntry",
+      "serialization": "bytemuck",
+      "repr": {
+        "kind": "c"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "key",
+            "docs": [
+              "the staker's payout wallet (the same key the leaderboard uses)"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "staked",
+            "type": "u64"
+          },
+          {
+            "name": "won",
+            "type": "u64"
+          },
+          {
+            "name": "games",
+            "type": "u32"
+          },
+          {
+            "name": "_pad",
             "type": "u32"
           }
         ]

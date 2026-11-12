@@ -3,14 +3,15 @@ import { friendlyError } from "../game/errors";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { client } from "../game/identity";
 import { ALL_ROOMS, STAKED_ROOMS } from "../config";
-import { ST_LOBBY, ST_LIVE, ST_COUNTDOWN, ST_STARTING, ST_REVEALED, ST_ENDED, type Room, type BoardEntry, type Daily } from "../chain/layout";
-import { todayUtc } from "../chain/client";
+import { ST_LOBBY, ST_LIVE, ST_COUNTDOWN, ST_STARTING, ST_REVEALED, ST_ENDED, PRIZE_STAKE, type Room, type BoardEntry, type Prize } from "../chain/layout";
 import { go } from "../App";
 import { useStore } from "../game/store";
 import { audio } from "../game/audio";
 import { TopBar } from "./TopBar";
 import { requireRealWallet, requireWallet } from "../game/wallet";
-import { codeToText, createRoom, ensureDaily, findByCode, myRoom, playedToday, stakeLabel, sweepRooms } from "../game/rooms";
+import { codeToText, createRoom, findByCode, myRoom, stakeLabel, sweepRooms } from "../game/rooms";
+import { DailyPrize } from "./DailyPrize";
+import { claimPrize, solText } from "../game/prize";
 import { StakeChoice } from "./StakeChoice";
 import { AlreadyInRoom } from "./AlreadyInRoom";
 
@@ -31,60 +32,6 @@ function statusLine(r: Room, slot: number) {
   return h ? `${h} waiting` : "empty";
 }
 
-const untilMidnight = () => {
-  const ms = (todayUtc() + 1) * 86_400_000 - Date.now();
-  const h = Math.floor(ms / 3_600_000);
-  const m = Math.floor((ms % 3_600_000) / 60_000);
-  return h > 0 ? `${h}h ${m}m` : `${m}m`;
-};
-
-/** Today's daily: one sealed night for everyone, one try each. Its own card, not one button in a row. */
-function DailyCard({ daily, busy, onPlay, className = "" }: { daily: Daily | null; busy: boolean; onPlay: () => void; className?: string }) {
-  const wallet = useStore((s) => s.wallet);
-  const [, tick] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => tick((n) => n + 1), 30_000);
-    return () => clearInterval(t);
-  }, []);
-  const today = daily && daily.day === todayUtc() ? daily.entries : [];
-  const best = today[0];
-  const mine = wallet ? today.find((e) => e.key.toBase58() === wallet) : undefined;
-  const rank = mine ? today.indexOf(mine) + 1 : 0;
-  const name = (e: { name: string; key: { toBase58(): string } }) => e.name || `${e.key.toBase58().slice(0, 4)}…`;
-  return (
-    <div className={`daily-card ${className}`}>
-      <div className="dc-top">
-        <span className="dc-badge">DAILY CHALLENGE</span>
-        <span className="dc-timer">new night in {untilMidnight()}</span>
-      </div>
-      <h3>Today's Night</h3>
-      <p>Same sealed map, loot and zone for everyone. You and three bots. One try per wallet.</p>
-      <div className="dc-stats">
-        <div>
-          <b>{today.length}</b>
-          <span>played</span>
-        </div>
-        <div>
-          <b>{best ? best.score : "—"}</b>
-          <span>{best ? `best · ${name(best)}` : "no score yet"}</span>
-        </div>
-        <div>
-          <b>{mine ? `#${rank}` : "—"}</b>
-          <span>{mine ? `you · ${mine.score}` : "your rank"}</span>
-        </div>
-      </div>
-      {mine ? (
-        <button className="btn dc-btn done" onClick={() => go("/board")}>
-          PLAYED ✓ · SEE TODAY'S BOARD
-        </button>
-      ) : (
-        <button className="btn primary dc-btn" onClick={onPlay} disabled={busy}>
-          {busy ? "OPENING TODAY'S NIGHT…" : "PLAY TODAY'S NIGHT"}
-        </button>
-      )}
-    </div>
-  );
-}
 
 /** Line icons for the room tiles. */
 function TileIcon({ name }: { name: "room" | "friends" | "stake" }) {
@@ -153,7 +100,8 @@ export function Home() {
   const [board, setBoard] = useState<BoardEntry[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [slot, setSlot] = useState(0);
-  const [daily, setDaily] = useState<Daily | null>(null);
+  const [prize, setPrize] = useState<Prize | null>(null);
+  const [names, setNames] = useState<Map<string, string>>(new Map());
   const toast = useStore((s) => s.toast);
   const myName = useStore((s) => s.name);
 
@@ -178,18 +126,27 @@ export function Home() {
       }
     };
     load();
-    client
-      .fetchDaily()
-      .then((d) => alive && setDaily(d))
-      .catch(() => {});
+    // the daily prize lives on Solana (not the rollup): a slower poll
+    const loadPrize = () =>
+      client
+        .fetchPrize()
+        .then((p) => alive && setPrize(p))
+        .catch(() => {});
+    loadPrize();
     client
       .fetchBoard()
-      .then((b) => alive && b && setBoard([...b.entries].filter((e) => e.wins > 0 || e.earned > 0n).sort((a, c) => c.wins - a.wins || Number(c.earned - a.earned) || c.kills - a.kills).slice(0, 3)))
+      .then((b) => {
+        if (!alive || !b) return;
+        setBoard([...b.entries].filter((e) => e.wins > 0 || e.earned > 0n).sort((a, c) => c.wins - a.wins || Number(c.earned - a.earned) || c.kills - a.kills).slice(0, 3));
+        setNames(new Map(b.entries.filter((e) => e.name).map((e) => [e.key.toBase58(), e.name])));
+      })
       .catch(() => {});
     const t = setInterval(load, 3000);
+    const tp = setInterval(loadPrize, 15_000);
     return () => {
       alive = false;
       clearInterval(t);
+      clearInterval(tp);
     };
   }, []);
 
@@ -223,26 +180,26 @@ export function Home() {
       }
     });
 
-  /** Today's daily: roll the seed if needed, open a private 4-seat room, start from there. */
-  const playDaily = async () => {
-    audio.unlock();
-    setBusy("daily");
-    try {
-      const d = await ensureDaily();
-      const w = useStore.getState().wallet;
-      if (w && playedToday(d, w)) {
-        toast("You've played today's daily. A new one opens at midnight UTC.");
-        go("/board");
-        return;
+  /** The daily challenge's table: the staked table at the prize stake (0.05 SOL). */
+  const prizeTable = STAKED_ROOMS.find((id) => rooms[id]?.stake === PRIZE_STAKE) ?? STAKED_ROOMS[STAKED_ROOMS.length - 1];
+  const [claiming, setClaiming] = useState(false);
+  const claim = () =>
+    requireRealWallet(async () => {
+      setClaiming(true);
+      try {
+        const { provider } = await import("../game/wallet");
+        const sol = provider();
+        if (!sol) throw new Error("Claiming needs the wallet that won. Connect it and try again.");
+        await claimPrize(sol);
+        const p = await client.fetchPrize().catch(() => null);
+        setPrize(p);
+        toast(`Prize claimed: ${solText(p?.lastPrize ?? 0n)} SOL is in your wallet`);
+      } catch (e: any) {
+        toast(friendlyError(e));
+      } finally {
+        setClaiming(false);
       }
-      const { id, code } = await createRoom(4, true);
-      go(`/r/${id}?daily=1&code=${codeToText(code).replace("-", "")}`);
-    } catch (e: any) {
-      toast(friendlyError(e));
-    } finally {
-      setBusy(null);
-    }
-  };
+    });
 
   /** Play now: sit in the open room with the most people, so players meet; open one if none. */
   const playNow = () => {
@@ -352,7 +309,7 @@ export function Home() {
           </div>
         </div>
         <aside className="gate-side">
-          <DailyCard daily={daily} busy={busy === "daily"} onPlay={() => guard(null, () => requireRealWallet(playDaily))} />
+          <DailyPrize prize={prize} names={names} claiming={claiming} onClaim={claim} onPlay={() => guard(prizeTable, () => requireRealWallet(() => go(`/r/${prizeTable}`)))} />
           <div className="side-card rooms-card">
             <label>OPEN ROOMS · JOIN SOMEONE</label>
             {openRooms.length === 0 && <div className="side-empty">No one is waiting right now. Create a room — friends can join from your link.</div>}
