@@ -324,7 +324,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
         {quick.current && <p className="sub">Opening the gate for you…</p>}
       </div>
 
-      <MapPicker value={room.map} canChange={!!canStart && !isDaily} busy={!!busy} onPick={(id) => run("map", () => session.setMode(room.duos, id))} />
+      <MapPicker value={room.map} canChange={!!canStart && !isDaily} drawn={staked} busy={!!busy} onPick={(id) => run("map", () => session.setMode(room.duos, id))} />
       <button className="exit-room" onClick={exit} disabled={busy === "leave"}>
         ← {canStart ? "CLOSE ROOM" : "EXIT ROOM"}
       </button>
@@ -508,7 +508,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
             </span>
             <span>
               <i>MAP</i>
-              {room.map === 1 ? "Meadow" : "Yard"}
+              {staked ? "Drawn" : room.map === 1 ? "Meadow" : "Yard"}
             </span>
           </div>
         </div>
@@ -517,7 +517,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
           <label className="dock-head">
             <span>THE NIGHT</span>
             <em>
-              {humans}/{size} seated · {room.map === 1 ? "Meadow" : "Yard"}
+              {humans}/{size} seated · {staked ? "map drawn at the start" : room.map === 1 ? "Meadow" : "Yard"}
             </em>
           </label>
           {mySeat === null ? (

@@ -147,12 +147,27 @@ pub fn handle_on_seed(ctx: Context<OnSeed>, randomness: [u8; 32]) -> Result<()> 
     if room.status != ST_STARTING {
         return Ok(());
     }
+    // a staked table has no host to choose: its map is drawn from this same seed, before the
+    // night is built (spawns depend on the map)
+    draw_staked_map(&mut room, &randomness);
     let rid = room.room_id;
     let mut d = ctx.accounts.world.try_borrow_mut_data()?;
     let w: &mut World = world_mut(&mut d, rid)?;
     sim::seed_match(&mut room, w, randomness);
     room.seed_revealed = 0;
     Ok(())
+}
+
+/// Staked tables only: Yard or Meadow, from the top bit of the night's VRF output. Nobody at the
+/// table can steer it, and it costs nothing extra (the seed is already being drawn).
+pub fn draw_staked_map(room: &mut Room, randomness: &[u8; 32]) {
+    if room.stake == 0 {
+        return;
+    }
+    room.cfg &= !sim::CFG_MEADOW;
+    if randomness[31] & 0x80 != 0 {
+        room.cfg |= sim::CFG_MEADOW;
+    }
 }
 
 /// If the VRF oracle doesn't answer, any seated player can move things along. A free
@@ -704,5 +719,45 @@ mod void_tests {
         void_night(&mut r);
         assert_eq!((r.status, r.winner), (ST_ENDED, NO_SEAT));
         assert!(r.place.iter().all(|&p| p == 0));
+    }
+}
+
+#[cfg(test)]
+mod staked_map_tests {
+    use super::*;
+    use bytemuck::Zeroable;
+
+    #[test]
+    fn a_staked_table_draws_its_map_from_the_seed() {
+        let mut r: Room = Zeroable::zeroed();
+        r.stake = 10_000_000;
+        let mut seed = [0u8; 32];
+        draw_staked_map(&mut r, &seed);
+        assert_eq!(r.cfg & sim::CFG_MEADOW, 0, "low draw: the Yard");
+        seed[31] = 0x80;
+        draw_staked_map(&mut r, &seed);
+        assert_ne!(r.cfg & sim::CFG_MEADOW, 0, "high draw: the Meadow");
+        seed[31] = 0x7f;
+        draw_staked_map(&mut r, &seed);
+        assert_eq!(r.cfg & sim::CFG_MEADOW, 0, "redrawn every night, not sticky");
+    }
+
+    #[test]
+    fn other_settings_survive_the_draw() {
+        let mut r: Room = Zeroable::zeroed();
+        r.stake = 10_000_000;
+        r.cfg = 6 | (2 << 9); // six seats, a bot level
+        let mut seed = [0u8; 32];
+        seed[31] = 0xff;
+        draw_staked_map(&mut r, &seed);
+        assert_eq!(r.cfg & !sim::CFG_MEADOW, 6 | (2 << 9));
+    }
+
+    #[test]
+    fn a_free_room_keeps_the_hosts_pick() {
+        let mut r: Room = Zeroable::zeroed();
+        r.cfg = sim::CFG_MEADOW;
+        draw_staked_map(&mut r, &[0u8; 32]);
+        assert_ne!(r.cfg & sim::CFG_MEADOW, 0);
     }
 }

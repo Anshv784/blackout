@@ -55,14 +55,15 @@ function Thumb({ map }: { map: MapInfo }) {
   return <canvas ref={ref} width={192} height={192} className="mp-thumb" />;
 }
 
-export function MapPicker({ value, canChange, busy, onPick }: { value: number; canChange: boolean; busy: boolean; onPick: (id: number) => void }) {
+/** `drawn`: a staked table, where nobody picks. The night's random seed decides, when it starts. */
+export function MapPicker({ value, canChange, busy, onPick, drawn = false }: { value: number; canChange: boolean; busy: boolean; onPick: (id: number) => void; drawn?: boolean }) {
   return (
-    <div className="map-picker">
+    <div className={`map-picker ${drawn ? "drawn" : ""}`}>
       <label>
-        MAP <em>{canChange ? "host picks" : "host decides"}</em>
+        MAP <em>{drawn ? "drawn at the start" : canChange ? "host picks" : "host decides"}</em>
       </label>
       {MAPS.map((m) => {
-        const on = m.id === value;
+        const on = !drawn && m.id === value;
         return (
           <button key={m.id} className={`mp-card ${on ? "on" : ""}`} disabled={!canChange || busy || on} onClick={() => onPick(m.id)}>
             <Thumb map={m} />

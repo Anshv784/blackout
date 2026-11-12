@@ -2844,3 +2844,5 @@ button {
   .vc-actions{gap:6px}
   .verdict-card small{margin-top:6px;font-size:10px}
 }
+/* a staked table's map is drawn at the start: both shown, neither chosen */
+.map-picker.drawn .mp-card{opacity:.75;cursor:default}
