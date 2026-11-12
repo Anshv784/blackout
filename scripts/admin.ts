@@ -99,6 +99,11 @@ if (cmd === "board") {
 } else if (cmd === "refill") {
   // top a staked table up from the table fund now (players' games do this on their own when it's low)
   for (const a of args) console.log(`table ${a} refilled from the fund`, await c.sendBase([c.refillTableIx(BigInt(a))]));
+} else if (cmd === "prize-reset") {
+  // after a change to the prize account's layout: resize it and start the day fresh (devnet)
+  console.log("prize reset", await c.sendBase([c.resetPrizeIx()]));
+  const p = await c.fetchPrize();
+  console.log(`day ${p?.day} pot ${p?.pot} players ${p?.entries.length}`);
 } else if (cmd === "fairplay") {
   // flags possible teaming and aim help from the staked nights' records (see scripts/fairplay.ts)
   await import("./fairplay.ts");

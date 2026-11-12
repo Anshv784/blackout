@@ -83,6 +83,10 @@ pub mod blackout {
         instructions::stake::handle_claim_prize(ctx)
     }
 
+    pub fn reset_prize(ctx: Context<ResetPrize>) -> Result<()> {
+        instructions::admin::handle_reset_prize(ctx)
+    }
+
     pub fn init_prize(ctx: Context<InitPrize>) -> Result<()> {
         instructions::admin::handle_init_prize(ctx)
     }

@@ -27,7 +27,8 @@ export function aliasFor(key: string) {
 const short = (k: string) => `${k.slice(0, 4)}…${k.slice(-4)}`;
 const MEDAL = ["#ffd166", "#cfd8e6", "#d98c5f"];
 
-/** The daily challenge: today's top 10 at the 0.05 SOL table by net profit, and yesterday's winner. */
+/** The daily challenge: today's top 10 at the 0.05 SOL table by different players beaten (net
+ *  profit breaks ties), and yesterday's winner. */
 function PrizeBoard({ mine, names }: { mine: Set<string>; names: Map<string, string> }) {
   const [p, setP] = useState<Prize | null>(null);
   useEffect(() => {
@@ -53,9 +54,9 @@ function PrizeBoard({ mine, names }: { mine: Set<string>; names: Map<string, str
           <div className="bt-row head">
             <span>#</span>
             <span>survivor</span>
-            <span>net profit</span>
+            <span>beaten</span>
             <span>nights</span>
-            <span>staked</span>
+            <span>net profit</span>
             <span>won</span>
             <span />
           </div>
@@ -72,11 +73,13 @@ function PrizeBoard({ mine, names }: { mine: Set<string>; names: Map<string, str
                   <code>{short(k)}</code>
                   {mine.has(k) && <em>YOU</em>}
                 </span>
-                <span className="bt-sol">{signedSol(e.profit)}</span>
+                <span className="bt-sol" title="different players finished above today">
+                  {e.beaten}
+                </span>
                 <span>
                   <Dots n={e.games} />
                 </span>
-                <span>{solText(e.staked)}</span>
+                <span>{signedSol(e.profit)}</span>
                 <span>{solText(e.won)}</span>
                 <span />
               </div>

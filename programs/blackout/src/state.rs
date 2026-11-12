@@ -39,7 +39,9 @@ pub const DAILY_SEATS: usize = 4;
 /// bigger board account still reads correctly (count is clamped).
 pub const BOARD_SLOTS: usize = 60;
 /// wallets the daily prize can track in one day (more than that and late arrivals aren't counted)
+/// the day's players at the prize table (at most 128: `PrizeEntry::beaten` has a bit per entry)
 pub const PRIZE_SLOTS: usize = 100;
+const _: () = assert!(PRIZE_SLOTS <= 128);
 
 pub const BOT_EASY: u32 = 1;
 pub const BOT_HARD: u32 = 2;
@@ -250,8 +252,9 @@ pub struct KillEvent {
 
 /// The daily prize, on the base layer (never delegated). Settle of every night at a PRIZE_STAKE
 /// table adds 2% of the pot and each staker's games, stake and winnings for the UTC day. When a
-/// new day starts (the first settle or claim after midnight UTC), the day closes: the wallet with
-/// the highest net profit (won - staked) among those with PRIZE_MIN_GAMES nights wins the pot and
+/// new day starts (the first settle or claim after midnight UTC), the day closes: among those with
+/// PRIZE_MIN_GAMES nights, the wallet that finished above the most *different* players that day
+/// wins the pot (net profit breaks a tie; beating the same wallet again adds nothing) and
 /// can claim it until the next day closes. No winner, or not claimed by then: it goes to the
 /// treasury. The account's lamports are its rent + `pot` + `last_prize` (while unclaimed).
 #[account(zero_copy)]
@@ -279,24 +282,81 @@ pub struct PrizeEntry {
     pub won: u64,
     pub games: u32,
     pub _pad: u32,
+    /// the players this one finished above today, one bit per entry index (PRIZE_SLOTS <= 128)
+    pub beaten: [u64; 2],
+}
+
+/// One staker's result in a night, for `Prize::record_night`: payout wallet and finishing place
+/// (1 = winner, lower is better, 0 = unplaced).
+pub struct NightFinish {
+    pub key: Pubkey,
+    pub place: u32,
 }
 
 impl Prize {
+    /// How many different players this entry finished above today.
+    pub fn score(e: &PrizeEntry) -> u32 {
+        e.beaten[0].count_ones() + e.beaten[1].count_ones()
+    }
+
+    /// Record a night at the prize table: each staker's night and stake, the winner's winnings,
+    /// and who finished above whom. Players beyond the day's PRIZE_SLOTS aren't tracked.
+    pub fn record_night(&mut self, seats: &[NightFinish], stake: u64, winner: Option<usize>, winnings: u64) {
+        let mut idx = [usize::MAX; 8];
+        for (s, f) in seats.iter().enumerate().take(8) {
+            if let Some(i) = self.entry_index(&f.key) {
+                idx[s] = i;
+                let e = &mut self.entries[i];
+                e.games = e.games.saturating_add(1);
+                e.staked = e.staked.saturating_add(stake);
+                if winner == Some(s) {
+                    e.won = e.won.saturating_add(winnings);
+                }
+            }
+        }
+        let above = |a: u32, b: u32| a != 0 && (b == 0 || a < b);
+        for (s, fs) in seats.iter().enumerate().take(8) {
+            for (t, ft) in seats.iter().enumerate().take(8) {
+                if s == t || idx[s] == usize::MAX || idx[t] == usize::MAX || fs.key == ft.key {
+                    continue;
+                }
+                if above(fs.place, ft.place) {
+                    let bit = idx[t];
+                    self.entries[idx[s]].beaten[bit / 64] |= 1u64 << (bit % 64);
+                }
+            }
+        }
+    }
+
+    fn entry_index(&mut self, key: &Pubkey) -> Option<usize> {
+        let n = (self.count as usize).min(PRIZE_SLOTS);
+        if let Some(i) = self.entries[..n].iter().position(|e| e.key == *key) {
+            return Some(i);
+        }
+        if n < PRIZE_SLOTS {
+            self.entries[n] = PrizeEntry { key: *key, ..PrizeEntry::zeroed() };
+            self.count += 1;
+            return Some(n);
+        }
+        None
+    }
+
     /// Net profit of an entry, in lamports.
     pub fn profit(e: &PrizeEntry) -> i128 {
         e.won as i128 - e.staked as i128
     }
 
-    /// Today's leader among those who played enough nights: highest net profit, the earlier
-    /// entry on a tie. None if nobody qualifies.
+    /// Today's leader among those who played enough nights: most different players beaten, then
+    /// the higher net profit, then the earlier entry. None if nobody qualifies.
     pub fn leader(&self) -> Option<usize> {
         let mut best: Option<usize> = None;
+        let rank = |e: &PrizeEntry| (Self::score(e), Self::profit(e));
         for i in 0..(self.count as usize).min(PRIZE_SLOTS) {
             let e = &self.entries[i];
             if e.games < crate::config::PRIZE_MIN_GAMES {
                 continue;
             }
-            if best.map_or(true, |b| Self::profit(e) > Self::profit(&self.entries[b])) {
+            if best.map_or(true, |b| rank(e) > rank(&self.entries[b])) {
                 best = Some(i);
             }
         }
@@ -802,6 +862,93 @@ mod prize_tests {
         e.games += 1;
         e.staked += staked;
         e.won += won;
+    }
+
+    fn table(keys: &[Pubkey], places: &[u32]) -> Vec<NightFinish> {
+        keys.iter().zip(places).map(|(k, &place)| NightFinish { key: *k, place }).collect()
+    }
+
+    #[test]
+    fn the_app_knows_the_account_size() {
+        // app/src/chain/layout.ts PRIZE_LEN = 8 + 64 + PRIZE_SLOTS * 72
+        assert_eq!(core::mem::size_of::<Prize>(), 64 + PRIZE_SLOTS * 72);
+    }
+
+    #[test]
+    fn beating_the_same_wallet_again_adds_nothing() {
+        let mut p = prize(10);
+        let (a, b) = (Pubkey::new_unique(), Pubkey::new_unique());
+        for _ in 0..5 {
+            p.record_night(&table(&[a, b], &[1, 2]), 50, Some(0), 95);
+        }
+        assert_eq!(Prize::score(&p.entries[0]), 1, "two wallets farming each other: one player beaten");
+        assert_eq!(Prize::score(&p.entries[1]), 0);
+        assert_eq!(p.entries[0].games, 5);
+        assert_eq!(p.entries[0].won, 5 * 95);
+    }
+
+    #[test]
+    fn most_different_players_beaten_wins_over_profit() {
+        let mut p = prize(10);
+        let k: Vec<Pubkey> = (0..6).map(|_| Pubkey::new_unique()).collect();
+        // a farms b three times: big profit, one player beaten
+        for _ in 0..3 {
+            p.record_night(&table(&[k[0], k[1]], &[1, 2]), 50, Some(0), 95);
+        }
+        // c plays three honest 4-player nights, never wins, but outlasts four different players
+        p.record_night(&table(&[k[2], k[3], k[4], k[5]], &[2, 3, 1, 4]), 50, Some(2), 190);
+        p.record_night(&table(&[k[2], k[1], k[4], k[5]], &[2, 3, 1, 4]), 50, Some(2), 190);
+        p.record_night(&table(&[k[2], k[3], k[4], k[5]], &[3, 2, 1, 4]), 50, Some(2), 190);
+        let c = p.entries.iter().position(|e| e.key == k[2]).unwrap();
+        let e = p.entries.iter().position(|e| e.key == k[4]).unwrap();
+        assert_eq!(Prize::score(&p.entries[0]), 1);
+        assert_eq!(Prize::score(&p.entries[c]), 3, "c beat d, f and b: three different players");
+        assert_eq!(Prize::score(&p.entries[e]), 4, "e beat c, d, f and b");
+        assert_eq!(p.leader(), Some(e), "most players beaten wins, not the farmer's profit");
+    }
+
+    #[test]
+    fn equal_places_beat_nobody_and_unplaced_lose_to_everyone() {
+        let mut p = prize(10);
+        let (a, b, c) = (Pubkey::new_unique(), Pubkey::new_unique(), Pubkey::new_unique());
+        p.record_night(&table(&[a, b, c], &[2, 2, 0]), 50, None, 0);
+        assert_eq!(Prize::score(&p.entries[0]), 1, "a beat only c");
+        assert_eq!(Prize::score(&p.entries[1]), 1, "b beat only c");
+        assert_eq!(Prize::score(&p.entries[2]), 0);
+    }
+
+    #[test]
+    fn a_tie_on_players_beaten_goes_to_profit() {
+        let mut p = prize(10);
+        let k: Vec<Pubkey> = (0..4).map(|_| Pubkey::new_unique()).collect();
+        for _ in 0..3 {
+            p.record_night(&table(&[k[0], k[2]], &[1, 2]), 50, Some(0), 60); // a: +30 over 3 nights
+            p.record_night(&table(&[k[1], k[3]], &[1, 2]), 50, Some(0), 95); // b: +135
+        }
+        let at = |k: &Pubkey| p.entries.iter().position(|e| e.key == *k).unwrap();
+        assert_eq!(Prize::score(&p.entries[at(&k[0])]), 1);
+        assert_eq!(Prize::score(&p.entries[at(&k[1])]), 1);
+        assert_eq!(p.leader(), Some(at(&k[1])), "both beat one player: b has the higher profit");
+    }
+
+    #[test]
+    fn one_wallet_in_two_seats_doesnt_beat_itself() {
+        let mut p = prize(10);
+        let (a, b) = (Pubkey::new_unique(), Pubkey::new_unique());
+        p.record_night(&table(&[a, a, b], &[1, 3, 2]), 50, Some(0), 100);
+        assert_eq!(Prize::score(&p.entries[0]), 1, "a beat b, not itself");
+        assert_eq!(p.entries[0].games, 2, "two seats, two nights' stakes");
+    }
+
+    #[test]
+    fn eight_fake_wallets_give_seven_points_once() {
+        let mut p = prize(10);
+        let k: Vec<Pubkey> = (0..8).map(|_| Pubkey::new_unique()).collect();
+        let places = [1, 2, 3, 4, 5, 6, 7, 8];
+        for _ in 0..3 {
+            p.record_night(&table(&k, &places), 50, Some(0), 380);
+        }
+        assert_eq!(Prize::score(&p.entries[0]), 7, "the same seven wallets count once, however many nights");
     }
 
     #[test]

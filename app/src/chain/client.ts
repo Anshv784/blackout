@@ -322,6 +322,11 @@ export class BlackoutClient {
   }
 
   /** Admin, once: create the daily prize account. */
+  /** Admin: bring the prize account to the current layout and start it fresh */
+  resetPrizeIx() {
+    return ix("reset_prize", {}, [w(prizePda()), w(this.publicKey, true), w(TREASURY), r(SystemProgram.programId)]);
+  }
+
   initPrizeIx() {
     return ix("init_prize", {}, [w(prizePda()), w(this.publicKey, true), r(SystemProgram.programId)]);
   }

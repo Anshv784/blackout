@@ -305,21 +305,19 @@ fn add_to_prize(prize_ai: &AccountInfo, treasury_ai: &AccountInfo, cut: u64) -> 
 
 /// Count this night for every staker at the prize table: a game, their stake, and the winner's take.
 fn record_prize_night(prize_ai: &AccountInfo, treasury_ai: &AccountInfo, room: &Room, winner_seat: usize, winnings: u64) -> Result<()> {
-    with_prize(prize_ai, treasury_ai, |p| {
-        for s in 0..MAXP {
-            let key = room.payout[s];
-            if room.is_bot[s] == 1 || room.players[s] == Pubkey::default() || key == Pubkey::default() {
-                continue;
-            }
-            if let Some(e) = p.entry_mut(&key) {
-                e.games = e.games.saturating_add(1);
-                e.staked = e.staked.saturating_add(room.stake);
-                if s == winner_seat {
-                    e.won = e.won.saturating_add(winnings);
-                }
-            }
+    let mut seats: Vec<NightFinish> = Vec::with_capacity(MAXP);
+    let mut winner = None;
+    for s in 0..MAXP {
+        let key = room.payout[s];
+        if room.is_bot[s] == 1 || room.players[s] == Pubkey::default() || key == Pubkey::default() {
+            continue;
         }
-    })?;
+        if s == winner_seat {
+            winner = Some(seats.len());
+        }
+        seats.push(NightFinish { key, place: room.place[s] });
+    }
+    with_prize(prize_ai, treasury_ai, |p| p.record_night(&seats, room.stake, winner, winnings))?;
     Ok(())
 }
 

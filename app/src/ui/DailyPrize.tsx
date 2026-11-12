@@ -137,7 +137,7 @@ export function DailyPrize({
           {pot > 0n
             ? `= 2% of the ${solText(pot * 50n)} SOL staked at the 0.05 SOL table today.`
             : "2% of every stake at the 0.05 SOL table today goes here."}{" "}
-          The day's top earner takes it all.
+          Whoever beats the most different players takes it all.
         </em>
       </div>
 
@@ -159,8 +159,12 @@ export function DailyPrize({
           Play {PRIZE_MIN_GAMES} nights at the 0.05 SOL table today <Dots n={games} />
         </Rule>
         <Rule done={leading}>
-          Finish the day with the highest net profit
-          {mine && <em>you: {signedSol(mine.profit)} SOL{qualified ? ` · #${mineIdx + 1}` : ""}</em>}
+          Beat the most different players today
+          {mine && (
+            <em>
+              you: {mine.beaten} {mine.beaten === 1 ? "player" : "players"} beaten{qualified ? ` · #${mineIdx + 1}` : ""}
+            </em>
+          )}
         </Rule>
       </ul>
 
@@ -172,7 +176,7 @@ export function DailyPrize({
               <li key={k} className={`${k === wallet ? "me" : ""} ${e.games >= PRIZE_MIN_GAMES ? "" : "short"}`}>
                 <span>{name(k)}</span>
                 <Dots n={e.games} />
-                <b>{signedSol(e.profit)}</b>
+                <b title="different players beaten today">{e.beaten} beaten</b>
               </li>
             );
           })}

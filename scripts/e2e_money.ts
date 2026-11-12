@@ -256,6 +256,9 @@ check("sending SOL to a bank can't block closing its room", stakedClosed && !(aw
     return !!b && b.games === (a?.games ?? 0) + 1 && b.staked === (a?.staked ?? 0n) + highStake && b.won === (a?.won ?? 0n) + won;
   });
   check("both players' night, stake and winnings are recorded", ok);
+  const lost = duo.find((p) => !p.publicKey.equals(hw))!.publicKey;
+  const beatenNow = (k: PublicKey) => p1.entries.find((e) => e.key.equals(k))?.beaten ?? -1;
+  check("the winner counts the loser as a player beaten (once)", beatenNow(hw) === 1 && beatenNow(lost) === 0, `${beatenNow(hw)} / ${beatenNow(lost)}`);
   const winnerClient = duo.find((p) => p.publicKey.equals(hw))!;
   await rejects("today's prize can't be claimed before the day ends", () => winnerClient.sendBase([winnerClient.claimPrizeIx(hw)]));
   const loser = duo.find((p) => !p.publicKey.equals(hw))!;

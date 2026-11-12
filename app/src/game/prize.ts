@@ -2,7 +2,7 @@
 // The program has the final say on everything here (programs/blackout/src/state.rs `Prize`).
 import { PublicKey, Transaction } from "@solana/web3.js";
 import { client } from "./identity";
-import { PRIZE_MIN_GAMES, prizeLeader, type Prize, type PrizeEntry } from "../chain/layout";
+import { PRIZE_MIN_GAMES, prizeBetter, prizeLeader, type Prize, type PrizeEntry } from "../chain/layout";
 
 /** the UTC day number the program uses (unix seconds / 86400) */
 export const utcDay = () => Math.floor(Date.now() / 86_400_000);
@@ -10,14 +10,15 @@ export const utcDay = () => Math.floor(Date.now() / 86_400_000);
 /** today's pot: zero until the first 0.05 night of the day settles (it resets every UTC day) */
 export const todaysPot = (p: Prize | null) => (p && p.day === utcDay() ? p.pot : 0n);
 
-/** today's standings, best first (qualified players ahead of those still short of 3 nights) */
+/** today's standings, best first: qualified players (3+ nights) ahead of the rest, then most
+ *  different players beaten, then net profit */
 export function todaysStandings(p: Prize | null): PrizeEntry[] {
   const list = p && p.day === utcDay() ? [...p.entries] : [];
   return list.sort((a, b) => {
     const qa = a.games >= PRIZE_MIN_GAMES ? 1 : 0;
     const qb = b.games >= PRIZE_MIN_GAMES ? 1 : 0;
     if (qa !== qb) return qb - qa;
-    return a.profit === b.profit ? 0 : a.profit > b.profit ? -1 : 1;
+    return prizeBetter(a, b) ? -1 : prizeBetter(b, a) ? 1 : 0;
   });
 }
 

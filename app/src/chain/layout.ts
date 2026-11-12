@@ -439,6 +439,8 @@ export interface PrizeEntry {
   games: number;
   /** won - staked, lamports */
   profit: bigint;
+  /** how many different players this one finished above today (what the prize is decided on) */
+  beaten: number;
 }
 export interface Prize {
   day: number;
@@ -453,7 +455,16 @@ export const PRIZE_SLOTS = 100;
 export const PRIZE_MIN_GAMES = 3;
 export const PRIZE_STAKE = 50_000_000n;
 
-export function decodePrize(data: Uint8Array): Prize {
+const popcount = (x: bigint) => {
+  let n = 0;
+  for (; x; x &= x - 1n) n++;
+  return n;
+};
+/** the account's size in the current layout (an older one reads as empty until reset_prize) */
+export const PRIZE_LEN = 8 + 64 + PRIZE_SLOTS * 72;
+
+export function decodePrize(data: Uint8Array): Prize | null {
+  if (data.length < PRIZE_LEN) return null;
   const r = new Reader(dvOf(data), 8);
   const day = r.u32();
   const count = r.u32();
@@ -469,17 +480,22 @@ export function decodePrize(data: Uint8Array): Prize {
       const won = r.u64();
       const games = r.u32();
       r.u32();
-      return { key, staked, won, games, profit: won - staked };
+      const beaten = popcount(r.u64()) + popcount(r.u64());
+      return { key, staked, won, games, profit: won - staked, beaten };
     })
     .slice(0, count);
   return { day, pot, lastDay, lastClaimed, lastWinner, lastPrize, entries };
 }
 
-/** Mirror of the program's `Prize::leader`: highest net profit among those with enough nights, earlier on a tie. */
+/** Ranking used for the prize: most different players beaten, then net profit. */
+export const prizeBetter = (a: PrizeEntry, b: PrizeEntry) => a.beaten !== b.beaten ? a.beaten > b.beaten : a.profit > b.profit;
+
+/** Mirror of the program's `Prize::leader`: among those with enough nights, most different
+ *  players beaten, then the higher net profit, then the earlier entry. */
 export function prizeLeader(p: Prize): number {
   let best = -1;
   p.entries.forEach((e, i) => {
-    if (e.games >= PRIZE_MIN_GAMES && (best < 0 || e.profit > p.entries[best].profit)) best = i;
+    if (e.games >= PRIZE_MIN_GAMES && (best < 0 || prizeBetter(e, p.entries[best]))) best = i;
   });
   return best;
 }

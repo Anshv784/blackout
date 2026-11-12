@@ -135,13 +135,13 @@ The daily challenge now funnels players to the 0.05 SOL table. At that table onl
 | Only the 0.05 table feeds it | settle checks `room.stake == PRIZE_STAKE` | e2e |
 | The cut never exceeds the fee | `prize_cut = min(pot * 2%, fee)`; the winner's share is unchanged | unit + e2e |
 | The pot resets every UTC day | every write first calls `roll(today)`, which closes the previous day | unit |
-| Winner = highest net profit (won − staked) with 3+ nights that day | `Prize::leader()`; on a tie the earlier player wins | unit |
+| Winner = most *different* players finished above that day, with 3+ nights; net profit (won − staked) breaks a tie, then the earlier entry | `Prize::record_night` sets one bit per beaten player's entry (`PrizeEntry::beaten`, 128 bits ≥ `PRIZE_SLOTS`), so beating the same wallet again adds nothing; `Prize::leader()` | unit + e2e |
 | Only the winner can claim, once | `claim_prize` requires the signer to be `last_winner` and `last_claimed == 0` | unit + e2e |
 | Today's prize can't be claimed early | a day is only decided when the next day's first write (or a claim) rolls it | e2e |
 | Unwon or unclaimed prizes go to the fee wallet | `roll` sends the pot to `TREASURY` if nobody qualified, and forfeits an unclaimed prize when the next day is decided | unit |
 | A missing prize account can't block payouts | without it settle takes no cut and the full 5% goes to the fee wallet | code review |
 
-Known limits: the account tracks at most 100 players a day (later players are not recorded that day). Players are counted by their payout wallet, so one person with two wallets at a 2-player table can farm nights; anti-farming rules (unique opponents, minimum table size) are planned. A prize won on a quiet day is only decided when the next 0.05 night settles or the winner claims.
+Known limits: the account tracks at most 100 players a day (later players are not recorded that day). Players are counted by their payout wallet, so the rule can still be gamed with many wallets: filling a whole table with your own 8 wallets gives 7 "players beaten" for ~3% of the stakes a night. It pays only on days when honest players have staked more than the cheat costs (roughly 2+ SOL at the 0.05 table); the fair-play report flags the pattern (one wallet killing its whole table). Two wallets farming each other, the cheap case, now scores 1. A prize won on a quiet day is only decided when the next 0.05 night settles or the winner claims.
 
 ## How refunds stayed safe (before 2026-11-12; carry-over now uses the same timing rules)
 

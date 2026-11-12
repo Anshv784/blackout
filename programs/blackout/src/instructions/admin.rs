@@ -130,6 +130,51 @@ pub fn handle_init_prize(ctx: Context<InitPrize>) -> Result<()> {
     Ok(())
 }
 
+/// Admin: bring the prize account to the current layout and start it fresh (for a layout change).
+/// Whatever it held above its rent goes to the treasury; the admin pays any extra rent.
+pub fn handle_reset_prize(ctx: Context<ResetPrize>) -> Result<()> {
+    require_keys_eq!(ctx.accounts.admin.key(), ADMIN, BlackoutError::NotAdmin);
+    let ai = ctx.accounts.prize.to_account_info();
+    require_keys_eq!(*ai.owner, crate::ID, BlackoutError::BadAccount);
+    let space = 8 + core::mem::size_of::<Prize>();
+    let rent = Rent::get()?.minimum_balance(space);
+    if ai.lamports() < rent {
+        transfer(
+            CpiContext::new(ctx.accounts.system_program.key(), Transfer { from: ctx.accounts.admin.to_account_info(), to: ai.clone() }),
+            rent - ai.lamports(),
+        )?;
+    }
+    if ai.data_len() != space {
+        ai.resize(space)?;
+    }
+    {
+        let mut data = ai.try_borrow_mut_data()?;
+        data.fill(0);
+        data[..8].copy_from_slice(<Prize as anchor_lang::Discriminator>::DISCRIMINATOR);
+        let p: &mut Prize = bytemuck::from_bytes_mut(&mut data[8..space]);
+        p.last_claimed = 1;
+    }
+    let extra = ai.lamports().saturating_sub(rent);
+    if extra > 0 {
+        **ai.try_borrow_mut_lamports()? -= extra;
+        **ctx.accounts.treasury.to_account_info().try_borrow_mut_lamports()? += extra;
+    }
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct ResetPrize<'info> {
+    /// CHECK: the prize PDA, rewritten in place
+    #[account(mut, seeds = [PRIZE_SEED], bump)]
+    pub prize: UncheckedAccount<'info>,
+    #[account(mut)]
+    pub admin: Signer<'info>,
+    /// CHECK: the fee wallet
+    #[account(mut, address = TREASURY)]
+    pub treasury: UncheckedAccount<'info>,
+    pub system_program: Program<'info, System>,
+}
+
 #[derive(Accounts)]
 pub struct InitPrize<'info> {
     #[account(init, payer = payer, space = 8 + core::mem::size_of::<Prize>(), seeds = [PRIZE_SEED], bump)]

@@ -1769,6 +1769,54 @@
       "args": []
     },
     {
+      "name": "reset_prize",
+      "discriminator": [
+        248,
+        35,
+        55,
+        133,
+        121,
+        161,
+        24,
+        46
+      ],
+      "accounts": [
+        {
+          "name": "prize",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  105,
+                  122,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "treasury",
+          "writable": true,
+          "address": "9Sg12k15Ann4SKSxcA85bq5fbpq7WMLH9bLCTUbTRkQV"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "reuse_ticket",
       "discriminator": [
         243,
@@ -3395,8 +3443,9 @@
       "docs": [
         "The daily prize, on the base layer (never delegated). Settle of every night at a PRIZE_STAKE",
         "table adds 2% of the pot and each staker's games, stake and winnings for the UTC day. When a",
-        "new day starts (the first settle or claim after midnight UTC), the day closes: the wallet with",
-        "the highest net profit (won - staked) among those with PRIZE_MIN_GAMES nights wins the pot and",
+        "new day starts (the first settle or claim after midnight UTC), the day closes: among those with",
+        "PRIZE_MIN_GAMES nights, the wallet that finished above the most *different* players that day",
+        "wins the pot (net profit breaks a tie; beating the same wallet again adds nothing) and",
         "can claim it until the next day closes. No winner, or not claimed by then: it goes to the",
         "treasury. The account's lamports are its rent + `pot` + `last_prize` (while unclaimed)."
       ],
@@ -3491,6 +3540,18 @@
           {
             "name": "_pad",
             "type": "u32"
+          },
+          {
+            "name": "beaten",
+            "docs": [
+              "the players this one finished above today, one bit per entry index (PRIZE_SLOTS <= 128)"
+            ],
+            "type": {
+              "array": [
+                "u64",
+                2
+              ]
+            }
           }
         ]
       }
