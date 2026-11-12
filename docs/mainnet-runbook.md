@@ -61,3 +61,5 @@ Then push to `main`. Unset them to go back to devnet.
 - [ ] Move the program's upgrade authority to a Squads multisig or a hardware wallet.
 - [ ] Watch the RPC dashboard for the first week.
 - [ ] List BLACKOUT on MagicQuests (quests.magicblock.app → List your project).
+- [ ] Once a week: `npx tsx scripts/admin.ts fairplay` (with the mainnet env above) for wallets worth a look
+      (possible teaming or aim help). Flags, not proof; holding a daily prize is your call.

@@ -179,6 +179,10 @@ pub fn handle_settle<'info>(ctx: Context<'info, Settle<'info>>) -> Result<()> {
         }
     }
 
+    // a permanent record of this staked night in the transaction log, for the fair-play report
+    // (scripts/fairplay.ts): who sat where, who killed whom, the winner
+    emit!(night_record(&room, pot));
+
     let mut board = ctx.accounts.board.load_mut()?;
     board.matches = board.matches.saturating_add(1);
     for s in 0..MAXP {
@@ -415,6 +419,49 @@ pub struct Settle<'info> {
     pub escrow_auth: UncheckedAccount<'info>,
     /// CHECK: see above
     pub escrow: UncheckedAccount<'info>,
+}
+
+/// One staked night, as logged by settle. Seats are 0-7; `wallets` holds each human seat's payout
+/// wallet (default for bots and empty seats). `feed_killer`/`feed_victim` list the kills in order,
+/// 255 = the zone.
+#[event]
+pub struct NightRecord {
+    pub room_id: u64,
+    pub match_no: u32,
+    pub stake: u64,
+    pub pot: u64,
+    pub winner: u8,
+    pub wallets: [Pubkey; MAXP],
+    pub kills: [u8; MAXP],
+    pub place: [u8; MAXP],
+    pub feed_killer: Vec<u8>,
+    pub feed_victim: Vec<u8>,
+}
+
+pub fn night_record(room: &Room, pot: u64) -> NightRecord {
+    let mut wallets = [Pubkey::default(); MAXP];
+    let mut kills = [0u8; MAXP];
+    let mut place = [0u8; MAXP];
+    for s in 0..MAXP {
+        if room.is_bot[s] == 0 && room.players[s] != Pubkey::default() {
+            wallets[s] = room.payout[s];
+        }
+        kills[s] = room.kills[s].min(255) as u8;
+        place[s] = room.place[s].min(255) as u8;
+    }
+    let n = (room.feed_head as usize).min(FEED);
+    NightRecord {
+        room_id: room.room_id,
+        match_no: room.match_no,
+        stake: room.stake,
+        pot,
+        winner: room.winner.min(255) as u8,
+        wallets,
+        kills,
+        place,
+        feed_killer: room.feed[..n].iter().map(|f| f.killer.min(255) as u8).collect(),
+        feed_victim: room.feed[..n].iter().map(|f| f.victim.min(255) as u8).collect(),
+    }
 }
 
 /// The table fund's share of a night's fee (what's left of it after the prize). Zero if the fund

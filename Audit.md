@@ -105,6 +105,15 @@ Found in a review of how players could jam the game, fixed the same day:
 
 Left as is: with exactly two stakers seated, one can still keep leaving and rejoining, which only holds up the other one (who keeps their ticket); a third staker brings the 3-minute cap back.
 
+## Fair-play report (2026-11-12)
+
+Collusion and aim assistance can't be stopped by a program, so they are watched instead. Settle logs a `NightRecord` event for every staked night (room, night, each seat's payout wallet, kills, places, the kill feed, winner). `scripts/fairplay.ts` (`admin.ts fairplay`) reads them back from the transaction history and flags, for a person to review:
+
+- **possible teaming:** two wallets with 5+ nights at the same table (`PAIR_MIN`), no kills on each other, and one winning clearly more often when the other is there (25 points above their rate apart) or the two together winning 60%+ of those nights;
+- **possible aim help:** a wallet with 10+ staked nights (`WALLET_MIN`) winning more than half its nights at tables of 4+, or averaging 3+ kills a night.
+
+Flags only: nothing is banned automatically. Accuracy (shots vs hits) isn't recorded, so the aim check works from wins and kills.
+
 ## Table fund (2026-11-12)
 
 Each staked table pays MagicBlock ~0.001 SOL per payout from its own wallet inside the rollup (the room account). So tables can't run dry and stop paying winners, settle sets 0.001 SOL of the house fee aside per staked night (`TABLE_FUND_PER_NIGHT`) in a system-owned PDA (`table_fund`). `refill_table` lets anyone move 0.02 SOL (`TABLE_REFILL`) from it into a staked table's rollup wallet through MagicBlock's lamports transfer (Ephemeral SPL Token program, instruction 20), with the fund signing as payer; MagicBlock's program checks every PDA it is given. Seated stakers' games send it when a table is under 0.02 SOL.

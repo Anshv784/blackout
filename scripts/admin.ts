@@ -9,6 +9,7 @@
 //   npx tsx scripts/admin.ts close-board
 //   npx tsx scripts/admin.ts fund [ids]          (table fund + each staked table's MagicBlock wallet)
 //   npx tsx scripts/admin.ts refill <ids>        (top a staked table up from the fund now)
+//   npx tsx scripts/admin.ts fairplay [--all]    (wallets worth a look: possible teaming, aim help)
 //   npx tsx scripts/admin.ts prize              (create the daily challenge prize account, ~0.03 SOL rent)
 //   npx tsx scripts/admin.ts daily              (create + delegate the daily board)
 // Mainnet: ADMIN_KEY=~/.config/solana/blackout-mainnet.json VITE_CLUSTER=mainnet VITE_BASE_RPC=... VITE_PROGRAM_ID=...
@@ -98,6 +99,9 @@ if (cmd === "board") {
 } else if (cmd === "refill") {
   // top a staked table up from the table fund now (players' games do this on their own when it's low)
   for (const a of args) console.log(`table ${a} refilled from the fund`, await c.sendBase([c.refillTableIx(BigInt(a))]));
+} else if (cmd === "fairplay") {
+  // flags possible teaming and aim help from the staked nights' records (see scripts/fairplay.ts)
+  await import("./fairplay.ts");
 } else if (cmd === "close-board") {
   console.log("board closed", await c.sendBase([c.closeBoardIx()]));
 } else console.log("usage: board | prize | rooms <ids...> | room <id> <stakeSol> <code> | close <ids...> | close-board");

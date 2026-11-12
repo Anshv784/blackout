@@ -2908,6 +2908,21 @@
       ]
     }
   ],
+  "events": [
+    {
+      "name": "NightRecord",
+      "discriminator": [
+        202,
+        108,
+        166,
+        172,
+        128,
+        122,
+        209,
+        135
+      ]
+    }
+  ],
   "errors": [
     {
       "code": 6000,
@@ -3303,6 +3318,74 @@
           {
             "name": "weapon",
             "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "NightRecord",
+      "docs": [
+        "One staked night, as logged by settle. Seats are 0-7; `wallets` holds each human seat's payout",
+        "wallet (default for bots and empty seats). `feed_killer`/`feed_victim` list the kills in order,",
+        "255 = the zone."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "room_id",
+            "type": "u64"
+          },
+          {
+            "name": "match_no",
+            "type": "u32"
+          },
+          {
+            "name": "stake",
+            "type": "u64"
+          },
+          {
+            "name": "pot",
+            "type": "u64"
+          },
+          {
+            "name": "winner",
+            "type": "u8"
+          },
+          {
+            "name": "wallets",
+            "type": {
+              "array": [
+                "pubkey",
+                8
+              ]
+            }
+          },
+          {
+            "name": "kills",
+            "type": {
+              "array": [
+                "u8",
+                8
+              ]
+            }
+          },
+          {
+            "name": "place",
+            "type": {
+              "array": [
+                "u8",
+                8
+              ]
+            }
+          },
+          {
+            "name": "feed_killer",
+            "type": "bytes"
+          },
+          {
+            "name": "feed_victim",
+            "type": "bytes"
           }
         ]
       }
