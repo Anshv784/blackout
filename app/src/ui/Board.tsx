@@ -3,8 +3,10 @@ import { RankCrest } from "./RankCrest";
 import { TopBar } from "./TopBar";
 import { client } from "../game/identity";
 import { useStore } from "../game/store";
-import type { BoardEntry, Daily, Room } from "../chain/layout";
-import { todayUtc } from "../chain/client";
+import { PRIZE_MIN_GAMES, type BoardEntry, type Prize, type Room } from "../chain/layout";
+import { signedSol, solText, todaysPot, todaysStandings } from "../game/prize";
+import { Dots } from "./DailyPrize";
+const PAGE = 20;
 import { STATUS_NAME } from "../chain/layout";
 import { boardPda } from "../chain/client";
 import { explorerAddr, NETWORK, STAKED_ROOMS } from "../config";
@@ -25,68 +27,68 @@ export function aliasFor(key: string) {
 const short = (k: string) => `${k.slice(0, 4)}…${k.slice(-4)}`;
 const MEDAL = ["#ffd166", "#cfd8e6", "#d98c5f"];
 
-/** Today's daily: the same sealed night for everyone, one try per wallet. */
-function DailyBoard({ mine }: { mine: Set<string> }) {
-  const [d, setD] = useState<Daily | null>(null);
+/** The daily challenge: today's top 10 at the 0.05 SOL table by net profit, and yesterday's winner. */
+function PrizeBoard({ mine, names }: { mine: Set<string>; names: Map<string, string> }) {
+  const [p, setP] = useState<Prize | null>(null);
   useEffect(() => {
-    const load = () => client.fetchDaily().then(setD).catch(() => {});
+    const load = () => client.fetchPrize().then(setP).catch(() => {});
     load();
-    const t = setInterval(load, 10_000);
+    const t = setInterval(load, 15_000);
     return () => clearInterval(t);
   }, []);
-  if (!d) return null;
-  const live = d.day === todayUtc();
   const left = 86_400_000 - (Date.now() % 86_400_000);
-  const hex = Array.from(d.prevSeed, (b) => b.toString(16).padStart(2, "0")).join("");
+  const top = todaysStandings(p).slice(0, 10);
+  const lastKey = p && p.lastPrize > 0n ? p.lastWinner.toBase58() : null;
   return (
     <section className="daily-board">
       <div className="board-head">
         <div className="kicker">
-          <span className="dot" /> DAILY CHALLENGE · SAME NIGHT FOR EVERYONE · ONE TRY PER WALLET · RESETS IN {Math.floor(left / 3_600_000)}H{" "}
+          <span className="dot" /> DAILY CHALLENGE · 0.05 SOL TABLE · {PRIZE_MIN_GAMES} NIGHTS TO QUALIFY · RESETS IN {Math.floor(left / 3_600_000)}H{" "}
           {Math.floor((left % 3_600_000) / 60_000)}M
         </div>
-        <h1>Today's Night</h1>
+        <h1>Today's prize: {solText(todaysPot(p))} SOL</h1>
       </div>
-      {live && d.entries.length > 0 ? (
+      {top.length > 0 ? (
         <div className="board-table">
           <div className="bt-row head">
             <span>#</span>
             <span>survivor</span>
-            <span>score</span>
-            <span>place</span>
-            <span>kills</span>
-            <span>survived</span>
+            <span>net profit</span>
+            <span>nights</span>
+            <span>staked</span>
+            <span>won</span>
             <span />
           </div>
-          {d.entries.slice(0, 15).map((e, i) => {
+          {top.map((e, i) => {
             const k = e.key.toBase58();
+            const ok = e.games >= PRIZE_MIN_GAMES;
             return (
-              <div key={k} className={`bt-row ${mine.has(k) ? "me" : ""}`}>
-                <span className="bt-rank" style={i < 3 ? { color: MEDAL[i] } : undefined}>
+              <div key={k} className={`bt-row ${mine.has(k) ? "me" : ""} ${ok ? "" : "short"}`}>
+                <span className="bt-rank" style={i < 3 && ok ? { color: MEDAL[i] } : undefined}>
                   {i + 1}
                 </span>
                 <span className="bt-name">
-                  <b>{e.name || aliasFor(k)}</b>
+                  <b>{names.get(k) || aliasFor(k)}</b>
                   <code>{short(k)}</code>
                   {mine.has(k) && <em>YOU</em>}
                 </span>
-                <span>{e.score}</span>
-                <span>#{e.place}</span>
-                <span>{e.kills}</span>
+                <span className="bt-sol">{signedSol(e.profit)}</span>
                 <span>
-                  {Math.floor(e.survived / 60)}:{String(e.survived % 60).padStart(2, "0")}
+                  <Dots n={e.games} />
                 </span>
+                <span>{solText(e.staked)}</span>
+                <span>{solText(e.won)}</span>
                 <span />
               </div>
             );
           })}
         </div>
       ) : (
-        <p className="sub">{live ? "Nobody has played today's night yet. Be the first." : "Today's night hasn't been rolled yet: the first player rolls it."}</p>
+        <p className="sub">Nobody has played the 0.05 SOL table today yet. Play {PRIZE_MIN_GAMES} nights there to get on this board.</p>
       )}
-      {d.prevDay > 0 && (
+      {lastKey && (
         <p className="sub daily-seed">
-          Yesterday's sealed seed, now public so anyone can re-derive its map, loot and zone: <code>{hex.slice(0, 16)}…</code>
+          Yesterday's winner: <b>{names.get(lastKey) || aliasFor(lastKey)}</b> · {solText(p!.lastPrize)} SOL {p!.lastClaimed ? "· claimed" : "· waiting to be claimed"}
         </p>
       )}
     </section>
@@ -117,6 +119,8 @@ export function Board() {
   const rows = [...(data?.entries ?? [])].sort((a, b) => b.wins - a.wins || Number(b.earned - a.earned) || b.kills - a.kills || b.games - a.games);
   // only winners stand on the podium (a staker who played and lost is in the table, not on a medal)
   const podium = rows.filter((e) => e.wins > 0 || e.earned > 0n).slice(0, 3);
+  const [page, setPage] = useState(0);
+  const names = new Map((data?.entries ?? []).filter((e) => e.name).map((e) => [e.key.toBase58(), e.name] as const));
   const totalWon = rows.reduce((n, e) => n + Number(e.earned), 0) / 1e9;
   const myIdx = rows.findIndex((e) => mine.has(e.key.toBase58()));
 
@@ -128,7 +132,7 @@ export function Board() {
       <div className="gate-shade dense" />
       <TopBar active="board" />
       <main className="board-main">
-        <DailyBoard mine={mine} />
+        <PrizeBoard mine={mine} names={names} />
         <div className="board-head">
           <div className="kicker">
             <span className="dot" /> STAKED NIGHTS ONLY · HUMANS ONLY · SETTLED ON SOLANA BY A MAGIC ACTION
@@ -248,7 +252,8 @@ export function Board() {
               <span>nights</span>
               <span>win rate</span>
             </div>
-            {rows.map((e, i) => {
+            {rows.slice(page * PAGE, page * PAGE + PAGE).map((e, n) => {
+              const i = page * PAGE + n;
               const k = e.key.toBase58();
               const rate = e.games ? Math.round((e.wins / e.games) * 100) : 0;
               return (
@@ -272,6 +277,19 @@ export function Board() {
                 </div>
               );
             })}
+            {rows.length > PAGE && (
+              <div className="bt-pager">
+                <button className="btn" disabled={page === 0} onClick={() => setPage(page - 1)}>
+                  ← PREV
+                </button>
+                <span>
+                  {page * PAGE + 1}–{Math.min(rows.length, page * PAGE + PAGE)} of {rows.length}
+                </span>
+                <button className="btn" disabled={(page + 1) * PAGE >= rows.length} onClick={() => setPage(page + 1)}>
+                  NEXT →
+                </button>
+              </div>
+            )}
           </div>
         )}
 

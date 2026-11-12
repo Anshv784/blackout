@@ -4,13 +4,19 @@ import type { Room } from "../chain/layout";
 import { ST_LOBBY, STATUS_NAME } from "../chain/layout";
 import { STAKED_ROOMS } from "../config";
 import { stakersSeated, stakedStartAt } from "../game/session";
+import { PRIZE_MIN_GAMES, PRIZE_STAKE, type Prize } from "../chain/layout";
+import { todaysStandings } from "../game/prize";
+import { useStore } from "../game/store";
+import { Dots } from "./DailyPrize";
 
 const sol = (lamports: bigint) => {
   const n = Number(lamports) / 1e9;
   return n.toFixed(n < 0.1 ? 2 : 1).replace(/\.?0+$/, "");
 };
 
-export function StakeChoice({ rooms, onPick, onClose }: { rooms: Record<number, Room | null>; onPick: (id: number) => void; onClose: () => void }) {
+export function StakeChoice({ rooms, prize, onPick, onClose }: { rooms: Record<number, Room | null>; prize?: Prize | null; onPick: (id: number) => void; onClose: () => void }) {
+  const wallet = useStore((s) => s.wallet);
+  const myGames = (wallet && todaysStandings(prize ?? null).find((e) => e.key.toBase58() === wallet)?.games) || 0;
   const tables = STAKED_ROOMS.map((id) => [id, rooms[id] ?? null] as const)
     .filter((t): t is readonly [number, Room] => !!t[1])
     .sort((a, b) => Number(a[1].stake - b[1].stake));
@@ -45,6 +51,12 @@ export function StakeChoice({ rooms, onPick, onClose }: { rooms: Record<number, 
                   {seated}/{r.maxPlayers} seated · {state}
                 </span>
                 <em>{open ? `pot up to ${sol(r.stake * BigInt(r.maxPlayers))} SOL` : "come back after this night"}</em>
+                {r.stake === PRIZE_STAKE && (
+                  <small className="sc-daily">
+                    DAILY CHALLENGE <Dots n={myGames} />
+                    {myGames >= PRIZE_MIN_GAMES ? " qualified for today's prize" : ` ${Math.min(myGames, PRIZE_MIN_GAMES)}/${PRIZE_MIN_GAMES} nights needed today`}
+                  </small>
+                )}
               </button>
             );
           })}
