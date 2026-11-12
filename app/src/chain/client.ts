@@ -44,8 +44,9 @@ const BorshCoder = ns.BorshCoder ?? ns["default"]?.BorshCoder;
 // VITE_CLUSTER=mainnet + VITE_BASE_RPC=<a paid RPC URL> switches the whole app to mainnet.
 const env: Record<string, string | undefined> = (import.meta as any).env ?? {};
 export const IS_MAINNET = env.VITE_CLUSTER === "mainnet";
-// `||`, not `??`: an unset GitHub variable arrives as an empty string
-export const BASE_ENDPOINT = env.VITE_BASE_RPC || "https://rpc.magicblock.app/devnet";
+// `||`, not `??`: an unset GitHub variable arrives as an empty string. The mainnet RPC is only
+// used in mainnet mode, so storing it ahead of the switch can't point the devnet site at mainnet.
+export const BASE_ENDPOINT = (IS_MAINNET && env.VITE_BASE_RPC) || "https://rpc.magicblock.app/devnet";
 export const TEE_ENDPOINT = IS_MAINNET ? "https://mainnet-tee.magicblock.app" : "https://devnet-tee.magicblock.app";
 export const TEE_WS = IS_MAINNET ? "wss://mainnet-tee.magicblock.app" : "wss://devnet-tee.magicblock.app";
 export const TEE_VALIDATOR = new PublicKey("MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo");

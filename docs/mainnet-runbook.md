@@ -52,7 +52,7 @@ Set in GitHub (Settings → Secrets and variables → Actions):
 
 - variable `VITE_CLUSTER` = `mainnet`
 - variable `VITE_PROGRAM_ID` = `pzuVHdCZDQWwxHLEa2JAaEjUZLa43nKaFauLyqZmekb`
-- secret `VITE_BASE_RPC` = the RPC url
+- secret `VITE_BASE_RPC` = the RPC url (already stored 2026-11-13; it only reaches a build once `VITE_CLUSTER` is `mainnet`)
 
 Then push to `main`. Unset them to go back to devnet.
 
