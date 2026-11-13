@@ -7,7 +7,7 @@ This is a self-review backed by on-chain tests, not a professional audit. Keep s
 
 | Check | Result |
 |---|---|
-| `scripts/e2e_money.ts`: every money rule and attack, against a deployed program (devnet `CkSb4kkmhzr8n9awdmrvqhuoWka6nZUXXb8RXnrFBAKU`), incl. a full 8-seat staked night, the no-host countdown and its rejoin rule, carrying unused tickets over, the daily prize (2%/3% split, players beaten, early and wrong claims), the table fund and a real refill | **56 of 56 pass, twice** (2026-11-12) |
+| `scripts/e2e_money.ts`: every money rule and attack, against a deployed program (devnet `CkSb4kkmhzr8n9awdmrvqhuoWka6nZUXXb8RXnrFBAKU`), incl. a full 8-seat staked night, the no-host countdown and its rejoin rule, carrying unused tickets over, the daily prize (3.5% of the pot, players beaten, early and wrong claims), the table fund and a real refill | **56 of 56 pass, twice** (2026-11-12) |
 | `scripts/e2e_lobby.ts`: free lobbies can't be held (public start after 5 min, private clear after 10, nothing early, fresh clock after) | **12 of 12 pass** |
 | `scripts/e2e_stake.ts`: a 2-player staked night started by the 60 s countdown, paid out | winner paid 0.019 of 0.02 (fee 0.001 to the table fund) |
 | `cargo test` (incl. the byte-exact simulation fingerprint over 48 nights, money rules, the prize's players-beaten rule, the table fund, lobby limits and clock carry-over, the staked countdown cap, called-off nights and map draw) | 65 passed, plus 2 long ones run on demand |
@@ -52,7 +52,7 @@ Known limits: anyone with several wallets gets several tries (a program can't te
 
 ## House fee
 
-Settle sends 5% of each paid pot (`FEE_BPS`) to the fixed `TREASURY` wallet and the rest to the winner. Both values are compiled into the program, so changing them takes an upgrade. Refunded tickets pay nothing. If the treasury is too empty to stay rent-exempt, the fee is skipped, so it can't block a payout. The room page shows the fee before anyone stakes.
+Settle sends 10% of each paid pot (`FEE_BPS`, 5% until 2026-11-13) to the fixed `TREASURY` wallet and the rest to the winner. Both values are compiled into the program, so changing them takes an upgrade. Refunded tickets pay nothing. If the treasury is too empty to stay rent-exempt, the fee is skipped, so it can't block a payout. The room page shows the fee before anyone stakes.
 
 ## Second pass (2026-11-08, staked nights)
 
@@ -141,22 +141,22 @@ Each staked table pays MagicBlock ~0.001 SOL per payout from its own wallet insi
 | Fund money only goes to this game's staked tables | the room must be our room PDA and its committed copy must have a stake | e2e |
 | A refill only runs when the fund covers it | 0.02 + MagicBlock's ~0.003 transfer cost (5 mSOL margin) + rent | e2e |
 
-Cost: the fee wallet now gets 5% − 0.001 SOL a staked night (at the 0.01 table with two players that is nothing; the 0.001 fee all goes to the fund). Anyone can trigger refills, which only moves the fund's SOL into our tables (recoverable when a table closes).
+Cost: the fee wallet gets 10% − 0.001 SOL a staked night (minus the 3.5% prize at the 0.05 table). Anyone can trigger refills, which only moves the fund's SOL into our tables (recoverable when a table closes).
 
 ## Daily prize (2026-11-12)
 
-The daily challenge now funnels players to the 0.05 SOL table. At that table only, 2% of each pot (`PRIZE_BPS`, taken out of the 5% fee, never on top of it) goes into a `Prize` account on Solana; the fee wallet keeps 3%. The 0.01 table is unchanged. The prize account is never delegated, so settle's Magic Action writes it directly.
+The daily challenge now funnels players to the 0.05 SOL table. At that table only, 3.5% of each pot (`PRIZE_BPS`, taken out of the 10% fee, never on top of it) goes into a `Prize` account on Solana; the fee wallet keeps the rest (6.5% less the table fund's 0.001). The 0.01 table is unchanged. The prize account is never delegated, so settle's Magic Action writes it directly.
 
 | Rule | How it's enforced | Tested |
 |---|---|---|
 | Only the 0.05 table feeds it | settle checks `room.stake == PRIZE_STAKE` | e2e |
-| The cut never exceeds the fee | `prize_cut = min(pot * 2%, fee)`; the winner's share is unchanged | unit + e2e |
+| The cut never exceeds the fee | `prize_cut = min(pot * 3.5%, fee)`; the winner's share is unchanged | unit + e2e |
 | The pot resets every UTC day | every write first calls `roll(today)`, which closes the previous day | unit |
 | Winner = most *different* players finished above that day, with 3+ nights; net profit (won − staked) breaks a tie, then the earlier entry | `Prize::record_night` sets one bit per beaten player's entry (`PrizeEntry::beaten`, 128 bits ≥ `PRIZE_SLOTS`), so beating the same wallet again adds nothing; `Prize::leader()` | unit + e2e |
 | A prize only ever goes to its winner, once | `claim_prize` pays only a wallet on the owed list, everything it is owed, then clears it; anyone may send it (paying the fee) but the SOL only goes to the winner's own wallet | unit + e2e |
 | Today's prize can't be claimed early | a day is only decided when the next day's first write (or a claim) rolls it | e2e |
 | An unclaimed prize is never lost | the day's prize goes onto an owed list (32 winners) and waits there with no deadline; winning again adds up; if the list were ever full (32 unpaid winners) the new prize goes to the fee wallet. A pot nobody qualified for also goes to the fee wallet | unit |
-| A missing prize account can't block payouts | without it settle takes no cut and the full 5% goes to the fee wallet | code review |
+| A missing prize account can't block payouts | without it settle takes no cut and the whole fee goes to the fee wallet | code review |
 
 Known limits: the account tracks at most 100 players a day (later players are not recorded that day). Players are counted by their payout wallet, so the rule can still be gamed with many wallets: filling a whole table with your own 8 wallets gives 7 "players beaten" for ~3% of the stakes a night. It pays only on days when honest players have staked more than the cheat costs (roughly 2+ SOL at the 0.05 table); the fair-play report flags the pattern (one wallet killing its whole table). Two wallets farming each other, the cheap case, now scores 1. A prize won on a quiet day is only decided when the next 0.05 night settles or the winner claims.
 

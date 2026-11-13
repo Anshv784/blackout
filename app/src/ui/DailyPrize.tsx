@@ -1,4 +1,4 @@
-// The daily challenge: the 0.05 SOL table's prize. Today's pot (2% of every 0.05 night, reset at
+// The daily challenge: the 0.05 SOL table's prize. Today's pot (3.5% of every 0.05 night, reset at
 // midnight UTC), the three rules with a tick as each one is met, the top three, and the claim button
 // for yesterday's winner.
 import { useEffect, useRef, useState } from "react";
@@ -135,8 +135,8 @@ export function DailyPrize({
         <b>{solText(pot)} SOL</b>
         <em>
           {pot > 0n
-            ? `= 2% of the ${solText(pot * 50n)} SOL staked at the 0.05 SOL table today.`
-            : "2% of every stake at the 0.05 SOL table today goes here."}{" "}
+            ? `= 3.5% of the ${solText((pot * 200n) / 7n)} SOL staked at the 0.05 SOL table today.`
+            : "3.5% of every stake at the 0.05 SOL table today goes here."}{" "}
           Whoever beats the most different players takes it all.
         </em>
       </div>

@@ -150,12 +150,12 @@ for (let i = 0; i < 40 && !got; i++) {
   got = (await balance(winnerWallet)) - before;
 }
 const pot = stakeLamports * BigInt(SEATS);
-const fee = pot / 20n;
-check("winner is paid the pot less 5%", BigInt(got) === pot - fee, `${got / LAMPORTS_PER_SOL} SOL`);
+const fee = pot / 10n;
+check("winner is paid the pot less 10%", BigInt(got) === pot - fee, `${got / LAMPORTS_PER_SOL} SOL`);
 const earned = (await balance(admin.publicKey)) - treasuryBefore;
 const funded = (await balance(fundPda())) - fundBefore;
 check("the table fund gets 0.001 SOL of the fee", funded === 1_000_000, `${funded / LAMPORTS_PER_SOL} SOL`);
-check("treasury receives the rest of the 5% fee", BigInt(earned) === fee - 1_000_000n, `${earned / LAMPORTS_PER_SOL} SOL`);
+check("treasury receives the rest of the 10% fee", BigInt(earned) === fee - 1_000_000n, `${earned / LAMPORTS_PER_SOL} SOL`);
 
 // ---------------------------------------------------------------- refunds
 const ticket0 = await admin.base.getAccountInfo(tk(0));
@@ -236,8 +236,8 @@ check("sending SOL to a bank can't block closing its room", stakedClosed && !(aw
   const hr = await waitFor(admin, highId, ST_ENDED, 180_000);
   const hw = hr.payout[hr.winner];
   const hpot = highStake * 2n;
-  const hfee = hpot / 20n;
-  const cut = (hpot * 200n) / 10_000n;
+  const hfee = hpot / 10n;
+  const cut = (hpot * 350n) / 10_000n;
   const [tB, pB, wB, fB] = await Promise.all([balance(TREASURY), balance(prizePda()), balance(hw), balance(fundPda())]);
   await duo[0].sendEr([duo[0].finishIx(highId, hw)]);
   let paid = 0;
@@ -245,7 +245,7 @@ check("sending SOL to a bank can't block closing its room", stakedClosed && !(aw
     await sleep(2000);
     paid = (await balance(hw)) - wB;
   }
-  check("0.05 winner still gets the pot less 5%", BigInt(paid) === hpot - hfee, `${paid / LAMPORTS_PER_SOL} SOL`);
+  check("0.05 winner still gets the pot less 10%", BigInt(paid) === hpot - hfee, `${paid / LAMPORTS_PER_SOL} SOL`);
   const [tA, pA, fA] = await Promise.all([balance(TREASURY), balance(prizePda()), balance(fundPda())]);
   // the first 0.05 night of a new UTC day first closes the previous day: an unwon pot and an
   // unclaimed prize go to the fee wallet (that is the rule, not part of this night's split)
@@ -258,11 +258,11 @@ check("sending SOL to a bank can't block closing its room", stakedClosed && !(aw
     if (lead < 0 || p0.pot === 0n || listFull) rolled += p0.pot;
   }
   if (rolled > 0n) console.log(`(a new day: the previous day's ${Number(rolled) / 1e9} SOL went to the fee wallet first)`);
-  check("the fee wallet gets 3% less the table fund's 0.001 at the 0.05 table", BigInt(tA - tB) === hfee - cut - 1_000_000n + rolled, `${(tA - tB) / LAMPORTS_PER_SOL} SOL`);
+  check("the fee wallet gets 6.5% less the table fund's 0.001 at the 0.05 table", BigInt(tA - tB) === hfee - cut - 1_000_000n + rolled, `${(tA - tB) / LAMPORTS_PER_SOL} SOL`);
   check("the table fund gets 0.001 at the 0.05 table too", fA - fB === 1_000_000, `${(fA - fB) / LAMPORTS_PER_SOL} SOL`);
-  check("the daily prize gets 2% at the 0.05 table", BigInt(pA - pB) === cut - rolled, `${(pA - pB) / LAMPORTS_PER_SOL} SOL`);
+  check("the daily prize gets 3.5% at the 0.05 table", BigInt(pA - pB) === cut - rolled, `${(pA - pB) / LAMPORTS_PER_SOL} SOL`);
   const p1 = (await admin.fetchPrize())!;
-  check("today's pot grows by the 2%", p1.day === day && p1.pot - pot0 === cut, `pot ${p1.pot}`);
+  check("today's pot grows by the 3.5%", p1.day === day && p1.pot - pot0 === cut, `pot ${p1.pot}`);
   const ok = duo.every((p) => {
     const a = entry0(p.publicKey);
     const b = p1.entries.find((e) => e.key.equals(p.publicKey));

@@ -2929,3 +2929,28 @@ button {
 .lobby-clock{text-align:center;font-size:11px;letter-spacing:.06em;color:var(--dim);margin-top:6px}
 .lobby-clock b{font-family:var(--mono);color:var(--fg)}
 .lobby-clock.soon b{color:var(--gold)}
+
+/* the night's winner on the results card */
+.vc-trophy{position:relative;display:flex;flex-direction:column;align-items:center;margin:10px auto 4px;padding-top:4px}
+.vc-trophy .vt-cup{width:62px;height:68px;filter:drop-shadow(0 6px 14px rgba(0,0,0,.6));animation:vtdrop .7s cubic-bezier(.2,1.4,.4,1) both}
+.vc-trophy .vt-text{display:flex;flex-direction:column;align-items:center;gap:2px;margin-top:6px}
+.vc-trophy .vt-text b{font-size:20px;letter-spacing:.08em;color:var(--gold)}
+.vc-trophy .vt-text span{font-family:var(--mono);font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--dim)}
+.vc-trophy .vt-text em{font-style:normal;font-family:var(--mono);font-size:13px;color:#ffe9a8;margin-top:4px}
+.vc-trophy.mine .vt-cup{width:120px;height:132px;filter:drop-shadow(0 0 26px rgba(255,209,102,.55)) drop-shadow(0 10px 18px rgba(0,0,0,.6))}
+.vc-trophy.mine .vt-text b{font-size:clamp(40px,6.5vw,62px);letter-spacing:.06em;text-shadow:0 0 30px rgba(255,209,102,.45);animation:vtpop .5s .25s cubic-bezier(.2,1.4,.4,1) both}
+.vc-trophy.mine .vt-text em{font-size:16px;padding:6px 14px;border-radius:999px;background:rgba(255,209,102,.12);border:1px solid rgba(255,209,102,.4);animation:vtpop .45s .45s both}
+.vt-rays{position:absolute;top:-30px;left:50%;width:300px;height:300px;margin-left:-150px;background:repeating-conic-gradient(from 0deg,rgba(255,209,102,.16) 0 10deg,transparent 10deg 24deg);-webkit-mask:radial-gradient(circle,#000 18%,transparent 62%);mask:radial-gradient(circle,#000 18%,transparent 62%);animation:vtspin 14s linear infinite,vtfade .6s both;pointer-events:none}
+.vt-confetti{position:absolute;top:60px;left:50%;width:0;height:0;pointer-events:none}
+.vt-confetti i{position:absolute;width:11px;height:18px;border-radius:3px;box-shadow:0 0 8px rgba(255,209,102,.6);background:var(--gold);opacity:0;animation:vtburst 1.6s cubic-bezier(.15,.7,.3,1) both}
+.vt-confetti i:nth-child(3n){background:#fff1b8;width:9px;height:9px;border-radius:50%}
+.vt-confetti i:nth-child(4n){background:#c48a17}
+.vt-shine{stroke-dasharray:60;stroke-dashoffset:60;animation:vtshine 2.6s 1s ease-in-out infinite}
+@keyframes vtdrop{0%{transform:translateY(-40px) scale(.6);opacity:0}100%{transform:none;opacity:1}}
+@keyframes vtpop{0%{transform:scale(.6);opacity:0}100%{transform:none;opacity:1}}
+@keyframes vtspin{to{transform:rotate(360deg)}}
+@keyframes vtfade{from{opacity:0}to{opacity:1}}
+@keyframes vtburst{0%{opacity:1;transform:translate(0,0) rotate(0)}80%{opacity:1}100%{opacity:0;transform:translate(var(--x),calc(var(--y) + 90px)) rotate(var(--r))}}
+@keyframes vtshine{0%,60%{stroke-dashoffset:60}80%{stroke-dashoffset:0}100%{stroke-dashoffset:-60}}
+@media (prefers-reduced-motion:reduce){.vc-trophy *{animation:none!important}.vt-confetti{display:none}}
+@media (max-width:520px){.vc-trophy.mine .vt-cup{width:92px;height:100px}.vt-rays{width:220px;height:220px;margin-left:-110px}}

@@ -9,8 +9,8 @@ pub const ADMIN: Pubkey = pubkey!("EXu7bp1rbNw9R6UfRLnsJcxyEF4GCvqChcoHMdbHgCmx"
 
 /// Receives the fee on every staked pot.
 pub const TREASURY: Pubkey = ADMIN;
-/// House fee on a staked pot, in basis points (500 = 5%). Refunded tickets pay nothing.
-pub const FEE_BPS: u64 = 500;
+/// House fee on a staked pot, in basis points (1000 = 10%). Refunded tickets pay nothing.
+pub const FEE_BPS: u64 = 1000;
 
 /// The only validator rooms may be delegated to (same identity on devnet and mainnet).
 pub const TEE_VALIDATOR: Pubkey = pubkey!("MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo");
@@ -49,10 +49,10 @@ pub const PUBLIC_LOBBY_MAX_SECS: i64 = 300;
 /// ...and a private one may be cleared by anyone after this long, so the room frees up.
 pub const PRIVATE_LOBBY_MAX_SECS: i64 = 600;
 
-/// The daily prize: tables at exactly this stake (0.05 SOL) feed it. Of each such pot's 5% fee,
-/// PRIZE_BPS (2%) goes to the prize and the rest to the treasury.
+/// The daily prize: tables at exactly this stake (0.05 SOL) feed it. Of each such pot's 10% fee,
+/// PRIZE_BPS (3.5%) goes to the prize and the rest to the treasury.
 pub const PRIZE_STAKE: u64 = 50_000_000;
-pub const PRIZE_BPS: u64 = 200;
+pub const PRIZE_BPS: u64 = 350;
 /// Nights at the prize table a wallet must play in a day to be able to win it.
 pub const PRIZE_MIN_GAMES: u32 = 3;
 

@@ -266,7 +266,7 @@ pub struct KillEvent {
 }
 
 /// The daily prize, on the base layer (never delegated). Settle of every night at a PRIZE_STAKE
-/// table adds 2% of the pot and each staker's games, stake and winnings for the UTC day. When a
+/// table adds 3.5% of the pot and each staker's games, stake and winnings for the UTC day. When a
 /// new day starts (the first settle or claim after midnight UTC), the day closes: among those with
 /// PRIZE_MIN_GAMES nights, the wallet that finished above the most *different* players that day
 /// wins the pot (net profit breaks a tie; beating the same wallet again adds nothing) and

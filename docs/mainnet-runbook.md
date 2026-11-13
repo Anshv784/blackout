@@ -36,7 +36,7 @@ npx tsx scripts/admin.ts room 12 0.05 0 0.05               # staked table, 0.05 
 ```
 
 The old free daily (you + 3 bots) is gone from the site, so the daily board is no longer delegated
-(saves its 0.05 SOL top-up). The daily challenge is now the 0.05 SOL table's prize: 2% of each pot
+(saves its 0.05 SOL top-up). The daily challenge is now the 0.05 SOL table's prize: 3.5% of each pot
 there goes to the day's top earner (3+ nights), the fee wallet keeps 3%.
 
 Each staked table's 0.05 SOL top-up pays MagicBlock's commit fee (~0.001 SOL per staked night after
@@ -47,8 +47,8 @@ and players' games move 0.02 SOL from it into a table that runs low. Check with
 ## 3. Rehearsal (SPENDS ~0.02 SOL, comes back)
 
 One free night, then one staked night at the 0.01 table with two of your own wallets. Check on the
-explorer: the winner got the pot less 5%, the fee reached the admin wallet, spent tickets returned rent.
-Optional: one night at the 0.05 table: the admin wallet gets 3% and the prize account 2%
+explorer: the winner got the pot less 10%, the fee reached the admin wallet, spent tickets returned rent.
+Optional: one night at the 0.05 table: the admin wallet gets 6.5% less 0.001 and the prize account 3.5%
 (`npx tsx scripts/admin.ts prize` prints today's pot).
 
 ## 4. Site

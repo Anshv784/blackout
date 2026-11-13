@@ -169,7 +169,7 @@ pub fn handle_settle<'info>(ctx: Context<'info, Settle<'info>>) -> Result<()> {
             let treasury = ctx.accounts.treasury.to_account_info();
             let min_balance = Rent::get()?.minimum_balance(0);
             fee = house_fee(pot, treasury.lamports(), min_balance);
-            // a prize table: 2% of the pot (out of the 5% fee) goes to the day's prize
+            // a prize table: 3.5% of the pot (out of the 10% fee) goes to the day's prize
             let prize_ai = ctx.accounts.prize.to_account_info();
             let cut = if room.stake == PRIZE_STAKE { prize_cut(pot, fee) } else { 0 };
             let cut = if cut > 0 { add_to_prize(&prize_ai, &treasury, cut)? } else { 0 };
@@ -642,10 +642,11 @@ mod fee_tests {
     use super::*;
 
     #[test]
-    fn fee_is_five_percent_and_never_exceeds_the_pot() {
-        assert_eq!(house_fee(80_000_000, 1_000_000_000, 890_880), 4_000_000);
-        assert_eq!(house_fee(20_000_000, 1_000_000_000, 890_880), 1_000_000);
-        assert_eq!(house_fee(19, 1_000_000_000, 890_880), 0); // rounds down
+    fn fee_is_ten_percent_and_never_exceeds_the_pot() {
+        assert_eq!(house_fee(80_000_000, 1_000_000_000, 890_880), 8_000_000);
+        assert_eq!(house_fee(20_000_000, 1_000_000_000, 890_880), 2_000_000);
+        assert_eq!(house_fee(40_000_000, 1_000_000_000, 890_880), 4_000_000); // 4 players at 0.01
+        assert_eq!(house_fee(9, 1_000_000_000, 890_880), 0); // rounds down
         assert!(house_fee(u64::MAX, u64::MAX, 890_880) < u64::MAX);
     }
 
@@ -668,17 +669,19 @@ mod fee_tests {
     }
 
     #[test]
-    fn the_prize_takes_two_of_the_five_percent() {
-        // a 4-player 0.05 table: 0.2 SOL pot, 0.01 fee, 0.004 to the prize, 0.006 kept
+    fn the_prize_takes_three_and_a_half_of_the_ten_percent() {
+        // a 4-player 0.05 table: 0.2 SOL pot, 0.02 fee: 0.007 to the prize, 0.001 to the table fund,
+        // 0.012 to the treasury; the winner gets 0.18
         let pot = 200_000_000;
         let fee = house_fee(pot, 1_000_000_000, 890_880);
-        assert_eq!((fee, prize_cut(pot, fee)), (10_000_000, 4_000_000));
+        assert_eq!((fee, prize_cut(pot, fee)), (20_000_000, 7_000_000));
+        assert_eq!(table_fund_cut(fee - prize_cut(pot, fee), 5_000_000, 890_880), 1_000_000);
         assert_eq!(prize_cut(pot, 0), 0, "no fee (empty treasury): no prize cut either");
     }
 
     #[test]
     fn an_empty_treasury_never_blocks_the_payout() {
         assert_eq!(house_fee(4_000_000, 0, 890_880), 0); // too little to open a wallet
-        assert_eq!(house_fee(20_000_000, 0, 890_880), 1_000_000); // 0.001 SOL can
+        assert_eq!(house_fee(20_000_000, 0, 890_880), 2_000_000); // 0.002 SOL can
     }
 }

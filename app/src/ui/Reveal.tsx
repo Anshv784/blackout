@@ -18,6 +18,44 @@ import { recordNight } from "../game/career";
 
 const EMPTY = "11111111111111111111111111111111";
 
+/** The night's winner, on top of the results card: a trophy that drops in with rays and gold
+ *  confetti for you, a smaller one naming the winner for everyone else. */
+function WinnerTrophy({ mine, name, winnings }: { mine: boolean; name: string; winnings: number }) {
+  return (
+    <div className={`vc-trophy ${mine ? "mine" : ""}`}>
+      {mine && <div className="vt-rays" />}
+      {mine && (
+        <div className="vt-confetti" aria-hidden>
+          {Array.from({ length: 28 }, (_, i) => (
+            <i key={i} style={{ ["--x" as string]: `${Math.cos((i / 28) * Math.PI * 2) * (130 + (i % 3) * 40)}px`, ["--y" as string]: `${Math.sin((i / 28) * Math.PI * 2) * (90 + (i % 4) * 25) - 40}px`, ["--r" as string]: `${i * 47}deg`, animationDelay: `${0.35 + (i % 5) * 0.03}s` }} />
+          ))}
+        </div>
+      )}
+      <svg className="vt-cup" viewBox="0 0 100 110" aria-hidden>
+        <defs>
+          <linearGradient id="vtGold" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#fff1b8" />
+            <stop offset="0.45" stopColor="#ffd166" />
+            <stop offset="1" stopColor="#c48a17" />
+          </linearGradient>
+        </defs>
+        <path d="M27 8 H73 V40 Q73 66 50 70 Q27 66 27 40 Z" fill="url(#vtGold)" stroke="#8a5f12" strokeWidth="2.5" />
+        <path d="M27 16 Q10 16 12 31 Q14 44 29 47" fill="none" stroke="url(#vtGold)" strokeWidth="5" strokeLinecap="round" />
+        <path d="M73 16 Q90 16 88 31 Q86 44 71 47" fill="none" stroke="url(#vtGold)" strokeWidth="5" strokeLinecap="round" />
+        <rect x="44" y="70" width="12" height="14" fill="#c9971f" />
+        <rect x="31" y="84" width="38" height="13" rx="3" fill="#2f3446" stroke="#8a5f12" strokeWidth="1.5" />
+        <path d="M50 22 l4 8.5 9.3 1.2 -6.8 6.4 1.7 9.2 -8.2 -4.5 -8.2 4.5 1.7 -9.2 -6.8 -6.4 9.3 -1.2z" fill="#fff6d6" opacity="0.9" />
+        <path className="vt-shine" d="M33 12 Q36 40 46 62" fill="none" stroke="#fffbe8" strokeWidth="3" strokeLinecap="round" opacity="0.7" />
+      </svg>
+      <div className="vt-text">
+        <b>{mine ? "YOU WON" : `${name} WINS`}</b>
+        <span>{mine ? "Last one standing" : "last one standing"}</span>
+        {winnings > 0 && <em>{mine ? `+${winnings.toFixed(3)} SOL · sent to your wallet` : `takes ${winnings.toFixed(3)} SOL`}</em>}
+      </div>
+    </div>
+  );
+}
+
 export function Reveal({ session, onDone }: { session: Session; onDone: () => void }) {
   // the room may reopen for the next night while you watch: keep showing the night you played
   const liveRoom = useStore((s) => s.room)!;
@@ -250,6 +288,11 @@ export function Reveal({ session, onDone }: { session: Session; onDone: () => vo
     .filter((i) => room.place[i] > 0)
     .sort((a, b) => room.place[a] - room.place[b]);
   const winnerName = room.winner !== 255 ? room.names[room.winner] : "nobody";
+  // a staked night's winner is paid the pot less the house fee (config.rs FEE_BPS = 10%)
+  const stakers = room.players.filter((p, i) => room.isBot[i] === 0 && p.toBase58() !== EMPTY).length;
+  const winnings = room.stake > 0n ? (Number(room.stake) * stakers * 0.9) / 1e9 : 0;
+  // dev server only: localStorage "bo-preview-win" shows the winner's view of the card (stripped from the live build)
+  const previewWin = import.meta.env.DEV && (() => { try { return localStorage.getItem("bo-preview-win") === "1"; } catch { return false; } })();
   const seed = world ? Array.from(world.seed.slice(0, 16)).map((b) => b.toString(16).padStart(2, "0")).join("") : "";
   const myPlace = mySeat !== null ? room.place[mySeat] : 0;
   const myDeath = mySeat !== null ? room.feed.slice(0, Math.min(16, room.feedHead)).find((f) => f.victim === mySeat) ?? null : null;
@@ -280,14 +323,11 @@ export function Reveal({ session, onDone }: { session: Session; onDone: () => vo
         <div className="verdict" onClick={() => setCard(false)}>
           <div className="verdict-card" onClick={(e) => e.stopPropagation()}>
             <div className="vc-kicker">NIGHT {room.matchNo} · ROOM {room.roomId.toString()}</div>
+            {room.winner !== 255 && <WinnerTrophy mine={room.winner === mySeat || previewWin} name={winnerName} winnings={winnings} />}
             {room.stake > 0n && room.winner === 255 && room.place.every((p) => p === 0) ? (
               // the rollup stalled too long to settle safely: the program called the night off
               <h1>Night called off · every ticket carries to your next night</h1>
-            ) : mySeat === null ? (
-              <h1>{winnerName} survived the night</h1>
-            ) : room.winner === mySeat ? (
-              <h1 className="win">YOU SURVIVED THE NIGHT</h1>
-            ) : (
+            ) : mySeat === null || room.winner === mySeat || previewWin ? null : (
               <h1>
                 #{myPlace} <span>of {order.length}</span>
               </h1>
