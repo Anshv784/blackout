@@ -151,6 +151,10 @@ pub mod blackout {
         instructions::lobby::handle_expire_lobby(ctx)
     }
 
+    pub fn set_look(ctx: Context<Heartbeat>, look: [u8; 3], emote: u8) -> Result<()> {
+        instructions::lobby::handle_set_look(ctx, look, emote)
+    }
+
     pub fn ask_start(ctx: Context<Heartbeat>) -> Result<()> {
         instructions::lobby::handle_ask_start(ctx)
     }

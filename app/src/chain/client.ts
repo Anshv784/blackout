@@ -523,6 +523,12 @@ export class BlackoutClient {
     return ix("ask_start", {}, [r(this.publicKey, true), w(roomPda(roomId))]);
   }
 
+  /** Update your look while seated (lobby or results); in a lobby, `emote` 128-255 plays your
+   *  emote for the table (a counter the others watch). */
+  setLookIx(roomId: bigint, look: number[], emote = 0) {
+    return ix("set_look", { look, emote }, [r(this.publicKey, true), w(roomPda(roomId))]);
+  }
+
   heartbeatIx(roomId: bigint) {
     return ix("heartbeat", {}, [r(this.publicKey, true), w(roomPda(roomId))]);
   }

@@ -845,6 +845,49 @@ mod ghillie {
         (0..view.n_players as usize).any(|i| view.players[i].seat == 1)
     }
 
+    /// Seat 1's flags as seat 0 sees them (standing 6 tiles away in the open Meadow), or None.
+    fn seen_flags(wear: bool, buttons: u32, moving: bool) -> Option<u32> {
+        let (mut room, mut w) = meadow_room();
+        room.status = ST_LIVE;
+        let m = map_of(&room);
+        let y = (1..MAP_H - 1).find(|&ty| (2..12).all(|tx| !is_wall(m, tx, ty) && !is_wall(m, tx, ty - 1) && !is_wall(m, tx, ty + 1))).unwrap();
+        for s in 0..MAXP {
+            w.players[s].alive = 0;
+        }
+        for (s, tx) in [(0usize, 3u8), (1, 9)] {
+            let p = &mut w.players[s];
+            *p = PlayerState::default();
+            p.alive = 1;
+            p.hp = 100;
+            p.x = tile_center(tx);
+            p.y = tile_center(y as u8);
+        }
+        w.players[1].buttons = buttons;
+        w.players[1].moved = if moving { 1 } else { 0 };
+        w.bots[1].stuck = wear as u32;
+        let tick = 400u32;
+        w.tick = tick;
+        let sight = compute_sight(&room, &w, true, tick - COUNTDOWN_TICKS, tick);
+        let mut view: View = bytemuck::Zeroable::zeroed();
+        write_view(&room, &w, &mut view, 0, &sight, &[], &[], tick);
+        (0..view.n_players as usize).find(|&i| view.players[i].seat == 1).map(|i| view.players[i].flags)
+    }
+
+    #[test]
+    fn others_see_your_ghillie_suit() {
+        assert!(seen_flags(true, 0, false).unwrap() & VIS_GHILLIE != 0, "a seen player in the suit shows it");
+        assert!(seen_flags(false, 0, false).unwrap() & VIS_GHILLIE == 0, "no suit, no flag");
+    }
+
+    #[test]
+    fn others_see_your_emote() {
+        let emote = |b: u32, moving: bool| (seen_flags(false, b, moving).unwrap() >> VIS_EMOTE_SHIFT) & 0xf;
+        assert_eq!(emote(3 << 8, false), 3, "standing still: the emote shows");
+        assert_eq!(emote(0, false), 0, "no emote");
+        assert_eq!(emote(3 << 8, true), 0, "moving ends it");
+        assert_eq!(emote((3 << 8) | BTN_GADGET, false), 0, "aiming a throw uses that byte: no emote");
+    }
+
     #[test]
     fn crouched_in_a_ghillie_you_vanish_until_you_fire() {
         assert!(seen(false, true, false), "a crouched player without the suit is seen in the cone");

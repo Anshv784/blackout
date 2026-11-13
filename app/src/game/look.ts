@@ -171,6 +171,12 @@ export function encodeLook(name16: Uint8Array, l: Look) {
   name16[14] = ((l.finish & 7) << 5) | ((l.emote & 7) << 2) | ((pistol >> 4) << 1) | (long >> 4);
   name16[15] = ((pistol & 0xf) << 4) | (long & 0xf);
 }
+/** The three packed look bytes (13-15 of the name), as sent by `set_look`. */
+export function lookBytes(l: Look): number[] {
+  const b = new Uint8Array(16);
+  encodeLook(b, l);
+  return [b[13], b[14], b[15]];
+}
 /** a seat with no look chosen (bots, older clients): a different operator per seat */
 export const seatDefault = (seat: number): Look => ({ ...DEFAULT_LOOK, char: ROSTER[seat % ROSTER.length].id, outfit: seat % 3 === 2 ? 1 : 0 });
 export function decodeLook(name16: Uint8Array, seat = 0): Look {

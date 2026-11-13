@@ -1949,6 +1949,44 @@
       ]
     },
     {
+      "name": "set_look",
+      "discriminator": [
+        180,
+        85,
+        205,
+        95,
+        122,
+        121,
+        110,
+        1
+      ],
+      "accounts": [
+        {
+          "name": "player",
+          "signer": true
+        },
+        {
+          "name": "room",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "look",
+          "type": {
+            "array": [
+              "u8",
+              3
+            ]
+          }
+        },
+        {
+          "name": "emote",
+          "type": "u8"
+        }
+      ]
+    },
+    {
       "name": "set_mode",
       "discriminator": [
         159,

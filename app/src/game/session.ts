@@ -7,6 +7,7 @@ import { client } from "./identity";
 import { ticketPda, TICKET_LEN } from "../chain/client";
 import { lobbyDeadline } from "../chain/layout";
 import { useStore } from "./store";
+import { getLook, lookBytes, useLook } from "./look";
 import {
   decodeView,
   NO_SEAT,
@@ -163,6 +164,14 @@ export class Session {
   async start() {
     const room = await client.fetchRoom(this.roomId);
     if (room) this.onRoom(room);
+    // a look changed after sitting down (operator, outfit, gun skin) reaches the whole table
+    let lookTimer = 0;
+    this.unsubs.push(
+      useLook.subscribe(() => {
+        clearTimeout(lookTimer);
+        lookTimer = window.setTimeout(() => this.syncLook(0), 400);
+      }),
+    );
     this.unsubs.push(await client.onRoom(this.roomId, (r) => this.onRoom(r)));
     // websockets can stall; a slow poll keeps the lobby honest
     this.timers.push(window.setInterval(() => this.poll(), 1000));
@@ -1035,6 +1044,19 @@ export class Session {
   async setSize(n: number) {
     await client.sendEr([client.setSizeIx(this.roomId, n)]);
     await this.poll();
+  }
+
+  private emoteSeq = 128 + Math.floor(Math.random() * 64);
+  /** Send your current look to the table (lobby or results only); `emote` 128-255 plays it in a lobby. */
+  syncLook(emote: number) {
+    const r = this.room;
+    if (this.mySeat === null || !r || (r.status !== ST_LOBBY && r.status !== ST_REVEALED)) return;
+    client.sendEr([client.setLookIx(this.roomId, lookBytes(getLook()), emote)], { confirm: false }).catch(() => {});
+  }
+  /** Play your emote for everyone in the lobby. */
+  lobbyEmote() {
+    this.emoteSeq = this.emoteSeq >= 255 ? 128 : this.emoteSeq + 1;
+    this.syncLook(this.emoteSeq);
   }
 
   /** ask the host to start (free rooms, not the host) */

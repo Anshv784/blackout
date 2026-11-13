@@ -162,6 +162,26 @@ pub fn handle_set_size(ctx: Context<Heartbeat>, max_players: u8) -> Result<()> {
     Ok(())
 }
 
+/// A seated player updates their look (operator, outfit, gun finish and skins: bytes 13-15 of their
+/// name, see app/src/game/look.ts), so a change made after sitting down reaches everyone. In a
+/// lobby it can also play their emote for the table: `emote` is a counter (128-255) that the other
+/// players' screens watch; it lives in the seat's kill count, which a lobby doesn't use and every
+/// night resets (sim::seed_match). The name itself (bytes 0-12) is never touched.
+pub fn handle_set_look(ctx: Context<Heartbeat>, look: [u8; 3], emote: u8) -> Result<()> {
+    let slot = Clock::get()?.slot;
+    let mut room = ctx.accounts.room.load_mut()?;
+    require!(room.status == ST_LOBBY || room.status == ST_REVEALED, BlackoutError::NotInLobby);
+    let s = room.seat_of(&ctx.accounts.player.key()).ok_or(BlackoutError::NotSeated)?;
+    require!(look[0] & 0xc0 == 0xc0, BlackoutError::BadAccount); // the packed-look marker
+    room.names[s][12] = 0;
+    room.names[s][13..16].copy_from_slice(&look);
+    if room.status == ST_LOBBY && emote >= 128 {
+        room.kills[s] = emote as u32;
+    }
+    room.last_seen[s] = slot as u32;
+    Ok(())
+}
+
 /// A guest in a free room asks the host to start the night. In a free lobby `start_slot` and
 /// `last_tick_slot` are unused (the night's start overwrites both), so they carry the request:
 /// when it was asked and from which seat. The host's game shows it.

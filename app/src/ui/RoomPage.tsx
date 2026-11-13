@@ -69,7 +69,7 @@ export function RoomPage({ roomId }: { roomId: bigint }) {
     useStore.getState().set({ room: null, view: null, mySeat: null, reveal: null });
     session.start().catch((e) => setErr(friendlyError(e)));
     // test handles for scripts/ui (dev server only, never in the live build)
-    if (import.meta.env.DEV) Object.assign(window as any, { __session: session, __controls: controls, __store: useStore });
+    if (import.meta.env.DEV) Object.assign(window as any, { __session: session, __controls: controls, __store: useStore, __look: useLook });
     const bye = () => {
       // walking away from a lobby frees your seat (and the room, if you were alone)
       if (session.room?.status === ST_LOBBY && session.mySeat !== null) session.leave().catch(() => {});
@@ -271,6 +271,27 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
   const myLook = useLook((st) => st.look);
   const setLook = useLook((st) => st.set);
   const [lobbyEmote, setLobbyEmote] = useState(0);
+  // the others' lobby emotes: a seat's counter (128-255, see set_look) changing means "play it now".
+  // The value already there when the page opens is ignored.
+  const killsKey = room.kills.join(",");
+  const seenKills = useRef<number[] | null>(null);
+  const [othersEmote, setOthersEmote] = useState<number[]>(() => Array(8).fill(0));
+  useEffect(() => {
+    const prev = seenKills.current;
+    seenKills.current = room.kills.slice();
+    if (!prev) return;
+    const now = performance.now();
+    let changed = false;
+    const next = othersEmote.slice();
+    room.kills.forEach((k, s) => {
+      if (s !== mySeat && k >= 128 && k !== prev[s]) {
+        next[s] = now;
+        changed = true;
+      }
+    });
+    if (changed) setOthersEmote(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [killsKey]);
   const [wheel, setWheel] = useState<{ x: number; y: number } | null>(null);
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
@@ -285,7 +306,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
     return {
       name: room.names[i],
       look: i === mySeat ? myLook : room.looks[i],
-      emoteAt: i === mySeat ? lobbyEmote : undefined,
+      emoteAt: i === mySeat ? lobbyEmote : othersEmote[i] || undefined,
       taken,
       bot: room.isBot[i] === 1,
       me: i === mySeat,
@@ -699,6 +720,8 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
           onPick={(k) => {
             setLook({ emote: k });
             setLobbyEmote(performance.now());
+            // ...and for everyone else at the table (after the look itself has gone out)
+            window.setTimeout(() => session.lobbyEmote(), 50);
             setWheel(null);
           }}
         />
