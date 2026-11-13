@@ -9,6 +9,7 @@ import { RoomPage } from "./ui/RoomPage";
 import { Board } from "./ui/Board";
 import { Characters } from "./ui/Characters";
 import { How } from "./ui/How";
+import { Roadmap } from "./ui/Roadmap";
 import { Toasts } from "./ui/Toasts";
 import { WalletGate } from "./ui/WalletGate";
 import { loadProfile, localNameFor, provider } from "./game/wallet";
@@ -19,6 +20,7 @@ function parseHash(): Route {
   if (m) return { page: "room", roomId: BigInt(m[1]) };
   if (h.startsWith("how")) return { page: "how" };
   if (h.startsWith("board")) return { page: "board" };
+  if (h.startsWith("roadmap")) return { page: "roadmap" };
   if (h.startsWith("character")) return { page: "chars" };
   return { page: "home" };
 }
@@ -74,6 +76,7 @@ export function App() {
       {route.page === "board" && <Board />}
       {route.page === "chars" && <Characters />}
       {route.page === "how" && <How />}
+      {route.page === "roadmap" && <Roadmap />}
       <Toasts />
       <WalletGate />
     </>
