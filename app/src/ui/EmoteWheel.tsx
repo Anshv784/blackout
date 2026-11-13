@@ -47,12 +47,11 @@ const GLYPH: Record<string, JSX.Element> = {
       <path d="M17 5l3 1" />
     </>
   ),
-  // two palms meeting, with impact ticks
-  clap: (
+  // a fist with the thumb up
+  thumbs: (
     <>
-      <path d="M7.5 20.5 4.8 13a1.5 1.5 0 0 1 2.8-1l1.6 3.6V6.4a1.5 1.5 0 0 1 3 0v6.8" />
-      <path d="M12.2 13.2V5.8a1.5 1.5 0 0 1 3 0v8.4a6.3 6.3 0 0 1-6.3 6.3" />
-      <path d="M18.5 4.5l1.6-1.6M19.4 8l2.1-.4M17 2.2l.3-1.2" />
+      <path d="M7 10.5v9.5H4.5v-9.5z" />
+      <path d="M7 11l3.6-7a1.9 1.9 0 0 1 3.5 1.2L13.2 9.5h5.1a2 2 0 0 1 2 2.4l-1.4 6.4a2.2 2.2 0 0 1-2.1 1.7H7" />
     </>
   ),
 };

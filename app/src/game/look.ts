@@ -24,6 +24,8 @@ export const CHARACTERS: CharacterDef[] = [
   { id: 6, key: "medea", name: "VEIL", role: "duelist · cold-blooded", url: "/models/chars/medea.glb" },
 ];
 export const ANIMS_URL = "/models/chars/anims.glb";
+/** emotes recorded after the main pack, each its own small file (merged into the pack's clips) */
+export const EXTRA_ANIMS_URL = "/models/chars/emote_thumbs.glb";
 
 /** outfit tones: multiplied over the character's own colours (0 keeps them as made) */
 export const OUTFITS: { name: string; tint: string }[] = [
@@ -119,7 +121,7 @@ export const EMOTES: { key: string; name: string; clip: string }[] = [
   { key: "wave", name: "Wave", clip: "emote_wave" },
   { key: "taunt", name: "Taunt", clip: "emote_taunt" },
   { key: "dance", name: "Dance", clip: "emote_dance" },
-  { key: "clap", name: "Clap", clip: "emote_clap" },
+  { key: "thumbs", name: "Thumbs Up", clip: "emote_thumbs" }, // replaced Clap (same slot: a saved Clap becomes Thumbs Up)
 ];
 
 export interface Look {

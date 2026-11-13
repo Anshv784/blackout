@@ -8,11 +8,12 @@ import * as THREE from "three";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { Gun, MUZZLE_FWD, GUN_MODELS } from "./Gun";
 import { dropMag } from "./Details";
-import { ANIMS_URL, CHARACTERS, OUTFITS, FINISHES, EMOTES, DEFAULT_LOOK, skinOf, type Look } from "../game/look";
+import { ANIMS_URL, EXTRA_ANIMS_URL, CHARACTERS, OUTFITS, FINISHES, EMOTES, DEFAULT_LOOK, skinOf, type Look } from "../game/look";
 
 export const SOLDIER_URL = "/models/soldier-v2.glb";
 useGLTF.preload(SOLDIER_URL);
 useGLTF.preload(ANIMS_URL);
+useGLTF.preload(EXTRA_ANIMS_URL);
 
 /** What the body should be doing this frame. Parents write it, the soldier reads it. */
 export interface Motion {
@@ -514,6 +515,7 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
   const def = CHARACTERS[look.char] ?? CHARACTERS[0];
   const gltf = useGLTF(def.url) as any;
   const animsGltf = useGLTF(ANIMS_URL) as any;
+  const extraGltf = useGLTF(EXTRA_ANIMS_URL) as any;
   const root = useRef<THREE.Group>(null);
   const gunRef = useRef<THREE.Group>(null);
   const cloak = useMemo(() => {
@@ -588,7 +590,7 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
     const mixer = new THREE.AnimationMixer(model);
     const b = (n: string) => model.getObjectByName(`mixamorig${n}`)!;
     // motion-captured clips, shared by every character (same Mixamo skeleton)
-    const clips = clipsFor(def.key, animsGltf.animations, animsGltf.scene, gltf.scene, !!def.camo);
+    const clips = clipsFor(def.key, [...animsGltf.animations, ...extraGltf.animations], animsGltf.scene, gltf.scene, !!def.camo);
     // the original keeps its own walk cycle (made for its rig); everyone else uses the recordings
     const own = (n: string) => gltf.animations.find((a: THREE.AnimationClip) => a.name === n);
     const pick = (n: string, fb: string) => mixer.clipAction(def.camo ? own(fb === "walk" ? "Walk" : fb === "run" ? "Run" : "Idle") : clips[n] ?? clips[fb]);
