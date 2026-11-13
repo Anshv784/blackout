@@ -1,5 +1,5 @@
-// Refund every ticket that can be refunded, for any player. Anyone can run this: the money
-// only ever goes to each ticket's own wallet. Tickets still locked are skipped.
+// Close every spent ticket, for any player, and hand its rent back. Anyone can run this: the rent
+// only ever goes to each ticket's own wallet. Unused tickets (stakes are never refunded) are skipped.
 //   ADMIN_KEY=<fee payer key file> npx tsx scripts/sweep_tickets.ts
 import { Keypair } from "@solana/web3.js";
 import fs from "fs";
