@@ -26,8 +26,9 @@ export const CHARACTERS: CharacterDef[] = [
   { id: 6, key: "medea", name: "VEIL", role: "duelist · cold-blooded", url: "/models/chars/medea.glb" },
 ];
 export const ANIMS_URL = "/models/chars/anims.glb";
-/** emotes recorded after the main pack, each its own small file (merged into the pack's clips) */
-export const EXTRA_ANIMS_URL = "/models/chars/emote_thumbs.glb";
+/** clips recorded after the main pack, each its own small file, merged over the pack's clips by name
+ *  (idle_rifle replaces the pack's idle, which looked back over the shoulder) */
+export const EXTRA_ANIMS_URLS = ["/models/chars/emote_thumbs.glb", "/models/chars/idle_rifle.glb"];
 
 /** outfit tones: multiplied over the character's own colours (0 keeps them as made) */
 export const OUTFITS: { name: string; tint: string }[] = [
