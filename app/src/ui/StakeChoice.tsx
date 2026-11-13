@@ -8,6 +8,7 @@ import { PRIZE_MIN_GAMES, PRIZE_STAKE, type Prize } from "../chain/layout";
 import { todaysStandings } from "../game/prize";
 import { useStore } from "../game/store";
 import { Dots } from "./DailyPrize";
+import { FeeSplit } from "./FeeSplit";
 
 const sol = (lamports: bigint) => {
   const n = Number(lamports) / 1e9;
@@ -26,10 +27,7 @@ export function StakeChoice({ rooms, prize, onPick, onClose }: { rooms: Record<n
         <div className="vc-kicker">STAKED NIGHT</div>
         <h2>Choose your table</h2>
         <p>Everyone at a table puts in the same stake. The last one standing takes the pot, less a 10% fee.</p>
-        <p className="sc-fee">
-          <b>Where the 10% goes:</b> 3.5% of each 0.05 SOL pot builds the daily prize, a little keeps the tables running, and the rest is set aside for{" "}
-          <b>future tournaments</b> with bigger prizes.
-        </p>
+        <FeeSplit compact />
         <p className="sc-note">Stakes aren't refunded. Leave before the night starts and your ticket stays good for a later night at the same stake.</p>
         <div className="sc-list">
           {tables.length === 0 && <div className="sc-empty">Reading the tables…</div>}

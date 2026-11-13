@@ -3006,3 +3006,44 @@ button {
 @media (max-width:640px){.rm-line{padding-left:52px;margin-top:30px}.rm-line::before{left:25px}.rm-line::after{left:24px}.rm-node{left:-40px;width:24px;height:24px}.rm-card{padding:14px 14px 13px}.rm-card h3{font-size:17.5px}.rm-card p{font-size:13.5px}.rm-stats{gap:8px}.rm-stats b{font-size:19px}.rm-stats span{font-size:9.5px}}
 .sc-fee{font-size:12px!important;line-height:1.5;color:#cfd5e2;background:rgba(255,209,102,.07);border:1px solid rgba(255,209,102,.25);border-radius:10px;padding:8px 12px;margin:6px 0 2px!important;text-align:left}
 .sc-fee b{color:var(--gold)}
+
+/* ---------------------------------------------------------------- where the fee goes */
+.fee-badge-wrap{position:relative;margin-top:10px}
+.fee-badge{display:flex;align-items:center;gap:10px;width:100%;padding:9px 14px;border-radius:12px;border:1px dashed rgba(255,209,102,.45);background:linear-gradient(90deg,rgba(255,209,102,.08),rgba(201,168,255,.06));color:#d9dee9;font:inherit;font-size:13px;cursor:pointer;text-align:left;transition:border-color .2s,background .2s}
+.fee-badge:hover,.fee-badge.on{border-style:solid;border-color:var(--gold);background:linear-gradient(90deg,rgba(255,209,102,.14),rgba(201,168,255,.09))}
+.fee-badge b{color:var(--gold)}
+.fee-badge .fs-coin{flex:none;animation:fscoin 3.2s ease-in-out infinite}
+.fb-mini{display:flex;gap:4px;margin-left:auto}
+.fb-mini i{width:8px;height:8px;border-radius:50%}
+.fb-mini .p{background:#ffd166}.fb-mini .f{background:#7fe3c4}.fb-mini .c{background:#c9a8ff}
+.fb-arrow{font-family:var(--mono);font-size:16px;color:var(--gold);width:14px;text-align:center}
+.fee-pop{position:absolute;left:0;bottom:calc(100% + 10px);z-index:30;width:min(560px,calc(100vw - 32px));animation:fspop .28s cubic-bezier(.2,1.3,.4,1)}
+.fee-split{background:rgba(8,10,18,.96);border:1px solid rgba(255,209,102,.35);border-radius:16px;padding:14px;box-shadow:0 24px 60px rgba(0,0,0,.6);text-align:left}
+.fs-head{display:flex;align-items:center;gap:8px;font-size:14px;color:#d9dee9;margin-bottom:12px}
+.fs-head b{color:var(--gold)}
+.fs-cols{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.fs-col{display:flex;flex-direction:column;align-items:center;text-align:center;padding:10px 8px 11px;border-radius:12px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.06)}
+.fs-col .fs-icon{width:52px;height:48px;margin-bottom:4px}
+.fs-col .fs-icon svg{width:100%;height:100%;animation:fsbob 2.6s ease-in-out infinite}
+.fs-col.fund .fs-icon svg{animation-delay:.4s}.fs-col.cup .fs-icon svg{animation-delay:.8s}
+.fs-col b{font-family:var(--mono);font-size:18px}
+.fs-col.prize b{color:#ffd166}.fs-col.fund b{color:#7fe3c4}.fs-col.cup b{color:#c9a8ff}
+.fs-col span{font-size:12.5px;font-weight:700;letter-spacing:.04em;margin-top:2px}
+.fs-col em{font-style:normal;font-size:11px;line-height:1.35;color:var(--dim);margin-top:4px}
+.fs-charge{transform-origin:10px 50%;animation:fscharge 2.4s ease-in-out infinite}
+.fs-spark{animation:fstwinkle 1.8s ease-in-out infinite}
+.fee-split.compact{background:rgba(255,209,102,.05);box-shadow:none;margin:8px 0 2px;padding:10px}
+.fee-split.compact .fs-head{font-size:12.5px;margin-bottom:8px}
+.fee-split.compact .fs-col{padding:7px 6px 8px}
+.fee-split.compact .fs-col .fs-icon{width:38px;height:34px}
+.fee-split.compact .fs-col b{font-size:14.5px}
+.fee-split.compact .fs-col span{font-size:11px}
+.fee-split.compact .fs-col em{display:none}
+@keyframes fscoin{0%,70%,100%{transform:rotateY(0)}85%{transform:rotateY(180deg)}}
+@keyframes fsbob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+@keyframes fscharge{0%{transform:scaleX(.35)}60%,100%{transform:scaleX(1)}}
+@keyframes fstwinkle{0%,100%{opacity:0}50%{opacity:1}}
+@keyframes fspop{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.fee-badge .fs-coin,.fs-col .fs-icon svg,.fs-charge,.fs-spark,.fee-pop{animation:none!important}}
+@media (max-width:520px){.fs-col em{font-size:10px}.fs-col b{font-size:15px}.fee-badge{font-size:12px}}
+.fee-pop .fee-split{background:#0a0c14}.fee-pop .fs-col{background:#12151f}

@@ -14,6 +14,7 @@ import { DailyPrize } from "./DailyPrize";
 import { claimPrize, solText } from "../game/prize";
 import { StakeChoice } from "./StakeChoice";
 import { AlreadyInRoom } from "./AlreadyInRoom";
+import { FeeBadge } from "./FeeSplit";
 
 const Backdrop = lazy(() => import("../scene/Backdrop").then((m) => ({ default: m.Backdrop })));
 const HeroSoldier = lazy(() => import("../scene/HeroSoldier").then((m) => ({ default: m.HeroSoldier })));
@@ -296,6 +297,7 @@ export function Home() {
                 {busy === "code" ? "FINDING…" : "JOIN"} <span aria-hidden>→</span>
               </button>
             </form>
+            <FeeBadge />
           </div>
         </section>
 
