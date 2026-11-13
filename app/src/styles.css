@@ -3004,3 +3004,5 @@ button {
 @keyframes rmring{0%{transform:scale(.7);opacity:.9}100%{transform:scale(1.5);opacity:0}}
 @media (prefers-reduced-motion:reduce){.rm-step{opacity:1;transform:none;transition:none}.rm-bar i{transition:none}.rm-step.now .rm-node i,.rm-step.now .rm-node::after{animation:none}}
 @media (max-width:640px){.rm-line{padding-left:52px;margin-top:30px}.rm-line::before{left:25px}.rm-line::after{left:24px}.rm-node{left:-40px;width:24px;height:24px}.rm-card{padding:14px 14px 13px}.rm-card h3{font-size:17.5px}.rm-card p{font-size:13.5px}.rm-stats{gap:8px}.rm-stats b{font-size:19px}.rm-stats span{font-size:9.5px}}
+.sc-fee{font-size:12px!important;line-height:1.5;color:#cfd5e2;background:rgba(255,209,102,.07);border:1px solid rgba(255,209,102,.25);border-radius:10px;padding:8px 12px;margin:6px 0 2px!important;text-align:left}
+.sc-fee b{color:var(--gold)}

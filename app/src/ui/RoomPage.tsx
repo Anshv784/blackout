@@ -393,7 +393,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
               ? "Your room. Pick the seats, then start the night."
               : `Waiting for ${room.names[effectiveHost] || "the host"} to start…`}
         </h2>
-        {staked && <p className="sub">Pot {(Number(room.pot) / 1e9).toFixed(2)} SOL · 10% house fee · humans only, no bots. The winner is paid on Solana by a Magic Action the moment the match commits, and staked wins are what the leaderboard ranks.</p>}
+        {staked && <p className="sub">Pot {(Number(room.pot) / 1e9).toFixed(2)} SOL · 10% fee (funds the daily prize, keeps tables running, and the rest goes to future tournaments) · humans only, no bots. The winner is paid on Solana by a Magic Action the moment the match commits, and staked wins are what the leaderboard ranks.</p>}
         {quick.current && <p className="sub">Opening the gate for you…</p>}
       </div>
 
