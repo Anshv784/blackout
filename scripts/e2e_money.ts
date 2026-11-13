@@ -252,7 +252,10 @@ check("sending SOL to a bank can't block closing its room", stakedClosed && !(aw
   let rolled = 0n;
   if (p0 && p0.day !== 0 && p0.day !== day) {
     // (an unclaimed prize is never forfeited: it stays on the owed list)
-    if (prizeLeader(p0) < 0 || p0.pot === 0n) rolled += p0.pot;
+    const lead = prizeLeader(p0);
+    const listFull = p0.owed.length >= 32 && !(lead >= 0 && p0.owed.some((o) => o.key.equals(p0.entries[lead].key)));
+    // a pot nobody qualified for, or a prize that can't join a full owed list, goes to the fee wallet
+    if (lead < 0 || p0.pot === 0n || listFull) rolled += p0.pot;
   }
   if (rolled > 0n) console.log(`(a new day: the previous day's ${Number(rolled) / 1e9} SOL went to the fee wallet first)`);
   check("the fee wallet gets 3% less the table fund's 0.001 at the 0.05 table", BigInt(tA - tB) === hfee - cut - 1_000_000n + rolled, `${(tA - tB) / LAMPORTS_PER_SOL} SOL`);

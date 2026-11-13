@@ -389,15 +389,14 @@ impl Prize {
     }
 
     /// Close the day if `today` is a new one. The winner's prize goes onto the owed list, where it
-    /// stays until paid. Returns the lamports that leave for the treasury: only a pot nobody
-    /// qualified for. (If the owed list were ever full, the prize rolls into the new day's pot for
-    /// players to win, never to the treasury.) The caller moves the lamports.
+    /// stays until paid. Returns the lamports that leave for the treasury: a pot nobody qualified
+    /// for, or a prize that can't be added because the owed list is full (32 unpaid winners).
+    /// The caller moves the lamports.
     pub fn roll(&mut self, today: u32) -> u64 {
         if self.day == today {
             return 0;
         }
         let mut to_treasury = 0u64;
-        let mut carry = 0u64;
         match self.leader() {
             Some(i) if self.day != 0 && self.pot > 0 => {
                 let key = self.entries[i].key;
@@ -406,7 +405,7 @@ impl Prize {
                     self.last_prize = self.pot;
                     self.last_claimed = 0;
                 } else {
-                    carry = self.pot;
+                    to_treasury = self.pot;
                     self.last_winner = Pubkey::default();
                     self.last_prize = 0;
                     self.last_claimed = 1;
@@ -421,7 +420,7 @@ impl Prize {
         }
         self.last_day = self.day;
         self.day = today;
-        self.pot = carry;
+        self.pot = 0;
         self.count = 0;
         self.entries = [PrizeEntry::zeroed(); PRIZE_SLOTS];
         to_treasury
@@ -1099,7 +1098,7 @@ mod prize_tests {
     }
 
     #[test]
-    fn a_full_owed_list_rolls_the_prize_into_the_next_day_not_the_treasury() {
+    fn a_full_owed_list_sends_the_prize_to_the_treasury() {
         let mut p = prize(10);
         for _ in 0..OWED_SLOTS {
             assert!(p.owe(Pubkey::new_unique(), 1));
@@ -1109,9 +1108,9 @@ mod prize_tests {
             night(&mut p, &a, 50, 100);
         }
         p.pot = 9_000;
-        assert_eq!(p.roll(11), 0, "nothing to the treasury");
-        assert_eq!(p.pot, 9_000, "it becomes the new day's pot");
-        assert!(p.holds_money());
+        assert_eq!(p.roll(11), 9_000, "the prize goes to the BLACKOUT wallet");
+        assert_eq!(p.pot, 0, "the new day starts from zero");
+        assert_eq!(p.take_owed(&a), 0, "a wasn't added to the full list");
     }
 
     #[test]

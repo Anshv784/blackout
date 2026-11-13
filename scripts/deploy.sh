@@ -1,7 +1,7 @@
 #!/bin/bash
 # Upgrade the devnet program in place (buffer rent is refunded after the upgrade).
 # Not `anchor build`: it rewrites declare_id! from whatever keypair is in target/deploy.
-set -e
+set -eo pipefail  # a failed deploy must stop the script, even when its output is piped
 cd "$(dirname "$0")/.."
 if ! { cargo build-sbf --manifest-path programs/blackout/Cargo.toml && anchor idl build -o target/idl/blackout.json; } > /tmp/blackout-build.log 2>&1; then grep -E "^error" -A8 /tmp/blackout-build.log | head -40; echo "BUILD FAILED"; exit 1; fi
 solana program deploy target/deploy/blackout.so --program-id target/deploy/blackout-keypair.json \
