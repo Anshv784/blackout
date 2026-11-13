@@ -33,6 +33,10 @@ pub const MATCH_WINDOW_SECS: i64 = 1200;
 /// (no winner, every ticket refundable): `finish` needs time to settle before any
 /// seated ticket could be refunded mid-night.
 pub const SETTLE_MARGIN_SECS: i64 = 300;
+/// An expired ticket whose night never paid out may move to a later night only this long after it
+/// expired. Moving it sooner could take its stake out of the bank while that night's payout is
+/// still on its way (a slow commit), and the winner would be paid a smaller pot.
+pub const TICKET_RELEASE_GRACE_SECS: i64 = 86_400;
 /// A staked table with two or more stakers seated starts this long after the last one sat down
 /// (a full table starts at once). There is no host: any seated staker's game may start it.
 pub const STAKED_START_WAIT_SECS: i64 = 60;

@@ -1175,7 +1175,7 @@ export async function reusableTicket(stake: bigint, roomId: bigint, matchNo: num
   if (!candidates.length) return null;
   const paid = await client.paidMatches([...new Set(candidates.map((t) => t.roomId))]).catch(() => new Map<bigint, number>());
   const now = Date.now() / 1000;
-  return candidates.find((t) => (paid.has(t.roomId) && t.matchNo <= paid.get(t.roomId)!) || now > t.expiresAt + 30) ?? null;
+  return candidates.find((t) => (paid.has(t.roomId) && t.matchNo <= paid.get(t.roomId)!) || now > t.expiresAt + 86_400 + 30) ?? null; // config.rs TICKET_RELEASE_GRACE_SECS
 }
 
 /**

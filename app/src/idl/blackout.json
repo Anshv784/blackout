@@ -124,6 +124,9 @@
         {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "payout_wallet"
         }
       ],
       "args": [

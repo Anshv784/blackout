@@ -21,7 +21,7 @@ const PLAIN: Record<string, string> = {
   NotEnded: "The night isn't over yet.",
   DailyNotReady: "Today's challenge isn't ready yet. Try again in a few seconds.",
   DailyPlayed: "This wallet already played today's challenge. A new one opens at midnight UTC.",
-  TicketLocked: "That ticket is still tied to its table. It can move once that table plays its next night, or an hour after you bought it.",
+  TicketLocked: "That ticket is still tied to its table. It can move once that table's night has paid out (or, if a night never paid out, a day after the ticket expired).",
   NotStaked: "That ticket is for a different stake. Pick a table at the stake you paid.",
   BadSeat: "Something about that seat changed. Refresh the page and try again.",
   BadAccount: "Something went wrong with this room. Refresh the page and try again.",

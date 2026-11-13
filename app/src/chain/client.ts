@@ -703,6 +703,7 @@ export class BlackoutClient {
       w(ticketPda(roomId, matchNo, this.publicKey)),
       w(this.publicKey, true),
       r(SystemProgram.programId),
+      r(payout),
     ]);
   }
 }

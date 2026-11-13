@@ -6,8 +6,8 @@
 import { ComputeBudgetProgram, Keypair, SystemProgram, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import fs from "fs";
 import os from "os";
-import { BlackoutClient, roomPda, bankPda, ticketPda, boardPda, recPda, prizePda, fundPda, TREASURY } from "../app/src/chain/client.ts";
-import { STATUS_NAME, ST_ENDED, ST_LOBBY, ST_LIVE, ST_COUNTDOWN } from "../app/src/chain/layout.ts";
+import { BlackoutClient, roomPda, bankPda, ticketPda, boardPda, recPda, prizePda, fundPda, TREASURY, PROGRAM_ID } from "../app/src/chain/client.ts";
+import { STATUS_NAME, ST_ENDED, ST_LOBBY, ST_LIVE, ST_COUNTDOWN, prizeLeader } from "../app/src/chain/layout.ts";
 
 const base = BigInt(process.argv[2] ?? 900);
 const STAKE = 0.01;
@@ -90,6 +90,9 @@ await sleep(2000);
 await rejects("can't sit at a staked table without a ticket", () => seated[0].sendEr([seated[0].joinIx(stakedId, 0, "A", wallets[0], 0)]));
 await rejects("can't sit using someone else's ticket", () => seated[0].sendEr([seated[0].joinIx(stakedId, 0, "A", wallets[0], 0, tk(1))]));
 await rejects("an unused ticket can't be refunded", () => seated[0].sendBase([seated[0].closeTicketIx(stakedId, tk(0), wallets[0])]));
+await rejects("winnings can't be sent to an account that can't take SOL (a program)", () =>
+  outsider.sendBase([outsider.buyTicketIx(otherId, matchNo, PROGRAM_ID)]),
+);
 await rejects("a ticket still waiting for its night can't move yet", () =>
   seated[0].sendBase([seated[0].reuseTicketIx({ pubkey: tk(0), roomId: stakedId }, otherId, 1)]),
 );
@@ -244,9 +247,17 @@ check("sending SOL to a bank can't block closing its room", stakedClosed && !(aw
   }
   check("0.05 winner still gets the pot less 5%", BigInt(paid) === hpot - hfee, `${paid / LAMPORTS_PER_SOL} SOL`);
   const [tA, pA, fA] = await Promise.all([balance(TREASURY), balance(prizePda()), balance(fundPda())]);
-  check("the fee wallet gets 3% less the table fund's 0.001 at the 0.05 table", BigInt(tA - tB) === hfee - cut - 1_000_000n, `${(tA - tB) / LAMPORTS_PER_SOL} SOL`);
+  // the first 0.05 night of a new UTC day first closes the previous day: an unwon pot and an
+  // unclaimed prize go to the fee wallet (that is the rule, not part of this night's split)
+  let rolled = 0n;
+  if (p0 && p0.day !== 0 && p0.day !== day) {
+    if (!p0.lastClaimed) rolled += p0.lastPrize;
+    if (prizeLeader(p0) < 0 || p0.pot === 0n) rolled += p0.pot;
+  }
+  if (rolled > 0n) console.log(`(a new day: the previous day's ${Number(rolled) / 1e9} SOL went to the fee wallet first)`);
+  check("the fee wallet gets 3% less the table fund's 0.001 at the 0.05 table", BigInt(tA - tB) === hfee - cut - 1_000_000n + rolled, `${(tA - tB) / LAMPORTS_PER_SOL} SOL`);
   check("the table fund gets 0.001 at the 0.05 table too", fA - fB === 1_000_000, `${(fA - fB) / LAMPORTS_PER_SOL} SOL`);
-  check("the daily prize gets 2% at the 0.05 table", BigInt(pA - pB) === cut, `${(pA - pB) / LAMPORTS_PER_SOL} SOL`);
+  check("the daily prize gets 2% at the 0.05 table", BigInt(pA - pB) === cut - rolled, `${(pA - pB) / LAMPORTS_PER_SOL} SOL`);
   const p1 = (await admin.fetchPrize())!;
   check("today's pot grows by the 2%", p1.day === day && p1.pot - pot0 === cut, `pot ${p1.pot}`);
   const ok = duo.every((p) => {

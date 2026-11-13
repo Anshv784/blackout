@@ -20,6 +20,11 @@ pub fn handle_buy_ticket(ctx: Context<BuyTicket>, room_id: u64, match_no: u32, p
     require!(match_no > ctx.accounts.bank.paid_match, BlackoutError::NeedTicket);
     // a winnings wallet of all zeros is the System Program: paying it would fail the whole settle
     require_keys_neq!(payout, Pubkey::default(), BlackoutError::BadAccount);
+    // ...and so would any account that can't take SOL (a program, a sysvar): the winnings wallet
+    // must be an ordinary wallet, owned by the System Program and not executable
+    let pw = &ctx.accounts.payout_wallet;
+    require_keys_eq!(pw.key(), payout, BlackoutError::BadAccount);
+    require!(*pw.owner == anchor_lang::system_program::ID && !pw.executable, BlackoutError::BadAccount);
     transfer(
         CpiContext::new(
             ctx.accounts.system_program.key(),
@@ -61,7 +66,12 @@ pub fn handle_reuse_ticket(ctx: Context<ReuseTicket>, room_id: u64, match_no: u3
     let (amount, payout, old_room, old_match) = {
         let old = &ctx.accounts.old_ticket;
         require!(!old.consumed, BlackoutError::TicketLocked);
-        require!(old.match_no <= ctx.accounts.from_bank.paid_match || now > old.expires_at, BlackoutError::TicketLocked);
+        // free to move once its night has paid out without it, or a day after it expired (a night
+        // that never paid out, e.g. the rollup stopped); never while a payout may still be coming
+        require!(
+            old.match_no <= ctx.accounts.from_bank.paid_match || now > old.expires_at.saturating_add(TICKET_RELEASE_GRACE_SECS),
+            BlackoutError::TicketLocked
+        );
         (old.amount, old.payout, old.room_id, old.match_no)
     };
     let stake = {
@@ -140,7 +150,10 @@ pub fn handle_settle<'info>(ctx: Context<'info, Settle<'info>>) -> Result<()> {
     bank.paid_match = room.match_no;
 
     let w = room.winner as usize;
-    let has_winner = w < MAXP && room.is_bot[w] == 0;
+    // a winner whose wallet has since become a program can't be paid (the transfer would fail and
+    // block the whole settle): the night then counts as having no winner, so nothing is stuck and
+    // every seated ticket carries over
+    let has_winner = w < MAXP && room.is_bot[w] == 0 && !ctx.accounts.winner.executable;
     let mut pot = 0u64;
     let mut fee = 0u64;
     if has_winner {
@@ -245,6 +258,8 @@ pub struct BuyTicket<'info> {
     #[account(mut)]
     pub player: Signer<'info>,
     pub system_program: Program<'info, System>,
+    /// CHECK: the winnings wallet named by `payout`; checked in the handler (an ordinary wallet)
+    pub payout_wallet: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]
