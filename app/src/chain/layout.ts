@@ -450,8 +450,11 @@ export interface Prize {
   lastWinner: PublicKey;
   lastPrize: bigint;
   entries: PrizeEntry[];
+  /** prizes won and not yet paid, per winner (kept until paid, no deadline) */
+  owed: { key: PublicKey; amount: bigint }[];
 }
 export const PRIZE_SLOTS = 100;
+export const OWED_SLOTS = 32;
 export const PRIZE_MIN_GAMES = 3;
 export const PRIZE_STAKE = 50_000_000n;
 
@@ -461,7 +464,7 @@ const popcount = (x: bigint) => {
   return n;
 };
 /** the account's size in the current layout (an older one reads as empty until reset_prize) */
-export const PRIZE_LEN = 8 + 64 + PRIZE_SLOTS * 72;
+export const PRIZE_LEN = 8 + 64 + PRIZE_SLOTS * 72 + OWED_SLOTS * 40;
 
 export function decodePrize(data: Uint8Array): Prize | null {
   if (data.length < PRIZE_LEN) return null;
@@ -484,7 +487,8 @@ export function decodePrize(data: Uint8Array): Prize | null {
       return { key, staked, won, games, profit: won - staked, beaten };
     })
     .slice(0, count);
-  return { day, pot, lastDay, lastClaimed, lastWinner, lastPrize, entries };
+  const owed = r.arr(OWED_SLOTS, () => ({ key: r.key(), amount: r.u64() })).filter((o) => o.amount > 0n);
+  return { day, pot, lastDay, lastClaimed, lastWinner, lastPrize, entries, owed };
 }
 
 /** Ranking used for the prize: most different players beaten, then net profit. */

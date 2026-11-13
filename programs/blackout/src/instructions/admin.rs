@@ -137,6 +137,12 @@ pub fn handle_reset_prize(ctx: Context<ResetPrize>) -> Result<()> {
     let ai = ctx.accounts.prize.to_account_info();
     require_keys_eq!(*ai.owner, crate::ID, BlackoutError::BadAccount);
     let space = 8 + core::mem::size_of::<Prize>();
+    // never wipe players' money: a current-layout account holding a pot or owed prizes is refused
+    if ai.data_len() == space {
+        let data = ai.try_borrow_data()?;
+        let p: &Prize = bytemuck::from_bytes(&data[8..space]);
+        require!(!p.holds_money(), BlackoutError::StakesOutstanding);
+    }
     let rent = Rent::get()?.minimum_balance(space);
     if ai.lamports() < rent {
         transfer(

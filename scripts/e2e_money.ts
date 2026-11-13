@@ -251,7 +251,7 @@ check("sending SOL to a bank can't block closing its room", stakedClosed && !(aw
   // unclaimed prize go to the fee wallet (that is the rule, not part of this night's split)
   let rolled = 0n;
   if (p0 && p0.day !== 0 && p0.day !== day) {
-    if (!p0.lastClaimed) rolled += p0.lastPrize;
+    // (an unclaimed prize is never forfeited: it stays on the owed list)
     if (prizeLeader(p0) < 0 || p0.pot === 0n) rolled += p0.pot;
   }
   if (rolled > 0n) console.log(`(a new day: the previous day's ${Number(rolled) / 1e9} SOL went to the fee wallet first)`);
@@ -274,6 +274,7 @@ check("sending SOL to a bank can't block closing its room", stakedClosed && !(aw
   await rejects("today's prize can't be claimed before the day ends", () => winnerClient.sendBase([winnerClient.claimPrizeIx(hw)]));
   const loser = duo.find((p) => !p.publicKey.equals(hw))!;
   await rejects("someone who didn't win can't claim the prize", () => loser.sendBase([loser.claimPrizeIx(loser.publicKey)]));
+  await rejects("nobody can pay a prize to a wallet that isn't owed one", () => loser.sendBase([loser.claimPrizeIx(TREASURY, loser.publicKey)]));
   await duo[0].sendEr([duo[0].resetIx(highId)]).catch(() => {});
 }
 

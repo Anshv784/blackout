@@ -346,32 +346,42 @@ fn move_lamports(from: &AccountInfo, to: &AccountInfo, amount: u64) -> Result<()
 
 /// The day's winner takes the prize. Closes the day first if it has ended. Signed by the winning
 /// payout wallet; the money goes only to it.
+/// Pay a winner everything they're owed. Anyone may send it (and pays the network fee); the prize
+/// only ever goes to the winner's own wallet. No deadline: a prize waits until it's paid.
 pub fn handle_claim_prize(ctx: Context<ClaimPrize>) -> Result<()> {
     let today = (Clock::get()?.unix_timestamp / 86_400) as u32;
     let prize_ai = ctx.accounts.prize.to_account_info();
+    let winner = ctx.accounts.winner.to_account_info();
+    // an ordinary wallet (paying a program would fail); the prize stays owed otherwise
+    require!(*winner.owner == anchor_lang::system_program::ID && !winner.executable, BlackoutError::BadAccount);
     let (to_treasury, amount) = {
         let mut p = ctx.accounts.prize.load_mut()?;
         let to_treasury = p.roll(today);
-        require!(p.last_claimed == 0 && p.last_prize > 0, BlackoutError::NoPrize);
-        require_keys_eq!(ctx.accounts.claimer.key(), p.last_winner, BlackoutError::NotPrizeWinner);
-        p.last_claimed = 1;
-        (to_treasury, p.last_prize)
+        let amount = p.take_owed(&winner.key());
+        require!(amount > 0, BlackoutError::NoPrize);
+        if p.last_winner == winner.key() {
+            p.last_claimed = 1;
+        }
+        (to_treasury, amount)
     };
     if to_treasury > 0 {
         move_lamports(&prize_ai, &ctx.accounts.treasury.to_account_info(), to_treasury)?;
     }
-    move_lamports(&prize_ai, &ctx.accounts.claimer.to_account_info(), amount)
+    move_lamports(&prize_ai, &winner, amount)
 }
 
 #[derive(Accounts)]
 pub struct ClaimPrize<'info> {
     #[account(mut, seeds = [PRIZE_SEED], bump)]
     pub prize: AccountLoader<'info, Prize>,
-    /// CHECK: the fixed fee wallet (gets yesterday's prize if nobody qualified or claimed)
+    /// CHECK: the fixed fee wallet (gets a day's pot only if nobody qualified)
     #[account(mut, address = TREASURY)]
     pub treasury: UncheckedAccount<'info>,
+    /// CHECK: the winner being paid; must be on the owed list (checked in the handler)
     #[account(mut)]
-    pub claimer: Signer<'info>,
+    pub winner: UncheckedAccount<'info>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
 }
 
 #[derive(Accounts)]

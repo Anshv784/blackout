@@ -15,7 +15,7 @@
 // Mainnet: ADMIN_KEY=~/.config/solana/blackout-mainnet.json VITE_CLUSTER=mainnet VITE_BASE_RPC=... VITE_PROGRAM_ID=...
 // Mainnet launch (12 reserved rooms; see app/src/config.ts): public 1-6, private 7-10, staked 11-12
 //   rooms 1 2 3 4 5 6 7 8 9 10 · room 11 0.01 0 0.05 · room 12 0.05 0 0.05 · DAILY_PREFUND_SOL=0.05 daily
-import { Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { Keypair, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import fs from "fs";
 import os from "os";
 import { BlackoutClient, roomPda, worldPda, recPda, viewPda, boardPda, dailyPda, prizePda, fundPda, DELEGATION_PROGRAM_ID } from "../app/src/chain/client.ts";
@@ -87,7 +87,8 @@ if (cmd === "board") {
   if (await c.base.getAccountInfo(prizePda())) console.log("prize exists", prizePda().toBase58());
   else console.log("prize", prizePda().toBase58(), await c.sendBase([c.initPrizeIx()]));
   const p = await c.fetchPrize();
-  console.log(`day ${p?.day} pot ${p?.pot} players ${p?.entries.length} last winner ${p?.lastWinner.toBase58()} prize ${p?.lastPrize} claimed ${p?.lastClaimed}`);
+  console.log(`day ${p?.day} pot ${p?.pot} players ${p?.entries.length} last winner ${p?.lastWinner.toBase58()} prize ${p?.lastPrize} paid ${p?.lastClaimed}`);
+  for (const o of p?.owed ?? []) console.log(`  owed: ${o.key.toBase58()} ${Number(o.amount) / 1e9} SOL`);
 } else if (cmd === "fund") {
   // the table fund (0.001 SOL of the fee per staked night) and each staked table's MagicBlock wallet
   const tee = await c.teeConn();
@@ -99,6 +100,9 @@ if (cmd === "board") {
 } else if (cmd === "refill") {
   // top a staked table up from the table fund now (players' games do this on their own when it's low)
   for (const a of args) console.log(`table ${a} refilled from the fund`, await c.sendBase([c.refillTableIx(BigInt(a))]));
+} else if (cmd === "pay-prize") {
+  // pay a daily winner everything they're owed (anyone may; it only ever goes to the winner)
+  for (const a of args) console.log("paid", a, await c.sendBase([c.claimPrizeIx(new PublicKey(a), c.publicKey)]));
 } else if (cmd === "prize-reset") {
   // after a change to the prize account's layout: resize it and start the day fresh (devnet)
   console.log("prize reset", await c.sendBase([c.resetPrizeIx()]));

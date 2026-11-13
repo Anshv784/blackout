@@ -41,6 +41,8 @@ pub const BOARD_SLOTS: usize = 60;
 /// wallets the daily prize can track in one day (more than that and late arrivals aren't counted)
 /// the day's players at the prize table (at most 128: `PrizeEntry::beaten` has a bit per entry)
 pub const PRIZE_SLOTS: usize = 100;
+/// daily prizes waiting to be paid (each winner's total); kept until paid, no deadline
+pub const OWED_SLOTS: usize = 32;
 const _: () = assert!(PRIZE_SLOTS <= 128);
 
 pub const BOT_EASY: u32 = 1;
@@ -284,6 +286,16 @@ pub struct Prize {
     pub last_winner: Pubkey,
     pub last_prize: u64,
     pub entries: [PrizeEntry; PRIZE_SLOTS],
+    /// prizes won and not yet paid, per winner (amounts add up if they win again). They stay until
+    /// paid: there is no deadline. The account's lamports are its rent + `pot` + the sum of `owed`.
+    pub owed: [Owed; OWED_SLOTS],
+}
+
+#[zero_copy]
+#[repr(C)]
+pub struct Owed {
+    pub key: Pubkey,
+    pub amount: u64,
 }
 
 #[zero_copy]
@@ -376,24 +388,32 @@ impl Prize {
         best
     }
 
-    /// Close the day if `today` is a new one. Returns the lamports that leave for the treasury:
-    /// an unclaimed earlier prize, and today's pot if nobody qualified. The caller moves them.
+    /// Close the day if `today` is a new one. The winner's prize goes onto the owed list, where it
+    /// stays until paid. Returns the lamports that leave for the treasury: only a pot nobody
+    /// qualified for. (If the owed list were ever full, the prize rolls into the new day's pot for
+    /// players to win, never to the treasury.) The caller moves the lamports.
     pub fn roll(&mut self, today: u32) -> u64 {
         if self.day == today {
             return 0;
         }
         let mut to_treasury = 0u64;
-        if self.last_claimed == 0 {
-            to_treasury = to_treasury.saturating_add(self.last_prize);
-        }
+        let mut carry = 0u64;
         match self.leader() {
             Some(i) if self.day != 0 && self.pot > 0 => {
-                self.last_winner = self.entries[i].key;
-                self.last_prize = self.pot;
-                self.last_claimed = 0;
+                let key = self.entries[i].key;
+                if self.owe(key, self.pot) {
+                    self.last_winner = key;
+                    self.last_prize = self.pot;
+                    self.last_claimed = 0;
+                } else {
+                    carry = self.pot;
+                    self.last_winner = Pubkey::default();
+                    self.last_prize = 0;
+                    self.last_claimed = 1;
+                }
             }
             _ => {
-                to_treasury = to_treasury.saturating_add(self.pot);
+                to_treasury = self.pot;
                 self.last_winner = Pubkey::default();
                 self.last_prize = 0;
                 self.last_claimed = 1;
@@ -401,10 +421,40 @@ impl Prize {
         }
         self.last_day = self.day;
         self.day = today;
-        self.pot = 0;
+        self.pot = carry;
         self.count = 0;
         self.entries = [PrizeEntry::zeroed(); PRIZE_SLOTS];
         to_treasury
+    }
+
+    /// Add `amount` to what `key` is owed. False only if the list is full of other winners.
+    pub fn owe(&mut self, key: Pubkey, amount: u64) -> bool {
+        if let Some(o) = self.owed.iter_mut().find(|o| o.key == key) {
+            o.amount = o.amount.saturating_add(amount);
+            return true;
+        }
+        if let Some(o) = self.owed.iter_mut().find(|o| o.key == Pubkey::default()) {
+            *o = Owed { key, amount };
+            return true;
+        }
+        false
+    }
+
+    /// Take everything `key` is owed off the list (0 if nothing).
+    pub fn take_owed(&mut self, key: &Pubkey) -> u64 {
+        match self.owed.iter_mut().find(|o| o.key == *key && *key != Pubkey::default()) {
+            Some(o) => {
+                let a = o.amount;
+                *o = Owed::zeroed();
+                a
+            }
+            None => 0,
+        }
+    }
+
+    /// Anything still waiting in the account (a reset must never wipe players' money).
+    pub fn holds_money(&self) -> bool {
+        self.pot > 0 || self.owed.iter().any(|o| o.amount > 0)
     }
 
     /// The entry for `key`, added if there's room. None once the day's slots are full.
@@ -883,8 +933,8 @@ mod prize_tests {
 
     #[test]
     fn the_app_knows_the_account_size() {
-        // app/src/chain/layout.ts PRIZE_LEN = 8 + 64 + PRIZE_SLOTS * 72
-        assert_eq!(core::mem::size_of::<Prize>(), 64 + PRIZE_SLOTS * 72);
+        // app/src/chain/layout.ts PRIZE_LEN = 8 + 64 + PRIZE_SLOTS * 72 + OWED_SLOTS * 40
+        assert_eq!(core::mem::size_of::<Prize>(), 64 + PRIZE_SLOTS * 72 + OWED_SLOTS * 40);
     }
 
     #[test]
@@ -1003,6 +1053,8 @@ mod prize_tests {
         assert_eq!(p.roll(10), 0, "same day: nothing happens");
         assert_eq!(p.roll(11), 0, "a winner: nothing leaves yet");
         assert_eq!((p.last_winner, p.last_prize, p.last_claimed, p.last_day), (a, 7_000, 0, 10));
+        assert_eq!(p.owed[0].key, a);
+        assert_eq!(p.owed[0].amount, 7_000);
         assert_eq!((p.day, p.pot, p.count), (11, 0, 0), "today starts from zero");
     }
 
@@ -1017,7 +1069,7 @@ mod prize_tests {
     }
 
     #[test]
-    fn an_unclaimed_prize_goes_to_the_treasury_when_the_next_day_closes() {
+    fn an_unclaimed_prize_is_kept_until_paid() {
         let mut p = prize(10);
         let a = Pubkey::new_unique();
         for _ in 0..3 {
@@ -1026,8 +1078,40 @@ mod prize_tests {
         p.pot = 5_000;
         p.roll(11); // a wins 5,000, doesn't claim
         p.pot = 2_000; // day 11: nobody qualifies
-        assert_eq!(p.roll(12), 7_000, "a's unclaimed 5,000 and day 11's 2,000");
-        assert_eq!(p.last_claimed, 1);
+        assert_eq!(p.roll(12), 2_000, "only the unwon pot leaves; a's 5,000 stays owed");
+        assert_eq!(p.roll(40), 0, "weeks later it's still there");
+        assert_eq!(p.take_owed(&a), 5_000);
+        assert_eq!(p.take_owed(&a), 0, "paid once");
+    }
+
+    #[test]
+    fn winning_again_adds_up() {
+        let mut p = prize(10);
+        let a = Pubkey::new_unique();
+        for day in 10..13 {
+            for _ in 0..3 {
+                night(&mut p, &a, 50, 100);
+            }
+            p.pot = 1_000;
+            p.roll(day + 1);
+        }
+        assert_eq!(p.take_owed(&a), 3_000);
+    }
+
+    #[test]
+    fn a_full_owed_list_rolls_the_prize_into_the_next_day_not_the_treasury() {
+        let mut p = prize(10);
+        for _ in 0..OWED_SLOTS {
+            assert!(p.owe(Pubkey::new_unique(), 1));
+        }
+        let a = Pubkey::new_unique();
+        for _ in 0..3 {
+            night(&mut p, &a, 50, 100);
+        }
+        p.pot = 9_000;
+        assert_eq!(p.roll(11), 0, "nothing to the treasury");
+        assert_eq!(p.pot, 9_000, "it becomes the new day's pot");
+        assert!(p.holds_money());
     }
 
     #[test]

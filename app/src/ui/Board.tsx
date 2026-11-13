@@ -91,7 +91,7 @@ function PrizeBoard({ mine, names }: { mine: Set<string>; names: Map<string, str
       )}
       {lastKey && (
         <p className="sub daily-seed">
-          Yesterday's winner: <b>{names.get(lastKey) || aliasFor(lastKey)}</b> · {solText(p!.lastPrize)} SOL {p!.lastClaimed ? "· claimed" : "· waiting to be claimed"}
+          Yesterday's winner: <b>{names.get(lastKey) || aliasFor(lastKey)}</b> · {solText(p!.lastPrize)} SOL {p!.lastClaimed ? "· paid" : "· waiting to be claimed (kept until claimed)"}
         </p>
       )}
     </section>

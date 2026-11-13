@@ -22,15 +22,20 @@ export function todaysStandings(p: Prize | null): PrizeEntry[] {
   });
 }
 
-/** Lamports `wallet` can claim now: the last closed day's prize if they won it and haven't taken
- *  it, or (when the day ended but nobody has closed it yet) the day they're leading. */
+/** Lamports `wallet` can claim now: every prize they've won and not been paid (kept until paid,
+ *  no deadline), plus the day that just ended if they led it and nobody has closed it yet. */
 export function claimable(p: Prize | null, wallet: string | null): { amount: bigint; day: number } {
   if (!p || !wallet) return { amount: 0n, day: 0 };
+  let amount = p.owed.find((o) => o.key.toBase58() === wallet)?.amount ?? 0n;
+  let day = amount > 0n ? p.lastDay : 0;
   if (p.day !== 0 && p.day < utcDay()) {
     const i = prizeLeader(p);
-    return i >= 0 && p.pot > 0n && p.entries[i].key.toBase58() === wallet ? { amount: p.pot, day: p.day } : { amount: 0n, day: 0 };
+    if (i >= 0 && p.pot > 0n && p.entries[i].key.toBase58() === wallet) {
+      amount += p.pot;
+      day = p.day;
+    }
   }
-  return !p.lastClaimed && p.lastPrize > 0n && p.lastWinner.toBase58() === wallet ? { amount: p.lastPrize, day: p.lastDay } : { amount: 0n, day: 0 };
+  return { amount, day };
 }
 
 /** Claim the prize: the winning wallet signs and receives it. */

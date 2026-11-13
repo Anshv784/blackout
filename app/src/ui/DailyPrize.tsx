@@ -144,8 +144,8 @@ export function DailyPrize({
       {claim.amount > 0n && (
         <div className="pz-claim">
           <div>
-            <b>You won yesterday's prize</b>
-            <span>{solText(claim.amount)} SOL is yours. Claim it before tomorrow's winner is decided.</span>
+            <b>You won a daily prize</b>
+            <span>{solText(claim.amount)} SOL is yours. It waits for you until you claim it.</span>
           </div>
           <button className="btn primary" onClick={onClaim} disabled={claiming}>
             {claiming ? "CLAIMING…" : "CLAIM PRIZE"}

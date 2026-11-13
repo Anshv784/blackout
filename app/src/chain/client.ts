@@ -318,8 +318,10 @@ export class BlackoutClient {
     return inRollup < TABLE_LOW && fund >= TABLE_REFILL + TABLE_REFILL_OVERHEAD + rent;
   }
 
-  claimPrizeIx(winner: PublicKey) {
-    return ix("claim_prize", {}, [w(prizePda()), w(TREASURY), w(winner, true)]);
+  /** Pay `winner` everything they're owed. Anyone may send it (`payer` pays the fee); the prize
+   *  only ever goes to the winner's own wallet. */
+  claimPrizeIx(winner: PublicKey, payer: PublicKey = winner) {
+    return ix("claim_prize", {}, [w(prizePda()), w(TREASURY), w(winner), w(payer, true)]);
   }
 
   /** Admin, once: create the daily prize account. */

@@ -181,7 +181,11 @@
           "address": "9Sg12k15Ann4SKSxcA85bq5fbpq7WMLH9bLCTUbTRkQV"
         },
         {
-          "name": "claimer",
+          "name": "winner",
+          "writable": true
+        },
+        {
+          "name": "payer",
           "writable": true,
           "signer": true
         }
@@ -2997,6 +3001,26 @@
       }
     },
     {
+      "name": "Owed",
+      "serialization": "bytemuck",
+      "repr": {
+        "kind": "c"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "key",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
       "name": "Prize",
       "docs": [
         "The daily prize, on the base layer (never delegated). Settle of every night at a PRIZE_STAKE",
@@ -3061,6 +3085,23 @@
                   }
                 },
                 100
+              ]
+            }
+          },
+          {
+            "name": "owed",
+            "docs": [
+              "prizes won and not yet paid, per winner (amounts add up if they win again). They stay until",
+              "paid: there is no deadline. The account's lamports are its rent + `pot` + the sum of `owed`."
+            ],
+            "type": {
+              "array": [
+                {
+                  "defined": {
+                    "name": "Owed"
+                  }
+                },
+                32
               ]
             }
           }
