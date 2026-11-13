@@ -13,11 +13,13 @@ export interface CharacterDef {
   camo?: boolean;
   /** not offered on the Operator page (its rig can't play the shared emotes) */
   hidden?: boolean;
+  /** tips a held rifle about the support hand (radians, + lifts the muzzle and drops the stock) */
+  holdPitch?: number;
 }
 export const CHARACTERS: CharacterDef[] = [
   { id: 0, key: "vanguard", name: "VANGUARD", role: "the original · field kit", url: "/models/soldier-v2.glb", camo: true, hidden: true },
   { id: 1, key: "heraklios", name: "TITAN", role: "heavy armour · officer", url: "/models/chars/heraklios.glb" },
-  { id: 2, key: "ganfaul", name: "GRIM", role: "scarred · relentless", url: "/models/chars/ganfaul.glb" },
+  { id: 2, key: "ganfaul", name: "GRIM", role: "scarred · relentless", url: "/models/chars/ganfaul.glb", holdPitch: 0.15 },
   { id: 3, key: "arissa", name: "VIPER", role: "scout · light on her feet", url: "/models/chars/arissa.glb" },
   { id: 4, key: "maria", name: "ECHO", role: "ranger · patient", url: "/models/chars/maria.glb" },
   { id: 5, key: "vampire", name: "NOX", role: "night stalker", url: "/models/chars/vampire.glb" },

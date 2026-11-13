@@ -93,6 +93,31 @@ export const GUN_SCALE = 0.72;
  *  outside the pistol grip, the left wrist under and left of the handguard */
 // (the built guns: palm on the grip part at x 0.36, palm under the handguard, which ends at y -0.01)
 const GRIP_AT = new THREE.Vector3(0.35, -0.08, 0.045);
+/** how much of the hand's twist the forearm takes (0 = all at the wrist) */
+const WRIST_SHARE = 0.5;
+const twA = new THREE.Vector3();
+const twQ = new THREE.Quaternion();
+const twI = new THREE.Quaternion();
+const twD = new THREE.Quaternion();
+/** moves `k` of the hand's twist (about the forearm -> hand axis) into the forearm */
+function shareTwist(fore: THREE.Object3D | undefined, hand: THREE.Object3D | undefined, k: number) {
+  if (!fore || !hand || hand.parent !== fore) return;
+  const ax = twA.copy(hand.position);
+  if (ax.lengthSq() < 1e-10) return;
+  ax.normalize();
+  // only the turn on top of the hand's rest pose (stored when the rig loads)
+  const rest = hand.userData.restQ as THREE.Quaternion | undefined;
+  const q = rest ? twD.copy(hand.quaternion).multiply(twI.copy(rest).invert()) : hand.quaternion;
+  const d = q.x * ax.x + q.y * ax.y + q.z * ax.z;
+  twQ.set(ax.x * d, ax.y * d, ax.z * d, q.w);
+  const n = twQ.length();
+  if (n < 1e-6) return;
+  twQ.set(twQ.x / n, twQ.y / n, twQ.z / n, twQ.w / n);
+  if (twQ.w < 0) twQ.set(-twQ.x, -twQ.y, -twQ.z, -twQ.w);
+  twQ.slerp(twI.identity(), 1 - k); // k of the twist
+  fore.quaternion.multiply(twQ);
+  hand.quaternion.premultiply(twQ.invert());
+}
 const FRONT_AT = new THREE.Vector3(0.72, -0.03, -0.015);
 /** a pistol is held two-handed: the support hand cups the shooting hand under the grip */
 const PISTOL_FRONT = new THREE.Vector3(0.36, -0.13, -0.06);
@@ -637,6 +662,8 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
       rUp: b("RightUpLeg"),
       rLeg: b("RightLeg"),
     };
+    // the hands' rest turn, before any recording plays (see shareTwist)
+    for (const h of [bones.lHand, bones.rHand]) if (h) h.userData.restQ = h.quaternion.clone();
     return { model, mixer, actions, bones, scale, grips, clips };
   }, [gltf, animsGltf, ghost, color, def, look.outfit]);
   // emotes and the recorded reload: built once per soldier
@@ -1230,6 +1257,16 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
       frame.multiply(sockM3.makeTranslation(-gripLocal.x, -gripLocal.y, -gripLocal.z));
       frame.decompose(gr.position, gr.quaternion, tmpB);
       gr.scale.set(1, 1, 1);
+      // this operator's own tilt, about the support hand (GRIM's rig rides the stock up into his
+      // shoulder plate; his short claw arm can't reach a gun moved anywhere else). The right arm follows.
+      const tip = def.holdPitch;
+      if (tip && !pistolHold) {
+        const fp = gm?.front ?? [FRONT_AT.x, FRONT_AT.y, FRONT_AT.z];
+        const fl = sockV11.fromArray(fp).multiplyScalar(GUN_SCALE).add(GUN_INNER);
+        const pivot = sockV.copy(fl).applyQuaternion(gr.quaternion).add(gr.position);
+        gr.quaternion.multiply(sockQ.setFromAxisAngle(sockV2.set(0, 0, 1), tip));
+        gr.position.copy(pivot).sub(fl.applyQuaternion(gr.quaternion));
+      }
       // firing (or just fired): the gun comes up level to point straight ahead, about the grip
       const hot = m.firing || (m.shotAt !== undefined && now - m.shotAt < 700);
       raiseK.current += ((hot ? 1 : 0) - raiseK.current) * Math.min(1, dt * (hot ? 14 : 3));
@@ -1487,6 +1524,11 @@ export function Soldier({ color, weapon = 0, ghost = false, ghillie = false, loo
       const handling = (1 - away) * (carry ? 0.6 : 1);
       if (!leftFree) orientHand(grips.l, across, up, picking ? 1 - bendK : handling);
     }
+    // a turned hand twists only the wrist, which pinches the skin there (worst on GRIM's thin claw
+    // arm): hand part of the turn about the forearm's own length to the forearm, so it spreads up
+    // the arm. The hand keeps exactly the same pose.
+    shareTwist(bones.lFore, bones.lHand, WRIST_SHARE);
+    shareTwist(bones.rFore, bones.rHand, WRIST_SHARE);
     // hands close round the grip and the handguard (looser while the left hand fetches a mag)
     curl(grips.r, 0.95, true);
     curl(grips.l, carry ? 0.55 : 0.85);
