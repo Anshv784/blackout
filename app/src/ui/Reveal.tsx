@@ -66,7 +66,12 @@ export function Reveal({ session, onDone }: { session: Session; onDone: () => vo
   const room = snap.current.room;
   const mySeat = snap.current.seat;
   const reopened = liveRoom.status !== ST_REVEALED;
-  const reveal = useStore((s) => s.reveal);
+  // once loaded, this night's replay stays put: a new night starting in the reopened room clears the
+  // store's copy (it's for the next night), which left this screen spinning on "Turning the lights on"
+  const liveReveal = useStore((s) => s.reveal);
+  const keptReveal = useRef(liveReveal);
+  if (liveReveal?.rec && (!keptReveal.current?.rec || liveRoom.status === ST_REVEALED)) keptReveal.current = liveReveal;
+  const reveal = keptReveal.current?.rec ? keptReveal.current : liveReveal;
   const [reopenIn, setReopenIn] = useState<number | null>(null);
   const [clipFile, setClipFile] = useState<File | null>(null);
   const touch = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
@@ -304,16 +309,12 @@ export function Reveal({ session, onDone }: { session: Session; onDone: () => vo
   const survivedTicks = myDeath ? myDeath.tick - 60 : room.endTick - 60;
   const mySurvived = `${Math.floor(Math.max(0, survivedTicks) / 20 / 60)}:${String(Math.floor((Math.max(0, survivedTicks) / 20) % 60)).padStart(2, "0")}`;
   const seedHex = world ? Array.from(world.seed).map((b) => b.toString(16).padStart(2, "0")).join("") : "";
-  const seedLine = seedHex ? `\n\nSeed: ${seedHex}` : "";
+  const seedLine = seedHex ? `\n\nVerify with the seed: ${seedHex}` : "";
   const shareText =
-    (mySeat !== null && myPlace === 1
-      ? `Won in BLACKOUT, the battle royale where nobody can see you 🔦\nThink you can beat me?`
-      : mySeat !== null
-        ? `Got #${myPlace} in BLACKOUT. Never saw them coming 🔦`
-        : `Watched a night of BLACKOUT 🔦`) +
-    seedLine +
-    `\n\n@_playblackout @magicblock`;
-  const postText = `${shareText}\n\n${location.origin}`;
+    (mySeat !== null && myPlace > 0
+      ? `Placed #${myPlace} on @_playblackout, a battle royale made with @magicblock where nobody can see you 🔦`
+      : `Watched a night of @_playblackout, a battle royale made with @magicblock where nobody can see you 🔦`) + seedLine;
+  const postText = `${shareText}\n\nPlay free: ${location.origin}`;
   // POST ON X: on a phone with a clip, the share sheet with the clip attached (pick X); otherwise a ready post
   const postOnX = (e: React.MouseEvent) => {
     if (clipFile && touch && navigator.canShare?.({ files: [clipFile] })) {
