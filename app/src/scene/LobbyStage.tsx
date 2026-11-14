@@ -1,3 +1,4 @@
+import { previewGun } from "../game/look";
 // The holding cell: eight pedestals under spotlights. Taken seats show the survivor,
 // open seats are a faint hologram you can click to take.
 import { TOUCH } from "../game/device";
@@ -105,7 +106,7 @@ function Pedestal({ i, n, gap, rows, seat, onTake, onMakeHost, onKick, onSelf }:
           onPointerOver={() => seat.me && (document.body.style.cursor = "pointer")}
           onPointerOut={() => (document.body.style.cursor = "")}
         >
-          <Avatar color={color} me={seat.me} ring={false} weapon={3} look={seat.look} motion={motion} />
+          <Avatar color={color} me={seat.me} ring={false} weapon={seat.me ? previewGun() : 3} look={seat.look} motion={motion} />
         </group>
       ) : (
         <group ref={g} position={[0, 0.23, 0]} scale={1.3}>
