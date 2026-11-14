@@ -113,8 +113,11 @@ if (cmd === "board") {
   await import("./fairplay.ts");
 } else if (cmd === "close-board") {
   console.log("board closed", await c.sendBase([c.closeBoardIx()]));
+} else if (cmd === "clear") {
+  // a room with a long-gone player still seated can't be closed: claiming it clears stale seats
+  for (const a of args) console.log("room", a, "cleared", await c.sendEr([c.claimIx(BigInt(a), 4, false, 0)]).catch((e) => e.message));
 } else if (cmd === "close-prize") {
   console.log("prize closed", await c.sendBase([c.closePrizeIx()]));
 } else if (cmd === "drain-fund") {
   console.log("fund drained", await c.sendBase([c.drainFundIx()]));
-} else console.log("usage: board | prize | rooms <ids...> | room <id> <stakeSol> <code> | close <ids...> | close-board");
+} else console.log("usage: board | prize | rooms <ids...> | room <id> <stakeSol> <code> | clear <ids...> | close <ids...> | close-board | close-prize | drain-fund");

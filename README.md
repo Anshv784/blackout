@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="https://playblackout.fun"><img src="https://img.shields.io/badge/play-playblackout.fun-ffd166?style=for-the-badge" alt="Play"></a>
-  <a href="https://explorer.solana.com/address/pzuVHdCZDQWwxHLEa2JAaEjUZLa43nKaFauLyqZmekb"><img src="https://img.shields.io/badge/program-Solana%20mainnet-14f195?style=for-the-badge" alt="Program on mainnet"></a>
+  <a href="https://explorer.solana.com/address/BhGveU6gDZPTnxw5Ua4svQffG9BbZ2VVFPr2SYtERKZv"><img src="https://img.shields.io/badge/program-Solana%20mainnet-14f195?style=for-the-badge" alt="Program on mainnet"></a>
   <a href="#how-it-uses-magicblock"><img src="https://img.shields.io/badge/MagicBlock-8%20building%20blocks-a64dff?style=for-the-badge" alt="8 MagicBlock building blocks"></a>
 </p>
 
@@ -35,7 +35,7 @@ On a normal blockchain, fog of war is impossible: every account is public, so a 
 | | |
 |---|---|
 | Play | **[playblackout.fun](https://playblackout.fun)** (also [blackout.anshverma.tech](https://blackout.anshverma.tech)): free, gasless, no wallet needed |
-| Program (mainnet) | [`pzuVHdCZDQWwxHLEa2JAaEjUZLa43nKaFauLyqZmekb`](https://explorer.solana.com/address/pzuVHdCZDQWwxHLEa2JAaEjUZLa43nKaFauLyqZmekb), live since 14 Nov 2026 |
+| Program (mainnet) | [`BhGveU6gDZPTnxw5Ua4svQffG9BbZ2VVFPr2SYtERKZv`](https://explorer.solana.com/address/BhGveU6gDZPTnxw5Ua4svQffG9BbZ2VVFPr2SYtERKZv), live since 14 Nov 2026 |
 | Program (devnet, staging) | [`CkSb4kkmhzr8n9awdmrvqhuoWka6nZUXXb8RXnrFBAKU`](https://explorer.solana.com/address/CkSb4kkmhzr8n9awdmrvqhuoWka6nZUXXb8RXnrFBAKU?cluster=devnet) |
 | TEE validator | [`MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo`](https://explorer.solana.com/address/MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo) (`mainnet-tee.magicblock.app`) |
 | Live proof | The **How it works** page has a *Try to cheat* button that asks the TEE for a real room's sealed accounts and shows the denial |

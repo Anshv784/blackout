@@ -1,13 +1,16 @@
 # Mainnet runbook
 
-**Launched 14 Nov 2026.** Program `pzuVHdCZDQWwxHLEa2JAaEjUZLa43nKaFauLyqZmekb` deployed (645,544 bytes,
-byte-equal to the build), board, prize, public rooms 1-6, private rooms 7-9 and staked tables 11 (0.01)
-and 12 (0.05) created; the site switched with the GitHub variables. Room 10 created and the staked rehearsal passed
-(`scripts/rehearse_mainnet.ts`: winner +0.018, admin +0.001 after table fuel, tickets closed, all swept
-back). Left: section 5. A script with no browser must drive ticks itself if MagicBlock's crank stalls
-(players' browsers do this already): each tick needs a different compute limit or it's dropped as a duplicate.
-The first deploy stopped at "Max retries exceeded" on the free RPC; resuming into the same buffer
-with `--buffer <recovered key> --max-sign-attempts 100` finished it.
+**Live since 14 Nov 2026 on program `BhGveU6gDZPTnxw5Ua4svQffG9BbZ2VVFPr2SYtERKZv`** (653,560 bytes,
+byte-equal to the build; 20 ticks/s verified on playblackout.fun). Accounts: board (no daily), prize,
+public rooms 1-2, private room 7, staked tables 11 (0.01) and 12 (0.05) with a 0.03 SOL top-up each.
+Add rooms 3-6 and 8-10 from fees (`admin.ts rooms <id>`, ~0.016 SOL each).
+
+The first program `pzuV…` (closed, address retired) ran at quarter speed: mainnet's TEE makes ~20 slots/s
+against devnet's ~100, and every slot-counted wait assumed 10 ms slots. An upgrade needed a 3.3 SOL buffer,
+so everything was closed (3.53 SOL back) and redeployed with SLOT_MS per network, close_prize and
+drain_fund (so a shutdown leaves nothing locked) and no old daily board.
+Lessons: a free room's 0.005 top-up is spent creating its rollup accounts (not refunded on close); a room
+with a stale seated player must be claimed (claim_room clears stale seats) before it can be closed.
 
 Everything below is ready in the code; these are the steps, in order. Each one that spends SOL is
 marked. Nothing here touches the devnet game.
@@ -29,14 +32,14 @@ playblackout.fun, www.playblackout.fun and blackout.anshverma.tech.
 
 ```bash
 scripts/deploy-mainnet.sh              # dry run: builds, prints size, cost and balance
-CONFIRM=yes scripts/deploy-mainnet.sh  # deploys pzuVHdCZDQWwxHLEa2JAaEjUZLa43nKaFauLyqZmekb
+CONFIRM=yes scripts/deploy-mainnet.sh  # deploys BhGveU6gDZPTnxw5Ua4svQffG9BbZ2VVFPr2SYtERKZv
 ```
 
 ## 2. Boards, prize and rooms (SPENDS ~0.32 SOL, mostly refundable)
 
 ```bash
 export ADMIN_KEY=~/.config/solana/blackout-mainnet.json VITE_CLUSTER=mainnet VITE_BASE_RPC=$BASE_RPC \
-       VITE_PROGRAM_ID=pzuVHdCZDQWwxHLEa2JAaEjUZLa43nKaFauLyqZmekb
+       VITE_PROGRAM_ID=BhGveU6gDZPTnxw5Ua4svQffG9BbZ2VVFPr2SYtERKZv
 npx tsx scripts/admin.ts board
 npx tsx scripts/admin.ts prize                              # daily challenge prize account (~0.03 SOL rent)
 npx tsx scripts/admin.ts rooms 1 2 3 4 5 6 7 8 9 10        # 6 public + 4 private
@@ -65,7 +68,7 @@ Optional: one night at the 0.05 table: the admin wallet gets 6.5% less 0.001 and
 Set in GitHub (Settings → Secrets and variables → Actions):
 
 - variable `VITE_CLUSTER` = `mainnet`
-- variable `VITE_PROGRAM_ID` = `pzuVHdCZDQWwxHLEa2JAaEjUZLa43nKaFauLyqZmekb`
+- variable `VITE_PROGRAM_ID` = `BhGveU6gDZPTnxw5Ua4svQffG9BbZ2VVFPr2SYtERKZv`
 - secret `VITE_BASE_RPC` = the RPC url (already stored 2026-11-13; it only reaches a build once `VITE_CLUSTER` is `mainnet`)
 
 Then push to `main`. Unset them to go back to devnet.
