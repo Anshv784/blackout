@@ -1,5 +1,12 @@
 # Mainnet runbook
 
+**Launched 14 Nov 2026.** Program `pzuVHdCZDQWwxHLEa2JAaEjUZLa43nKaFauLyqZmekb` deployed (645,544 bytes,
+byte-equal to the build), board, prize, public rooms 1-6, private rooms 7-9 and staked tables 11 (0.01)
+and 12 (0.05) created; the site switched with the GitHub variables. Still to do: private room 10
+(`npx tsx scripts/admin.ts rooms 10`, ~0.016 SOL), the staked rehearsal, and section 5.
+The first deploy stopped at "Max retries exceeded" on the free RPC; resuming into the same buffer
+with `--buffer <recovered key> --max-sign-attempts 100` finished it.
+
 Everything below is ready in the code; these are the steps, in order. Each one that spends SOL is
 marked. Nothing here touches the devnet game.
 

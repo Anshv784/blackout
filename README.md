@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="https://playblackout.fun"><img src="https://img.shields.io/badge/play-playblackout.fun-ffd166?style=for-the-badge" alt="Play"></a>
-  <a href="https://explorer.solana.com/address/CkSb4kkmhzr8n9awdmrvqhuoWka6nZUXXb8RXnrFBAKU?cluster=devnet"><img src="https://img.shields.io/badge/program-Solana%20devnet-1f6feb?style=for-the-badge" alt="Program on devnet"></a>
+  <a href="https://explorer.solana.com/address/pzuVHdCZDQWwxHLEa2JAaEjUZLa43nKaFauLyqZmekb"><img src="https://img.shields.io/badge/program-Solana%20mainnet-14f195?style=for-the-badge" alt="Program on mainnet"></a>
   <a href="#how-it-uses-magicblock"><img src="https://img.shields.io/badge/MagicBlock-8%20building%20blocks-a64dff?style=for-the-badge" alt="8 MagicBlock building blocks"></a>
 </p>
 
@@ -35,8 +35,9 @@ On a normal blockchain, fog of war is impossible: every account is public, so a 
 | | |
 |---|---|
 | Play | **[playblackout.fun](https://playblackout.fun)** (also [blackout.anshverma.tech](https://blackout.anshverma.tech)): free, gasless, no wallet needed |
-| Program (devnet) | [`CkSb4kkmhzr8n9awdmrvqhuoWka6nZUXXb8RXnrFBAKU`](https://explorer.solana.com/address/CkSb4kkmhzr8n9awdmrvqhuoWka6nZUXXb8RXnrFBAKU?cluster=devnet) |
-| TEE validator | [`MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo`](https://explorer.solana.com/address/MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo?cluster=devnet) (`devnet-tee.magicblock.app`) |
+| Program (mainnet) | [`pzuVHdCZDQWwxHLEa2JAaEjUZLa43nKaFauLyqZmekb`](https://explorer.solana.com/address/pzuVHdCZDQWwxHLEa2JAaEjUZLa43nKaFauLyqZmekb), live since 14 Nov 2026 |
+| Program (devnet, staging) | [`CkSb4kkmhzr8n9awdmrvqhuoWka6nZUXXb8RXnrFBAKU`](https://explorer.solana.com/address/CkSb4kkmhzr8n9awdmrvqhuoWka6nZUXXb8RXnrFBAKU?cluster=devnet) |
+| TEE validator | [`MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo`](https://explorer.solana.com/address/MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo) (`mainnet-tee.magicblock.app`) |
 | Live proof | The **How it works** page has a *Try to cheat* button that asks the TEE for a real room's sealed accounts and shows the denial |
 | Built with AI | How the game was built with Claude Code, from the first commit to now: [AI_USAGE.md](AI_USAGE.md) |
 | Security | Self-audit of every path money can take, with the fixes: [Audit.md](Audit.md) |
@@ -226,7 +227,7 @@ The **Operator** page sets how everyone at your table sees you. It's saved on yo
 
 ---
 
-## Verified on devnet
+## Verified on devnet (staging)
 
 - `scripts/e2e.ts` plays full nights against the live TEE and checks that a player can read its own View but not another's, a spectator can't read the World, VRF seeds the match, the crank holds 20 ticks/s, and after `finish` the World and Recorder are readable and `settle` runs.
 - `scripts/e2e_money.ts` (all pass) and `scripts/e2e_lobby.ts` (12/12): stakes, payouts, the fee, the daily prize, the table fund, carried-over tickets, lobby time limits and every attack from [Audit.md](Audit.md).
@@ -284,7 +285,7 @@ Deploying your own copy needs your own program id and admin key: see [CONTRIBUTI
 
 ## Limits
 
-- **Devnet only.** Staked nights use devnet SOL. A mainnet build is prepared but not deployed.
+- **Real SOL.** Since 14 Nov 2026 the site plays on Solana mainnet: staked nights use real SOL. The devnet program stays as staging, where every change is tested first.
 - **The TEE is the trust anchor.** Privacy rests on MagicBlock's TDX validator and its permission checks; the program can't prove privacy by itself.
 - **Fixed room pool.** Rooms are pre-created slots that players claim; a room with nobody in it is finished and reset by the next visitor.
 
