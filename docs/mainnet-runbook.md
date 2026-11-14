@@ -2,8 +2,10 @@
 
 **Launched 14 Nov 2026.** Program `pzuVHdCZDQWwxHLEa2JAaEjUZLa43nKaFauLyqZmekb` deployed (645,544 bytes,
 byte-equal to the build), board, prize, public rooms 1-6, private rooms 7-9 and staked tables 11 (0.01)
-and 12 (0.05) created; the site switched with the GitHub variables. Still to do: private room 10
-(`npx tsx scripts/admin.ts rooms 10`, ~0.016 SOL), the staked rehearsal, and section 5.
+and 12 (0.05) created; the site switched with the GitHub variables. Room 10 created and the staked rehearsal passed
+(`scripts/rehearse_mainnet.ts`: winner +0.018, admin +0.001 after table fuel, tickets closed, all swept
+back). Left: section 5. A script with no browser must drive ticks itself if MagicBlock's crank stalls
+(players' browsers do this already): each tick needs a different compute limit or it's dropped as a duplicate.
 The first deploy stopped at "Max retries exceeded" on the free RPC; resuming into the same buffer
 with `--buffer <recovered key> --max-sign-attempts 100` finished it.
 
