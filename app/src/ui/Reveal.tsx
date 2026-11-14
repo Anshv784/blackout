@@ -180,9 +180,10 @@ export function Reveal({ session, onDone }: { session: Session; onDone: () => vo
     out.width = 1280;
     out.height = 720;
     const g = out.getContext("2d")!;
-    // Chrome and Firefox record WebM; Safari (every iPhone) only MP4. Asking for a type the browser
+    // MP4 first: X only takes MP4 (Chrome 126+, Safari, every iPhone); old Chrome and Firefox fall back to WebM.
+    // Asking for a type the browser
     // can't record throws, which used to leave the button doing nothing on iPhones.
-    const mime = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm", "video/mp4;codecs=avc1", "video/mp4"].find((m) => MediaRecorder.isTypeSupported(m));
+    const mime = ["video/mp4;codecs=avc1.42E01E", "video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"].find((m) => MediaRecorder.isTypeSupported(m));
     if (!mime || typeof out.captureStream !== "function") {
       toast("Clip recording isn't supported in this browser");
       return;
