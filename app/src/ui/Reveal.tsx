@@ -60,7 +60,8 @@ export function Reveal({ session, onDone }: { session: Session; onDone: () => vo
   // the room may reopen for the next night while you watch: keep showing the night you played
   const liveRoom = useStore((s) => s.room)!;
   const liveSeat = useStore((s) => s.mySeat);
-  const snap = useRef({ room: liveRoom, seat: liveSeat });
+  const saved = useStore((s) => s.reveal);
+  const snap = useRef(saved?.room && liveRoom.status !== ST_REVEALED ? { room: saved.room, seat: saved.seat ?? null } : { room: liveRoom, seat: liveSeat });
   if (liveRoom.status === ST_REVEALED) snap.current = { room: liveRoom, seat: liveSeat };
   const room = snap.current.room;
   const mySeat = snap.current.seat;

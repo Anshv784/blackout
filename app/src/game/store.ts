@@ -33,7 +33,7 @@ interface State {
   error: string | null;
   busy: string | null;
   stats: ChainStats;
-  reveal: { world: World | null; rec: Recording | null } | null;
+  reveal: { world: World | null; rec: Recording | null; room?: Room; seat?: number | null } | null;
   toasts: FeedItem[];
   /** a guest asked the host to start (free rooms): who and when (ms) */
   startAsk: { name: string; at: number } | null;

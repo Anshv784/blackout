@@ -427,7 +427,9 @@ export class Session {
     for (let i = 0; i < 6; i++) {
       const [world, rec] = await Promise.all([client.fetchWorld(this.roomId).catch(() => null), client.fetchRecording(this.roomId).catch(() => null)]);
       if (world && rec) {
-        useStore.getState().set({ reveal: { world, rec } });
+        // the finished night's room and seat travel with it: the results screen keeps showing this
+        // night after the room reopens, even if it's mounted again (a reload of the page component)
+        useStore.getState().set({ reveal: { world, rec, room: this.room ?? undefined, seat: this.mySeat } });
         return;
       }
       await new Promise((r) => setTimeout(r, 800));
