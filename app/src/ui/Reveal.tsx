@@ -309,12 +309,10 @@ export function Reveal({ session, onDone }: { session: Session; onDone: () => vo
   const myDeath = mySeat !== null ? room.feed.slice(0, Math.min(16, room.feedHead)).find((f) => f.victim === mySeat) ?? null : null;
   const survivedTicks = myDeath ? myDeath.tick - 60 : room.endTick - 60;
   const mySurvived = `${Math.floor(Math.max(0, survivedTicks) / 20 / 60)}:${String(Math.floor((Math.max(0, survivedTicks) / 20) % 60)).padStart(2, "0")}`;
-  const seedHex = world ? Array.from(world.seed).map((b) => b.toString(16).padStart(2, "0")).join("") : "";
-  const seedLine = seedHex ? `\n\nVerify with the seed: ${seedHex}` : "";
   const shareText =
     (mySeat !== null && myPlace > 0
       ? `Placed #${myPlace} on @_playblackout, a battle royale made with @magicblock where nobody can see you 🔦`
-      : `Watched a night of @_playblackout, a battle royale made with @magicblock where nobody can see you 🔦`) + seedLine;
+      : `Watched a night of @_playblackout, a battle royale made with @magicblock where nobody can see you 🔦`);
   const postText = `${shareText}\n\nPlay free: ${location.origin}`;
   // POST ON X: on a phone with a clip, the share sheet with the clip attached (pick X); otherwise a ready post
   const postOnX = (e: React.MouseEvent) => {
