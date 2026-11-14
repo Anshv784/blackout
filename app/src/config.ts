@@ -5,7 +5,7 @@
 //   Mainnet: public 1-6, private 7-10, staked 11-12.
 //   Devnet: the same, except public room 5 is 13 (devnet's room 5 was created as a staked table
 //   and a room's stake can't change; it's retired).
-const MAINNET = (import.meta as any).env?.VITE_CLUSTER === "mainnet";
+const MAINNET = ((import.meta as any).env ?? ((globalThis as any).process?.env ?? {})).VITE_CLUSTER === "mainnet";
 export const PUBLIC_ROOMS = MAINNET ? [1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 6, 13];
 export const PRIVATE_ROOMS = [7, 8, 9, 10];
 export const STAKED_ROOMS = [11, 12];

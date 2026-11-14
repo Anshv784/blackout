@@ -42,7 +42,8 @@ const BN = ns.BN ?? ns["default"]?.BN;
 const BorshCoder = ns.BorshCoder ?? ns["default"]?.BorshCoder;
 
 // VITE_CLUSTER=mainnet + VITE_BASE_RPC=<a paid RPC URL> switches the whole app to mainnet.
-const env: Record<string, string | undefined> = (import.meta as any).env ?? {};
+// (outside a Vite build, e.g. scripts/admin.ts under tsx, the same names come from the shell)
+const env: Record<string, string | undefined> = (import.meta as any).env ?? ((globalThis as any).process?.env ?? {});
 export const IS_MAINNET = env.VITE_CLUSTER === "mainnet";
 // `||`, not `??`: an unset GitHub variable arrives as an empty string. The mainnet RPC is only
 // used in mainnet mode, so storing it ahead of the switch can't point the devnet site at mainnet.
