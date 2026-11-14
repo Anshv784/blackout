@@ -13,7 +13,7 @@
     "run_worker_first": ["/api/*"]
   },
   // quest claims (worker/index.ts); ADMIN_TOKEN is a secret (.dev.vars locally)
-  "kv_namespaces": [{ "binding": "CLAIMS" }],
+  "kv_namespaces": [{ "binding": "CLAIMS", "id": "6463838432864223b557bd9a6368ed54" }],
   // the game's own domain (blackout.anshverma.tech stays on Vercel, untouched)
   "routes": [
     { "pattern": "playblackout.fun", "custom_domain": true },
