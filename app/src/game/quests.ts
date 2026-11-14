@@ -13,7 +13,7 @@ export const QUESTS: Quest[] = [
     title: "Win 3 Free Nights",
     text: "Win 3 nights on BLACKOUT, then share them on X tagging @_playblackout and @magicblock.",
     steps: [
-      "Connect your wallet and win 3 nights.",
+      "Connect the same wallet as your MagicBlock Quests account and win 3 nights.",
       "After each win, tap 🎬 Make Clip on the results screen.",
       "Tap Post on X and attach your clips in one post or a thread.",
     ],

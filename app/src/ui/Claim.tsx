@@ -90,7 +90,7 @@ export function Claim() {
         <div className="cl-form">
           <label>Wallet</label>
           <div className="cl-wallet">{wallet ? <code>{short(wallet)}</code> : <span>Connect the wallet you use on MagicBlock Quests</span>}</div>
-          <p className="cl-hint">Use the same wallet that pressed Start on this quest at quests.magicblock.app.</p>
+          <p className="cl-warn">⚠ Connect the same wallet as your MagicBlock Quests account, the one that pressed Start on this quest. Points can only go to that wallet.</p>
 
           <label htmlFor="cl-post">Link to your X post</label>
           <input id="cl-post" placeholder="https://x.com/you/status/…" value={locked ? claim!.post : post} onChange={(e) => setPost(e.target.value)} disabled={!!locked || busy} />

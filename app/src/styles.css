@@ -3077,3 +3077,4 @@ button {
 .cl-status.rejected{background:rgba(233,69,96,.1);border:1px solid rgba(233,69,96,.4);color:#ff8fa3}
 .cl-status span{color:#cfd5e2;font-size:14px}
 @media (max-width:640px){.cl-card{margin:16px;padding:18px}}
+.cl-warn{margin:2px 0 0;padding:10px 12px;border-radius:10px;background:rgba(255,209,102,.08);border:1px solid rgba(255,209,102,.3);color:#ffd166;font-size:13.5px;line-height:1.5}
