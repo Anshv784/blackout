@@ -521,6 +521,9 @@ export function Reveal({ session, onDone }: { session: Session; onDone: () => vo
           <button className="btn primary" onClick={makeClip} disabled={recording !== null}>
             {recording !== null ? `● REC ${recording}s` : "🎬 MAKE CLIP"}
           </button>
+          <a className="btn x" target="_blank" rel="noreferrer" href={xHref} onClick={postOnX}>
+            POST ON X
+          </a>
         </div>
       )}
 
