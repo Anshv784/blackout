@@ -2,7 +2,7 @@ import { Wordmark } from "./Brand";
 import { friendlyError } from "../game/errors";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { client } from "../game/identity";
-import { ALL_ROOMS, STAKED_ROOMS } from "../config";
+import { ALL_ROOMS, STAKED_ROOMS, STALE_SLOTS } from "../config";
 import { ST_LOBBY, ST_LIVE, ST_COUNTDOWN, ST_STARTING, ST_REVEALED, ST_ENDED, PRIZE_STAKE, type Room, type BoardEntry, type Prize } from "../chain/layout";
 import { go } from "../App";
 import { useStore } from "../game/store";
@@ -23,7 +23,7 @@ const EMPTY = "11111111111111111111111111111111";
 export const humansIn = (r: Room) => r.players.filter((p, i) => r.isBot[i] === 0 && p.toBase58() !== EMPTY).length;
 /** Humans whose browser is still heart-beating (seats go stale after ~45 s of silence). */
 export const liveHumans = (r: Room, slot: number) =>
-  r.players.filter((p, i) => r.isBot[i] === 0 && p.toBase58() !== EMPTY && ((slot >>> 0) - r.lastSeen[i]) >>> 0 <= 4500).length;
+  r.players.filter((p, i) => r.isBot[i] === 0 && p.toBase58() !== EMPTY && ((slot >>> 0) - r.lastSeen[i]) >>> 0 <= STALE_SLOTS).length;
 
 function statusLine(r: Room, slot: number) {
   if (r.status === ST_LIVE) return `${r.aliveCount} alive · night ${r.matchNo}`;
@@ -227,7 +227,7 @@ export function Home() {
   const entries = Object.entries(rooms).filter(([id, r]) => r && !STAKED_ROOMS.includes(Number(id))) as [string, Room][];
   const hostHere = (r: Room) => {
     const i = r.players.findIndex((p, k) => r.isBot[k] === 0 && p.toBase58() !== EMPTY && p.equals(r.host));
-    return i >= 0 && ((slot >>> 0) - r.lastSeen[i]) >>> 0 <= 4500;
+    return i >= 0 && ((slot >>> 0) - r.lastSeen[i]) >>> 0 <= STALE_SLOTS;
   };
   const openRooms = entries.filter(([, r]) => r.status === ST_LOBBY && !r.unlisted && slot > 0 && hostHere(r) && liveHumans(r, slot) < r.maxPlayers);
   const liveMatches = entries.filter(([, r]) => !r.unlisted && (r.status === ST_LIVE || r.status === ST_COUNTDOWN));

@@ -57,8 +57,8 @@ pub const ST_ENDED: u32 = 4;
 pub const ST_REVEALED: u32 = 5;
 
 pub const NO_SEAT: u32 = 255;
-/// ~45 s of ER slots (10 ms each) without a heartbeat = abandoned seat
-pub const STALE_SLOTS: u32 = 4500;
+/// ~45 s of ER slots without a heartbeat = abandoned seat (4,500 on devnet, 900 on mainnet)
+pub const STALE_SLOTS: u32 = (45_000 / crate::config::SLOT_MS) as u32;
 
 /// Public lobby + scoreboard. Readable by anyone holding a TEE auth token.
 /// Holds nothing that would leak a hidden position.

@@ -2,7 +2,7 @@
 import { ComputeBudgetProgram, PublicKey } from "@solana/web3.js";
 import { client } from "./identity";
 import { useStore } from "./store";
-import { PRIVATE_ROOMS, PUBLIC_ROOMS, ROOM_POOL, STAKED_ROOMS } from "../config";
+import { PRIVATE_ROOMS, PUBLIC_ROOMS, ROOM_POOL, STAKED_ROOMS, STALE_SLOTS } from "../config";
 import { ST_LOBBY, ST_ENDED, ST_REVEALED, ST_LIVE, ST_COUNTDOWN, READY_ALL, NO_SEAT, lobbyDeadline, type Room, type Daily } from "../chain/layout";
 import { todayUtc } from "../chain/client";
 
@@ -96,7 +96,7 @@ export async function findByCode(text: string): Promise<{ id: number; code: numb
 }
 
 export const liveHumansAt = (r: Room, slot: number) =>
-  r.players.filter((p, i) => r.isBot[i] === 0 && p.toBase58() !== EMPTY && ((slot >>> 0) - r.lastSeen[i]) >>> 0 <= 4500).length;
+  r.players.filter((p, i) => r.isBot[i] === 0 && p.toBase58() !== EMPTY && ((slot >>> 0) - r.lastSeen[i]) >>> 0 <= STALE_SLOTS).length;
 
 /** The room you're already sitting in (one room per player), if any. */
 export function myRoom(rooms: (readonly [number, Room | null])[]): number | null {
@@ -139,7 +139,7 @@ export async function createRoom(maxPlayers: number, unlisted: boolean): Promise
   const slot = await (await client.teeConn()).getSlot().catch(() => 0);
   const hostGone = (r: Room) => {
     const i = r.players.findIndex((p, k) => r.isBot[k] === 0 && p.toBase58() !== EMPTY && p.equals(r.host));
-    return i < 0 || ((slot >>> 0) - r.lastSeen[i]) >>> 0 > 4500;
+    return i < 0 || ((slot >>> 0) - r.lastSeen[i]) >>> 0 > STALE_SLOTS;
   };
   const free = rooms.filter(([id, r]) => pool.has(id) && r && r.status === ST_LOBBY && r.readyMask === READY_ALL && r.stake === 0n && (liveHumansAt(r, slot) === 0 || hostGone(r)));
   if (!free.length) throw new Error(`Every ${unlisted ? "private" : "public"} room is in use right now — try again in a minute`);

@@ -20,8 +20,16 @@ pub const COMPUTE_BUDGET_PROGRAM: Pubkey = pubkey!("ComputeBudget111111111111111
 pub const TICK_MS: i64 = 50;
 /// A full 5:00 night (6,000 ticks) plus countdown, with headroom.
 pub const TICK_ITERATIONS: i64 = 6600;
-/// ER slots are ~10 ms; never tick faster than 40 ms.
-pub const MIN_TICK_SLOTS: u64 = 4;
+/// How long one rollup slot lasts. Devnet's TEE makes ~100 slots a second, mainnet's ~20 (measured
+/// 2026-11-14: 103/s and 20.6/s). Every slot-counted wait below is derived from it, so a night runs at
+/// 20 ticks a second and a timeout lasts the same wall time on both networks.
+#[cfg(not(feature = "mainnet"))]
+pub const SLOT_MS: u64 = 10;
+#[cfg(feature = "mainnet")]
+pub const SLOT_MS: u64 = 50;
+/// Never tick faster than 40 ms (4 slots on devnet, 1 on mainnet). On mainnet a 4-slot gap left 3 of
+/// every 4 crank runs idle: the night crawled at 5 ticks/s and the crank's 6,600 runs ran out at tick 1,650.
+pub const MIN_TICK_SLOTS: u64 = (40 + SLOT_MS - 1) / SLOT_MS;
 /// Core | 5 recorder chunks | 8 views.
 pub const READY_ALL: u32 = 1 | (0b11111 << 1) | (0xff << 8);
 /// A ticket can be refunded this long after purchase if no settled match used it.
@@ -71,7 +79,7 @@ pub const DELEGATION_PROGRAM: Pubkey = pubkey!("DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjt
 /// Smallest stake: the pot must always be enough to rent-exempt a brand new winner wallet.
 pub const MIN_STAKE: u64 = 2_000_000;
 /// VRF wait before a free room may self-seed (~5 s) or a staked start is called off (~30 s).
-pub const FALLBACK_SLOTS: u64 = 500;
-pub const ABORT_SLOTS: u64 = 3000;
+pub const FALLBACK_SLOTS: u64 = 5_000 / SLOT_MS;
+pub const ABORT_SLOTS: u64 = 30_000 / SLOT_MS;
 /// `delegate_room` with this id delegates the daily board instead of a room.
 pub const DAILY_ID: u64 = u64::MAX;

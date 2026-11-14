@@ -16,7 +16,7 @@ import { fullscreenOnTouch } from "./Fullscreen";
 import { controls } from "../game/controls";
 import { ChainPanel } from "./ChainPanel";
 import { Crosshair } from "./Crosshair";
-import { roomLink } from "../config";
+import { roomLink, STALE_SLOTS } from "../config";
 import { go } from "../App";
 import { audio } from "../game/audio";
 import { connectWallet, requireRealWallet, requireWallet } from "../game/wallet";
@@ -216,7 +216,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
 
   // mirror the on-chain host rule: a host who stopped heart-beating is replaced by the first live seat
   const nowSlot = Math.max(...room.lastSeen);
-  const fresh = (i: number) => room.players[i].toBase58() !== EMPTY && room.isBot[i] === 0 && nowSlot - room.lastSeen[i] <= 4500;
+  const fresh = (i: number) => room.players[i].toBase58() !== EMPTY && room.isBot[i] === 0 && nowSlot - room.lastSeen[i] <= STALE_SLOTS;
   // the host is the room's creator; no hand-offs — if they're gone the room is closed
   const hostIdx = room.players.findIndex((p, i) => room.isBot[i] === 0 && room.host.toBase58() !== EMPTY && p.equals(room.host));
   const hostPresent = hostIdx >= 0 && fresh(hostIdx);
