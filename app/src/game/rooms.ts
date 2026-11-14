@@ -2,7 +2,7 @@
 import { ComputeBudgetProgram, PublicKey } from "@solana/web3.js";
 import { client } from "./identity";
 import { useStore } from "./store";
-import { PRIVATE_ROOMS, PUBLIC_ROOMS, ROOM_POOL, STAKED_ROOMS, STALE_SLOTS } from "../config";
+import { PRIVATE_ROOMS, PUBLIC_ROOMS, ROOM_POOL, STAKED_ROOMS, STALE_SLOTS, SLOT_MS } from "../config";
 import { ST_LOBBY, ST_ENDED, ST_REVEALED, ST_LIVE, ST_COUNTDOWN, READY_ALL, NO_SEAT, lobbyDeadline, type Room, type Daily } from "../chain/layout";
 import { todayUtc } from "../chain/client";
 
@@ -129,14 +129,34 @@ export function stakeLabel(rooms: Record<number, Room | null>, ids: number[] = S
 
 export const playedToday = (d: Daily, wallet: string) => d.entries.some((e) => e.key.toBase58() === wallet);
 
+/** A finished free night nobody is watching stays on its results screen: only a browser in the room
+ *  reopens it. Rooms whose night ended over 45 s ago (session.ts REOPEN_AFTER_MS) are reopened here,
+ *  by whoever is looking for a room, so a small pool can't be locked by people who left. */
+async function reopenAbandoned(rooms: (readonly [number, Room | null])[], pool: Set<number>, slot: number) {
+  const after = Math.ceil(45_000 / SLOT_MS);
+  const stuck = rooms.filter(
+    ([id, r]) => pool.has(id) && r && r.stake === 0n && (r.status === ST_REVEALED || r.status === ST_ENDED) && r.lastTickSlot > 0n && slot - Number(r.lastTickSlot) > after,
+  );
+  if (!stuck.length) return rooms;
+  await Promise.all(
+    stuck.map(async ([id, r]) => {
+      if (r!.status === ST_ENDED) await client.sendEr(client.withBudget(client.finishIx(BigInt(id), null))).catch(() => {});
+      await client.sendEr(client.withBudget(client.resetIx(BigInt(id)))).catch(() => {});
+    }),
+  );
+  const again = new Set(stuck.map(([id]) => id));
+  return Promise.all(rooms.map(async ([id, r]) => [id, again.has(id) ? await client.fetchRoom(id).catch(() => null) : r] as const));
+}
+
 export async function createRoom(maxPlayers: number, unlisted: boolean): Promise<{ id: number; code: number }> {
-  const rooms = await Promise.all(ROOM_POOL.map(async (id) => [id, await client.fetchRoom(id).catch(() => null)] as const));
+  let rooms = await Promise.all(ROOM_POOL.map(async (id) => [id, await client.fetchRoom(id).catch(() => null)] as const));
   // one room at a time: if you're already seated somewhere, go back there
   const mine = myRoom(rooms);
   // a private game only takes a private room, a public one only a public room
   const pool = new Set(unlisted ? PRIVATE_ROOMS : PUBLIC_ROOMS);
   if (mine !== null) return { id: mine, code: rooms.find(([i]) => i === mine)?.[1]?.privateCode ?? 0 };
   const slot = await (await client.teeConn()).getSlot().catch(() => 0);
+  if (slot) rooms = await reopenAbandoned(rooms, pool, slot);
   const hostGone = (r: Room) => {
     const i = r.players.findIndex((p, k) => r.isBot[k] === 0 && p.toBase58() !== EMPTY && p.equals(r.host));
     return i < 0 || ((slot >>> 0) - r.lastSeen[i]) >>> 0 > STALE_SLOTS;
