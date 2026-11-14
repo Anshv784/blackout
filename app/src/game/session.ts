@@ -5,6 +5,7 @@ import { TOUCH } from "./device";
 import { ComputeBudgetProgram, PublicKey } from "@solana/web3.js";
 import { client } from "./identity";
 import { ticketPda, TICKET_LEN } from "../chain/client";
+import { SLOT_MS } from "../config";
 import { lobbyDeadline } from "../chain/layout";
 import { useStore } from "./store";
 import { getLook, lookBytes, useLook } from "./look";
@@ -147,6 +148,16 @@ export class Session {
   reopenIn(): number | null {
     if (this.room?.status !== ST_REVEALED || !this.revealedSince) return null;
     return Math.max(0, Math.ceil((this.revealedSince + REOPEN_AFTER_MS - performance.now()) / 1000));
+  }
+  /** The night ended at its last tick (`lastTickSlot` keeps that slot until the room reopens): count
+   *  the reopen from then, not from when this tab first saw it, so leaving and coming back doesn't
+   *  restart the 45 s, and a room everyone left reopens as soon as someone looks. */
+  private async backdateReveal(endSlot: bigint) {
+    if (!endSlot) return;
+    const slot = await (await client.teeConn()).getSlot().catch(() => 0);
+    if (!slot || !this.revealedSince) return;
+    const ago = Math.min(Math.max(0, slot - Number(endSlot)) * SLOT_MS, REOPEN_AFTER_MS + 60_000);
+    this.revealedSince = Math.min(this.revealedSince, performance.now() - ago);
   }
   private lastReopen = 0;
   private unsubs: (() => void)[] = [];
@@ -388,7 +399,10 @@ export class Session {
     if (r.status !== ST_STARTING) this.startingSince = 0;
     if (r.status === ST_ENDED && !this.endedSince) this.endedSince = performance.now();
     if (r.status !== ST_ENDED) this.endedSince = 0;
-    if (r.status === ST_REVEALED && !this.revealedSince) this.revealedSince = performance.now();
+    if (r.status === ST_REVEALED && !this.revealedSince) {
+      this.revealedSince = performance.now();
+      void this.backdateReveal(r.lastTickSlot);
+    }
     if (r.status !== ST_REVEALED) this.revealedSince = 0;
     if (r.status === ST_REVEALED && !this.revealLoaded) void this.loadReveal();
     // ticks advanced over wall time, over a few seconds (arrival bursts don't inflate it)

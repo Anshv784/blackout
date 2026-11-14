@@ -9,6 +9,8 @@ const MAINNET = ((import.meta as any).env ?? ((globalThis as any).process?.env ?
 /** a seat with no heartbeat for ~45 s is gone: in rollup slots (program state.rs STALE_SLOTS; 10 ms
  *  slots on devnet, 50 ms on mainnet) */
 export const STALE_SLOTS = MAINNET ? 900 : 4500;
+/** how long one rollup slot lasts, ms (program config.rs SLOT_MS: devnet ~100 slots/s, mainnet ~20) */
+export const SLOT_MS = MAINNET ? 50 : 10;
 export const PUBLIC_ROOMS = MAINNET ? [1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 6, 13];
 export const PRIVATE_ROOMS = [7, 8, 9, 10];
 export const STAKED_ROOMS = [11, 12];
