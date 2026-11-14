@@ -8,7 +8,7 @@ import type { ReplayCtl } from "../scene/ReplayScene";
 const ReplayScene = lazy(() => import("../scene/ReplayScene").then((m) => ({ default: m.ReplayScene })));
 import { SEAT_COLORS } from "../game/colors";
 import { roomPda, worldPda, recPda } from "../chain/client";
-import { explorerAddr, roomLink } from "../config";
+import { explorerAddr } from "../config";
 import { audio } from "../game/audio";
 import { go } from "../App";
 import { verifyMatch } from "../game/verify";
@@ -67,6 +67,8 @@ export function Reveal({ session, onDone }: { session: Session; onDone: () => vo
   const reopened = liveRoom.status !== ST_REVEALED;
   const reveal = useStore((s) => s.reveal);
   const [reopenIn, setReopenIn] = useState<number | null>(null);
+  const [clipFile, setClipFile] = useState<File | null>(null);
+  const touch = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
   useEffect(() => {
     const k = window.setInterval(() => setReopenIn(session.reopenIn()), 500);
     return () => clearInterval(k);
@@ -161,6 +163,7 @@ export function Reveal({ session, onDone }: { session: Session; onDone: () => vo
   }, []);
 
   const makeClip = async () => {
+    setClipFile(null);
     const canvas = document.querySelector<HTMLCanvasElement>(".reveal canvas");
     if (!canvas || !rec || !("MediaRecorder" in window)) {
       toast("Clip recording isn't supported in this browser");
@@ -232,22 +235,18 @@ export function Reveal({ session, onDone }: { session: Session; onDone: () => vo
       setRecording(null);
       const blob = new Blob(chunks, { type });
       const name = `blackout-room${room.roomId}-match${room.matchNo}.${ext}`;
-      const won = mySeat !== null && room.winner === mySeat;
-      const text = `${won ? "Won a night" : "Lost a night"} in BLACKOUT, the battle royale where nobody can see you, not even the chain. Lights on 🔦 @magicblock`;
-      const url = location.origin;
       const file = new File([blob], name, { type });
-      // phones: straight into the share sheet with the clip attached
-      if (navigator.canShare?.({ files: [file] })) {
-        navigator.share({ files: [file], text: `${text} ${url}` }).catch(() => {});
-        return;
-      }
-      // desktop: save the clip and open a ready post on X to attach it to
+      // keep it for POST ON X (a share sheet needs a fresh tap, so it can't open here, 11 s later)
+      setClipFile(file);
+      // always save it: the player attaches it to the post
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = name;
+      document.body.appendChild(a);
       a.click();
-      window.open(`https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, "_blank", "noopener");
-      toast("Clip saved: drop it into the post that just opened 🔦", true);
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
+      toast(touch ? "Clip saved. Tap POST ON X to share it 🔦" : "Clip saved. Press POST ON X and attach it 🔦", true);
     };
     mr.start(250);
     paint();
@@ -303,12 +302,19 @@ export function Reveal({ session, onDone }: { session: Session; onDone: () => vo
   const myDeath = mySeat !== null ? room.feed.slice(0, Math.min(16, room.feedHead)).find((f) => f.victim === mySeat) ?? null : null;
   const survivedTicks = myDeath ? myDeath.tick - 60 : room.endTick - 60;
   const mySurvived = `${Math.floor(Math.max(0, survivedTicks) / 20 / 60)}:${String(Math.floor((Math.max(0, survivedTicks) / 20) % 60)).padStart(2, "0")}`;
+  const seedHex = world ? Array.from(world.seed).map((b) => b.toString(16).padStart(2, "0")).join("") : "";
+  const verify = seedHex ? `\n\nVerify it with the seed: ${seedHex}` : "";
   const shareText =
-    mySeat !== null
-      ? myPlace === 1
-        ? `I won a round of BLACKOUT — a battle royale where nobody can see you, not even the chain. Every position sealed in a @magicblock TEE until the lights came on. 🔦`
-        : `Got #${myPlace} in BLACKOUT. I never saw them coming — literally. Every position sealed in a @magicblock TEE until the lights came on. 🔦`
-      : `Watched a BLACKOUT match: a battle royale where every position is sealed in a @magicblock TEE until the lights come on. 🔦`;
+    (mySeat !== null && myPlace === 1 ? `I won the match in BLACKOUT 🔦 @magicblock` : mySeat !== null ? `Got #${myPlace} in BLACKOUT 🔦 @magicblock` : `Watched a night of BLACKOUT 🔦 @magicblock`) + verify;
+  const postText = `${shareText}\n\n${location.origin}`;
+  // POST ON X: on a phone with a clip, the share sheet with the clip attached (pick X); otherwise a ready post
+  const postOnX = (e: React.MouseEvent) => {
+    if (clipFile && touch && navigator.canShare?.({ files: [clipFile] })) {
+      e.preventDefault();
+      navigator.share({ files: [clipFile], text: postText }).catch(() => {});
+    }
+  };
+  const xHref = `https://x.com/intent/post?text=${encodeURIComponent(postText)}`;
 
   return (
     <div className="reveal">
@@ -329,6 +335,12 @@ export function Reveal({ session, onDone }: { session: Session; onDone: () => vo
           <div className="verdict-card" onClick={(e) => e.stopPropagation()}>
             <div className="vc-kicker">NIGHT {room.matchNo} · ROOM {room.roomId.toString()}</div>
             {room.winner !== 255 && <WinnerTrophy mine={room.winner === mySeat || previewWin} name={winnerName} winnings={winnings} />}
+            {(room.winner === mySeat || previewWin) && room.winner !== 255 && (
+              <div className="vc-brag">
+                <button className="btn" onClick={() => { setCard(false); setTimeout(makeClip, 300); }}>🎬 MAKE CLIP</button>
+                <a className="btn x" target="_blank" rel="noreferrer" href={xHref} onClick={postOnX}>POST ON X</a>
+              </div>
+            )}
             {room.stake > 0n && room.winner === 255 && room.place.every((p) => p === 0) ? (
               // the rollup stalled too long to settle safely: the program called the night off
               <h1>Night called off · every ticket carries to your next night</h1>
@@ -398,7 +410,7 @@ export function Reveal({ session, onDone }: { session: Session; onDone: () => vo
                 >
                   🎬 MAKE CLIP
                 </button>
-                <a className="btn x" target="_blank" rel="noreferrer" href={`https://x.com/intent/post?text=${encodeURIComponent(`${shareText}\n\nPlay: ${roomLink(room.roomId)}`)}`}>
+                <a className="btn x" target="_blank" rel="noreferrer" href={xHref} onClick={postOnX}>
                   POST ON X
                 </a>
               </div>
@@ -583,7 +595,7 @@ export function Reveal({ session, onDone }: { session: Session; onDone: () => vo
               explorer ↗
             </a>
           </div>
-          <a className="btn x wide" target="_blank" rel="noreferrer" href={`https://x.com/intent/post?text=${encodeURIComponent(`${shareText}\n\nPlay: ${roomLink(room.roomId)}`)}`}>
+          <a className="btn x wide" target="_blank" rel="noreferrer" href={xHref} onClick={postOnX}>
             POST ON X
           </a>
         </div>

@@ -3047,3 +3047,7 @@ button {
 @media (prefers-reduced-motion:reduce){.fee-badge .fs-coin,.fs-col .fs-icon svg,.fs-charge,.fs-spark,.fee-pop{animation:none!important}}
 @media (max-width:520px){.fs-col em{font-size:10px}.fs-col b{font-size:15px}.fee-badge{font-size:12px}}
 .fee-pop .fee-split{background:#0a0c14}.fee-pop .fs-col{background:#12151f}
+
+/* winner: brag buttons right under the trophy */
+.vc-brag { display: flex; gap: 10px; justify-content: center; margin: 4px 0 10px; }
+.vc-brag .btn { min-width: 150px; }
