@@ -297,7 +297,12 @@ export function Home() {
                 {busy === "code" ? "FINDING…" : "JOIN"} <span aria-hidden>→</span>
               </button>
             </form>
-            <FeeBadge />
+            <div className="home-badges">
+              <FeeBadge />
+              <button className="quest-badge" onClick={() => go("/claim")}>
+                <span aria-hidden>✦</span> MagicBlock Quests <b>claim →</b>
+              </button>
+            </div>
           </div>
         </section>
 

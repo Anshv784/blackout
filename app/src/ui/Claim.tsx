@@ -60,7 +60,7 @@ export function Claim() {
   const locked = claim && claim.status !== "rejected";
   return (
     <div className="page claim">
-      <TopBar />
+      <TopBar active="quests" />
       <header className="cl-hero">
         <div className="kicker">
           <span className="dot" /> MAGICBLOCK QUESTS

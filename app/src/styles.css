@@ -3078,3 +3078,8 @@ button {
 .cl-status span{color:#cfd5e2;font-size:14px}
 @media (max-width:640px){.cl-card{margin:16px;padding:18px}}
 .cl-warn{margin:2px 0 0;padding:10px 12px;border-radius:10px;background:rgba(255,209,102,.08);border:1px solid rgba(255,209,102,.3);color:#ffd166;font-size:13.5px;line-height:1.5}
+.home-badges{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start}
+.quest-badge{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border-radius:999px;border:1px dashed rgba(199,125,255,.55);background:rgba(166,77,255,.08);color:#e3ccff;font:600 14px 'Chakra Petch',sans-serif;cursor:pointer;transition:background .15s,border-color .15s}
+.quest-badge:hover{background:rgba(166,77,255,.16);border-color:#c77dff}
+.quest-badge span{color:#c77dff}
+.quest-badge b{color:#ffd166;font-weight:700}
