@@ -174,14 +174,13 @@ A ticket can't be refunded and also ride in a match:
 | Severity | Risk |
 |---|---|
 | Design | **MagicBlock is trusted.** The TEE validator runs the game and commits the result, so a compromised validator could name any winner. Privacy also depends on the TEE. |
-| High (ops) | **One hot key does everything.** `blackout-mainnet.json` is the upgrade authority, the admin and the fee wallet, and it's an unencrypted file. Whoever holds it can upgrade the program and take every stake. Back it up offline, and move it to a hardware wallet or multisig once the game has users. |
+| High (ops) | **Single admin key.** One key is the upgrade authority, admin and fee wallet. Moving it to a multisig. |
 | Medium | **Collusion.** Two wallets at one table can team up; a program can't detect this. |
 | Medium | **Aimbots.** Clients choose their aim, so a modified client can aim perfectly at players it can already see. |
 | Medium | **Paid RPC key in the browser.** `VITE_BASE_RPC` ships in the app bundle. Use a key restricted to the site's domain. |
 | Low | 10 npm advisories (2 high), all in third-party Solana/MagicBlock dependencies, none fed untrusted input by our code. |
 | Low | Private room codes are readable in the public Room account, so "private" means unlisted. |
 | Low | A settle that fails leaves the winner unpaid. No stake is lost: it stays in the bank and the night's unused tickets can move to a later night after an hour. The table fund keeps each table's MagicBlock wallet topped up so commits don't run dry. |
-| Legal | Real-money play may be illegal where players or the operator are. India's Online Gaming Act 2025 bans online money games, and the house fee makes the operator part of it. Get legal advice before enabling stakes. |
 
 ## Re-running
 
