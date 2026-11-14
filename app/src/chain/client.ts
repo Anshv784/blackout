@@ -359,7 +359,7 @@ export class BlackoutClient {
   // ---------------------------------------------------------------- admin (base)
 
   /** Admin: the staked leaderboard and the daily board, together. */
-  async initBoard(dailyPrefund = 2_000_000) {
+  async initBoard(dailyPrefund = 0) {
     return this.sendBase([ix("init_board", { daily_prefund: new BN(dailyPrefund) }, [w(boardPda()), w(dailyPda()), w(this.publicKey, true), r(SystemProgram.programId)])]);
   }
 
@@ -684,6 +684,16 @@ export class BlackoutClient {
 
   closeBoardIx() {
     return ix("close_board", {}, [w(boardPda()), w(this.publicKey, true)]);
+  }
+
+  /** Admin, at shutdown: close the prize account (refused while it holds a pot or owes anyone). */
+  closePrizeIx() {
+    return ix("close_prize", {}, [w(prizePda()), w(this.publicKey, true)]);
+  }
+
+  /** Admin, at shutdown: the table fund's SOL back to the admin wallet. */
+  drainFundIx() {
+    return ix("drain_fund", {}, [w(fundPda()), w(this.publicKey, true), r(SystemProgram.programId)]);
   }
 
   closeRoomIx(roomId: bigint) {

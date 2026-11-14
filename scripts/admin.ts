@@ -51,7 +51,7 @@ async function setupRoom(id: bigint, stakeSol = 0, code = 0, prefundSol = 0.005)
 const [cmd, ...args] = process.argv.slice(2);
 if (cmd === "board") {
   if (await c.base.getAccountInfo(boardPda())) console.log("board exists", boardPda().toBase58());
-  else console.log("board", await c.initBoard(Math.round(Number(process.env.DAILY_PREFUND_SOL ?? 0.002) * LAMPORTS_PER_SOL)));
+  else console.log("board", await c.initBoard(Math.round(Number(process.env.DAILY_PREFUND_SOL ?? 0) * LAMPORTS_PER_SOL)));
 } else if (cmd === "rooms") {
   for (const a of args) await setupRoom(BigInt(a));
 } else if (cmd === "room") {
@@ -113,4 +113,8 @@ if (cmd === "board") {
   await import("./fairplay.ts");
 } else if (cmd === "close-board") {
   console.log("board closed", await c.sendBase([c.closeBoardIx()]));
+} else if (cmd === "close-prize") {
+  console.log("prize closed", await c.sendBase([c.closePrizeIx()]));
+} else if (cmd === "drain-fund") {
+  console.log("fund drained", await c.sendBase([c.drainFundIx()]));
 } else console.log("usage: board | prize | rooms <ids...> | room <id> <stakeSol> <code> | close <ids...> | close-board");

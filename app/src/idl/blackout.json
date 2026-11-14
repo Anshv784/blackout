@@ -274,6 +274,46 @@
       "args": []
     },
     {
+      "name": "close_prize",
+      "discriminator": [
+        183,
+        130,
+        58,
+        163,
+        14,
+        8,
+        100,
+        146
+      ],
+      "accounts": [
+        {
+          "name": "prize",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  105,
+                  122,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "address": "9Sg12k15Ann4SKSxcA85bq5fbpq7WMLH9bLCTUbTRkQV"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "close_room",
       "discriminator": [
         152,
@@ -677,6 +717,55 @@
           "type": "u64"
         }
       ]
+    },
+    {
+      "name": "drain_fund",
+      "discriminator": [
+        103,
+        244,
+        227,
+        82,
+        165,
+        96,
+        28,
+        138
+      ],
+      "accounts": [
+        {
+          "name": "fund",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  97,
+                  98,
+                  108,
+                  101,
+                  95,
+                  102,
+                  117,
+                  110,
+                  100
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "address": "9Sg12k15Ann4SKSxcA85bq5fbpq7WMLH9bLCTUbTRkQV"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
     },
     {
       "name": "end_now",

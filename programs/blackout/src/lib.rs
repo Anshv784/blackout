@@ -35,7 +35,7 @@ pub use state::*;
 #[cfg(not(feature = "mainnet"))]
 declare_id!("CkSb4kkmhzr8n9awdmrvqhuoWka6nZUXXb8RXnrFBAKU");
 #[cfg(feature = "mainnet")]
-declare_id!("pzuVHdCZDQWwxHLEa2JAaEjUZLa43nKaFauLyqZmekb");
+declare_id!("BhGveU6gDZPTnxw5Ua4svQffG9BbZ2VVFPr2SYtERKZv");
 
 #[ephemeral]
 #[program]
@@ -85,6 +85,14 @@ pub mod blackout {
 
     pub fn reset_prize(ctx: Context<ResetPrize>) -> Result<()> {
         instructions::admin::handle_reset_prize(ctx)
+    }
+
+    pub fn close_prize(ctx: Context<ClosePrize>) -> Result<()> {
+        instructions::admin::handle_close_prize(ctx)
+    }
+
+    pub fn drain_fund(ctx: Context<DrainFund>) -> Result<()> {
+        instructions::admin::handle_drain_fund(ctx)
     }
 
     pub fn init_prize(ctx: Context<InitPrize>) -> Result<()> {

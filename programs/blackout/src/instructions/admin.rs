@@ -12,13 +12,14 @@ use ephemeral_rollups_sdk::ephem::{FoldableIntentBuilder, MagicIntentBundleBuild
 
 /// Admin: create the staked leaderboard and the daily board. `daily_prefund` pays the
 /// daily board's rollup rent (its sealed seed account).
-/// Creates the leaderboard, and the daily board too unless it already exists (so the leaderboard
-/// can be closed and made again without touching the daily, which lives in the rollup).
+/// Creates the leaderboard. The old free daily board is no longer made: nothing uses it since the
+/// daily became the 0.05 table's prize, and with no close instruction its rent was locked for good.
+/// (`daily_prefund` and the `daily` account stay in the interface; a prefund > 0 still creates it.)
 pub fn handle_init_board<'info>(ctx: Context<'info, InitBoard<'info>>, daily_prefund: u64) -> Result<()> {
     require_keys_eq!(ctx.accounts.payer.key(), ADMIN, BlackoutError::NotAdmin);
     ctx.accounts.board.load_init()?;
     let daily: &AccountInfo<'info> = ctx.accounts.daily.as_ref();
-    if daily.owner == &anchor_lang::system_program::ID && daily.data_is_empty() {
+    if daily_prefund > 0 && daily.owner == &anchor_lang::system_program::ID && daily.data_is_empty() {
         let space = 8 + core::mem::size_of::<Daily>();
         let lamports = Rent::get()?.minimum_balance(space) + daily_prefund;
         let bump = [ctx.bumps.daily];
@@ -229,6 +230,48 @@ pub struct CloseBoard<'info> {
     pub board: AccountLoader<'info, Board>,
     #[account(mut, address = ADMIN)]
     pub admin: Signer<'info>,
+}
+
+/// Admin, at shutdown: close the prize account and take back its rent. Refused while it holds a pot
+/// or owes anyone a prize (pay those first with claim_prize).
+pub fn handle_close_prize(ctx: Context<ClosePrize>) -> Result<()> {
+    require!(!ctx.accounts.prize.load()?.holds_money(), BlackoutError::StakesOutstanding);
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct ClosePrize<'info> {
+    #[account(mut, close = admin, seeds = [PRIZE_SEED], bump)]
+    pub prize: AccountLoader<'info, Prize>,
+    #[account(mut, address = ADMIN)]
+    pub admin: Signer<'info>,
+}
+
+/// Admin, at shutdown: the table fund's SOL (each staked night's 0.001 fuel) back to the admin wallet.
+/// The fund only tops tables up in 0.02 SOL steps, so what's left below that is otherwise stuck.
+pub fn handle_drain_fund(ctx: Context<DrainFund>) -> Result<()> {
+    let amount = ctx.accounts.fund.lamports();
+    if amount > 0 {
+        anchor_lang::system_program::transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.system_program.key(),
+                Transfer { from: ctx.accounts.fund.to_account_info(), to: ctx.accounts.admin.to_account_info() },
+                &[&[FUND_SEED, &[ctx.bumps.fund]]],
+            ),
+            amount,
+        )?;
+    }
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct DrainFund<'info> {
+    /// CHECK: the table fund (system-owned PDA); it signs its own transfer
+    #[account(mut, seeds = [FUND_SEED], bump)]
+    pub fund: UncheckedAccount<'info>,
+    #[account(mut, address = ADMIN)]
+    pub admin: Signer<'info>,
+    pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]

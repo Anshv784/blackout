@@ -9,7 +9,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 KEY=~/.config/solana/blackout-mainnet.json
-PROGRAM=~/.config/solana/blackout-mainnet-program.json
+PROGRAM=~/.config/solana/blackout-mainnet-program-v2.json
 OUT=target/mainnet
 : "${BASE_RPC:?set BASE_RPC to a mainnet RPC url}"
 GENESIS=$(solana genesis-hash -u "$BASE_RPC")
@@ -21,5 +21,5 @@ echo "admin:    $(solana address -k "$KEY")  balance $(solana balance -k "$KEY" 
 echo "size:     $SIZE bytes, rent $(solana rent "$SIZE" -u "$BASE_RPC" | grep -i exempt)"
 [ "${CONFIRM:-}" = "yes" ] || { echo "Dry run. CONFIRM=yes to deploy."; exit 0; }
 solana program deploy "$OUT/blackout.so" --program-id "$PROGRAM" --upgrade-authority "$KEY" \
-  -k "$KEY" -u "$BASE_RPC" --max-len "$SIZE" --with-compute-unit-price 1000 --use-rpc
+  -k "$KEY" -u "$BASE_RPC" --max-len "$SIZE" --with-compute-unit-price 1000 --use-rpc --max-sign-attempts 100
 solana program show "$(solana address -k "$PROGRAM")" -u "$BASE_RPC"
