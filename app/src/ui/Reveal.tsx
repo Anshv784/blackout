@@ -216,21 +216,13 @@ export function Reveal({ session, onDone }: { session: Session; onDone: () => vo
       g.font = "700 30px 'Chakra Petch', sans-serif";
       g.fillStyle = flipped ? "#ffd166" : "#9fb4ff";
       g.fillText(flipped ? "LIGHTS ON — where everyone really was" : "WHAT I COULD SEE", 28, 42);
-      g.font = "600 18px 'JetBrains Mono', monospace";
-      g.fillStyle = "rgba(255,255,255,0.75)";
-      g.textAlign = "right";
-      g.fillText("BLACKOUT · sealed in a MagicBlock TEE", out.width - 28, 40);
-      g.textAlign = "left";
-      // bottom: room, night and the VRF seed
-      g.fillStyle = "rgba(0,0,0,0.6)";
-      g.fillRect(0, out.height - 46, out.width, 46);
-      g.font = "600 15px 'JetBrains Mono', monospace";
-      g.fillStyle = "rgba(255,255,255,0.8)";
-      g.fillText(`ROOM ${room.roomId} · NIGHT ${room.matchNo}`, 28, out.height - 18);
-      g.fillStyle = "#ffd166";
-      g.textAlign = "right";
-      g.fillText(fullSeed ? `VRF SEED ${fullSeed}` : "VRF SEED —", out.width - 28, out.height - 18);
-      g.textAlign = "left";
+      if (fullSeed) {
+        g.font = "600 13px 'JetBrains Mono', monospace";
+        g.fillStyle = "#ffd166";
+        g.textAlign = "right";
+        g.fillText(`VRF SEED ${fullSeed}`, out.width - 24, 38);
+        g.textAlign = "left";
+      }
       setRecording(Math.ceil((DUR - el) / 1000));
       if (el < DUR) raf = requestAnimationFrame(paint);
       else mr.stop();
@@ -241,8 +233,7 @@ export function Reveal({ session, onDone }: { session: Session; onDone: () => vo
       const blob = new Blob(chunks, { type });
       const name = `blackout-room${room.roomId}-match${room.matchNo}.${ext}`;
       const won = mySeat !== null && room.winner === mySeat;
-      const proof = fullSeed ? `\n\nRoom ${room.roomId} · night ${room.matchNo} · VRF seed ${fullSeed.slice(0, 16)}…` : "";
-      const text = `${won ? "Won a night" : "Lost a night"} in BLACKOUT, the battle royale where nobody can see you, not even the chain. Lights on 🔦 @magicblock${proof}`;
+      const text = `${won ? "Won a night" : "Lost a night"} in BLACKOUT, the battle royale where nobody can see you, not even the chain. Lights on 🔦 @magicblock`;
       const url = location.origin;
       const file = new File([blob], name, { type });
       // phones: straight into the share sheet with the clip attached
