@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { Room, View, World, Recording, BoardEntry } from "../chain/layout";
 
-export type Route = { page: "home" } | { page: "room"; roomId: bigint } | { page: "how" } | { page: "board" } | { page: "chars" } | { page: "roadmap" };
+export type Route = { page: "home" } | { page: "room"; roomId: bigint } | { page: "how" } | { page: "board" } | { page: "chars" } | { page: "roadmap" } | { page: "claim" };
 
 export interface FeedItem {
   key: string;

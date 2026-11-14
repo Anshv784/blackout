@@ -84,6 +84,17 @@ export async function connectWallet(id?: WalletOption["id"]): Promise<string> {
   return pk;
 }
 
+/** Sign a plain-text message with the connected wallet (proves the player owns it; no transaction,
+ *  no fee). Returns the 64-byte signature. */
+export async function signText(text: string): Promise<Uint8Array> {
+  const sol = provider();
+  if (!sol?.signMessage) throw new Error("This wallet can't sign messages");
+  if (!sol.publicKey) await sol.connect();
+  const res = await sol.signMessage(new TextEncoder().encode(text), "utf8");
+  const sig = res?.signature ?? res;
+  return sig instanceof Uint8Array ? sig : Uint8Array.from(sig);
+}
+
 export async function disconnectWallet() {
   try {
     await provider()?.disconnect?.();

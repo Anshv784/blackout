@@ -4,10 +4,16 @@
   "$schema": "https://unpkg.com/wrangler@4.158.0/config-schema.json",
   "name": "blackout",
   "compatibility_date": "2026-11-04",
+  // the app is static; worker/index.ts only answers /api/* (quest claims)
+  "main": "worker/index.ts",
   "assets": {
     "directory": "./app/dist",
-    "not_found_handling": "none"
+    "binding": "ASSETS",
+    "not_found_handling": "none",
+    "run_worker_first": ["/api/*"]
   },
+  // quest claims (worker/index.ts); ADMIN_TOKEN is a secret (.dev.vars locally)
+  "kv_namespaces": [{ "binding": "CLAIMS" }],
   // the game's own domain (blackout.anshverma.tech stays on Vercel, untouched)
   "routes": [
     { "pattern": "playblackout.fun", "custom_domain": true },

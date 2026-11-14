@@ -3051,3 +3051,29 @@ button {
 /* winner: brag buttons right under the trophy */
 .vc-brag { display: flex; gap: 10px; justify-content: center; margin: 4px 0 10px; }
 .vc-brag .btn { min-width: 150px; }
+
+/* #/claim: MagicBlock Quests claims */
+.claim .cl-hero{text-align:center;padding:26px 0 8px;max-width:760px;margin:0 auto}
+.cl-hero h1{font-size:clamp(32px,5vw,52px);margin:14px 0 10px}
+.cl-hero .lead{color:#b9c0d2;line-height:1.6;max-width:600px;margin:0 auto}
+.cl-card{max-width:640px;margin:22px auto 60px;padding:26px;border-radius:20px;background:rgba(18,21,31,.82);border:1px solid rgba(255,209,102,.18)}
+.cl-card h2{font-size:24px;margin:0 0 6px;color:#ffd166}
+.cl-text{color:#cfd5e2;line-height:1.55;margin:0 0 12px}
+.cl-steps{margin:0 0 20px 20px;color:#b9c0d2;line-height:1.7}
+.cl-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.cl-tabs button{padding:7px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:transparent;color:#cfd5e2;cursor:pointer}
+.cl-tabs button.on{background:#ffd166;color:#141006;border-color:#ffd166}
+.cl-form{display:flex;flex-direction:column;gap:8px}
+.cl-form label{font:600 12px 'JetBrains Mono',monospace;letter-spacing:.12em;text-transform:uppercase;color:#8e97ad;margin-top:6px}
+.cl-wallet{padding:12px 14px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#cfd5e2}
+.cl-wallet code{color:#ffd166;font-size:15px}
+.cl-form input{padding:13px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.16);background:#0b0d14;color:#eef1f6;font-size:15px;width:100%;box-sizing:border-box}
+.cl-form input:focus{outline:none;border-color:#ffd166}
+.cl-hint{font-size:13px;color:#8e97ad;margin:0}
+.cl-form .btn{margin-top:10px}
+.cl-status{padding:12px 14px;border-radius:12px;display:flex;flex-direction:column;gap:4px;margin-top:6px}
+.cl-status.pending{background:rgba(255,209,102,.1);border:1px solid rgba(255,209,102,.35);color:#ffd166}
+.cl-status.approved{background:rgba(127,227,196,.1);border:1px solid rgba(127,227,196,.4);color:#7fe3c4}
+.cl-status.rejected{background:rgba(233,69,96,.1);border:1px solid rgba(233,69,96,.4);color:#ff8fa3}
+.cl-status span{color:#cfd5e2;font-size:14px}
+@media (max-width:640px){.cl-card{margin:16px;padding:18px}}
