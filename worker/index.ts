@@ -29,6 +29,8 @@ interface Claim {
   post: string;
   at: number;
   status: Status;
+  /** the quest week it counts for (see weekOf); missing on claims made before weekly claims */
+  week?: number;
   note?: string;
   reviewedAt?: number;
 }
@@ -76,7 +78,13 @@ async function verify(wallet: string, msg: string, sigB64: string) {
 
 // an X post: x.com or twitter.com /<handle>/status/<id>
 const POST_RE = /^https:\/\/(www\.)?(x|twitter)\.com\/[A-Za-z0-9_]{1,15}\/status\/\d{5,25}(\?\S*)?$/;
-const keyOf = (quest: number, wallet: string) => `claim:${quest}:${wallet}`;
+// Quests can be done again every week. A week runs Friday 08:00 UTC to the next Friday 08:00
+// UTC, when MagicBlock Quests pays out. One claim per wallet per quest per week.
+const WEEK_START = Date.UTC(2026, 0, 2, 8); // Fri 2 Jan 2026, 08:00 UTC
+const WEEK_MS = 7 * 86_400_000;
+const weekOf = (t: number) => Math.floor((t - WEEK_START) / WEEK_MS);
+// claims made before weekly claims have no week in their key
+const keyOf = (quest: number, wallet: string, week?: number) => (week === undefined ? `claim:${quest}:${wallet}` : `claim:${quest}:w${week}:${wallet}`);
 const isAdmin = (req: Request, env: Env) => !!env.ADMIN_TOKEN && req.headers.get("authorization") === `Bearer ${env.ADMIN_TOKEN}`;
 
 async function api(req: Request, env: Env, url: URL): Promise<Response> {
@@ -89,21 +97,24 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
     if (!POST_RE.test(post) || post.length > 200) return json({ error: "Paste the link to your post on X (x.com/…/status/…)" }, 400);
     if (!Number.isFinite(at) || Math.abs(Date.now() - at) > 10 * 60_000) return json({ error: "Signature expired, try again" }, 400);
     if (!(await verify(wallet, claimMessage(b.quest, wallet, post, at), String(b.sig ?? "")))) return json({ error: "The wallet signature didn't check out" }, 400);
-    const k = keyOf(b.quest, wallet);
+    const week = weekOf(Date.now());
+    const k = keyOf(b.quest, wallet, week);
     const prev = await env.CLAIMS.get(k);
     if (prev) {
       const p = JSON.parse(prev) as Claim;
       if (p.status !== "rejected") return json({ claim: p, already: true });
     }
-    const claim: Claim = { quest: b.quest, wallet, post, at: Date.now(), status: "pending" };
+    const claim: Claim = { quest: b.quest, wallet, post, at: Date.now(), status: "pending", week };
     await env.CLAIMS.put(k, JSON.stringify(claim));
     return json({ claim });
   }
   if (url.pathname === "/api/claim" && req.method === "GET") {
     const quest = Number(url.searchParams.get("quest"));
     const wallet = url.searchParams.get("wallet") ?? "";
-    const v = await env.CLAIMS.get(keyOf(quest, wallet));
-    return json({ claim: v ? JSON.parse(v) : null });
+    const week = weekOf(Date.now());
+    const v = await env.CLAIMS.get(keyOf(quest, wallet, week));
+    const nextWeekAt = WEEK_START + (week + 1) * WEEK_MS;
+    return json({ claim: v ? JSON.parse(v) : null, week, nextWeekAt });
   }
   if (url.pathname === "/api/claims" && req.method === "GET") {
     if (!isAdmin(req, env)) return json({ error: "unauthorized" }, 401);
@@ -125,9 +136,9 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
   }
   if (url.pathname === "/api/claims/review" && req.method === "POST") {
     if (!isAdmin(req, env)) return json({ error: "unauthorized" }, 401);
-    const b = (await req.json().catch(() => null)) as { quest?: number; wallet?: string; status?: Status; note?: string } | null;
+    const b = (await req.json().catch(() => null)) as { quest?: number; wallet?: string; week?: number; status?: Status; note?: string } | null;
     if (!b || !b.wallet || typeof b.quest !== "number" || (b.status !== "approved" && b.status !== "rejected")) return json({ error: "bad request" }, 400);
-    const k = keyOf(b.quest, b.wallet);
+    const k = keyOf(b.quest, b.wallet, typeof b.week === "number" ? b.week : undefined);
     const v = await env.CLAIMS.get(k);
     if (!v) return json({ error: "no such claim" }, 404);
     const c = { ...(JSON.parse(v) as Claim), status: b.status, note: b.note, reviewedAt: Date.now() };

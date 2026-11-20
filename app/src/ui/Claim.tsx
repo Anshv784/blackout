@@ -23,6 +23,7 @@ export function Claim() {
   const [post, setPost] = useState("");
   const [busy, setBusy] = useState(false);
   const [claim, setClaim] = useState<Claim | null>(null);
+  const [nextWeekAt, setNextWeekAt] = useState<number | null>(null);
   const quest = QUESTS.find((q) => q.id === questId)!;
 
   useEffect(() => {
@@ -30,7 +31,7 @@ export function Claim() {
     if (!wallet) return;
     fetch(`/api/claim?quest=${questId}&wallet=${wallet}`)
       .then((r) => r.json())
-      .then((j) => setClaim(j.claim ?? null))
+      .then((j) => { setClaim(j.claim ?? null); setNextWeekAt(j.nextWeekAt ?? null); })
       .catch(() => {});
   }, [wallet, questId]);
 
@@ -98,6 +99,7 @@ export function Claim() {
           {claim && (
             <div className={`cl-status ${claim.status}`}>
               <b>{STATUS_TEXT[claim.status]}</b>
+              {claim.status !== "rejected" && nextWeekAt && <span>This quest can be claimed once a week. Next claim opens {new Date(nextWeekAt).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}.</span>}
               {claim.note && <span>{claim.note}</span>}
               {claim.status === "rejected" && <span>Fix it and send again.</span>}
             </div>

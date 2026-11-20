@@ -19,7 +19,12 @@ const token = read(LOCAL ? "claims-admin-token-local.txt" : "claims-admin-token.
 const PUSH_URL = process.env.QUESTS_PUSH_URL ?? "https://quests.magicblock.app/api/validators/push";
 const DEFAULT_QUEST = 115;
 
-type Claim = { quest: number; wallet: string; post: string; at: number; status: string; note?: string };
+type Claim = { quest: number; wallet: string; post: string; at: number; status: string; note?: string; week?: number };
+/** a wallet's newest claim for a quest that's still waiting, whatever week it was made in */
+async function pendingOf(quest: number, wallet: string): Promise<Claim | null> {
+  const { claims } = (await admin(`/api/claims?status=pending`)) as { claims: Claim[] };
+  return claims.filter((c) => c.quest === quest && c.wallet === wallet).sort((a, b) => b.at - a.at)[0] ?? null;
+}
 const admin = (path: string, init: RequestInit = {}) =>
   fetch(`${BASE}${path}`, { ...init, headers: { authorization: `Bearer ${token}`, "content-type": "application/json", ...(init.headers ?? {}) } }).then(async (r) => {
     const j = await r.json().catch(() => ({}));
@@ -34,12 +39,8 @@ if (cmd === "list") {
   for (const c of claims) console.log(`${new Date(c.at).toISOString().slice(0, 16)}  quest ${c.quest}  ${c.status.padEnd(8)}  ${c.wallet}\n    ${c.post}${c.note ? `\n    note: ${c.note}` : ""}`);
 } else if (cmd === "approve" && a1) {
   const quest = Number(a2 ?? DEFAULT_QUEST);
-  const { claim } = (await fetch(`${BASE}/api/claim?quest=${quest}&wallet=${a1}`).then((r) => r.json())) as { claim: Claim | null };
-  if (!claim) throw new Error(`no claim for ${a1} on quest ${quest}`);
-  if (claim.status === "approved") {
-    console.log("already approved");
-    process.exit(0);
-  }
+  const claim = await pendingOf(quest, a1);
+  if (!claim) throw new Error(`no pending claim for ${a1} on quest ${quest}`);
   if (process.env.DRY === "1") console.log("DRY: not sending to MagicBlock");
   else {
     const r = await fetch(PUSH_URL, {
@@ -51,10 +52,12 @@ if (cmd === "list") {
     if (!r.ok) throw new Error(`MagicBlock refused (${r.status}): ${body.slice(0, 300)}`);
     console.log("MagicBlock:", r.status, body.slice(0, 200));
   }
-  await admin("/api/claims/review", { method: "POST", body: JSON.stringify({ quest, wallet: a1, status: "approved" }) });
+  await admin("/api/claims/review", { method: "POST", body: JSON.stringify({ quest, wallet: a1, week: claim.week, status: "approved" }) });
   console.log(`approved ${a1} for quest ${quest}`);
 } else if (cmd === "reject" && a1) {
   const quest = Number(a2 ?? DEFAULT_QUEST);
-  await admin("/api/claims/review", { method: "POST", body: JSON.stringify({ quest, wallet: a1, status: "rejected", note: rest.join(" ") || undefined }) });
+  const claim = await pendingOf(quest, a1);
+  if (!claim) throw new Error(`no pending claim for ${a1} on quest ${quest}`);
+  await admin("/api/claims/review", { method: "POST", body: JSON.stringify({ quest, wallet: a1, week: claim.week, status: "rejected", note: rest.join(" ") || undefined }) });
   console.log(`rejected ${a1} for quest ${quest}`);
 } else console.log("usage: list [pending|approved|rejected|all] | approve <wallet> [quest] | reject <wallet> [quest] [note]");
