@@ -87,7 +87,58 @@ const weekOf = (t: number) => Math.floor((t - WEEK_START) / WEEK_MS);
 const keyOf = (quest: number, wallet: string, week?: number) => (week === undefined ? `claim:${quest}:${wallet}` : `claim:${quest}:w${week}:${wallet}`);
 const isAdmin = (req: Request, env: Env) => !!env.ADMIN_TOKEN && req.headers.get("authorization") === `Bearer ${env.ADMIN_TOKEN}`;
 
+// ---- anonymous play counter: a night started by a browser's random session key (never a wallet).
+// The key is hashed here; KV keeps one record per player: the first day, the last day and how many
+// different days they played. /api/stats (admin) adds them up.
+type Seen = { first: number; last: number; days: number; nights: number };
+const utcDay = (t = Date.now()) => Math.floor(t / 86_400_000);
+async function hashKey(key: string) {
+  const d = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode("blackout-seen:" + key)));
+  return Array.from(d.slice(0, 12), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 async function api(req: Request, env: Env, url: URL): Promise<Response> {
+  if (url.pathname === "/api/seen" && req.method === "POST") {
+    const b = (await req.json().catch(() => null)) as { key?: string; net?: string } | null;
+    const key = String(b?.key ?? "");
+    if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(key)) return json({ ok: false }, 400);
+    const net = b?.net === "devnet" ? "devnet" : "mainnet";
+    const k = `seen:${net}:${await hashKey(key)}`;
+    const today = utcDay();
+    const prev = await env.CLAIMS.get(k);
+    const s: Seen = prev ? JSON.parse(prev) : { first: today, last: today, days: 1, nights: 0 };
+    if (prev && s.last !== today) {
+      s.days += 1;
+      s.last = today;
+    }
+    s.nights += 1;
+    await env.CLAIMS.put(k, JSON.stringify(s));
+    return json({ ok: true });
+  }
+  if (url.pathname === "/api/stats" && req.method === "GET") {
+    if (!isAdmin(req, env)) return json({ error: "unauthorized" }, 401);
+    const net = url.searchParams.get("net") === "devnet" ? "devnet" : "mainnet";
+    const today = utcDay();
+    const out = { net, players: 0, returning: 0, nights: 0, today: 0, last7: 0, byFirstDay: {} as Record<string, number> };
+    let cursor: string | undefined;
+    do {
+      const page = await env.CLAIMS.list({ prefix: `seen:${net}:`, cursor });
+      for (const key of page.keys) {
+        const v = await env.CLAIMS.get(key.name);
+        if (!v) continue;
+        const s = JSON.parse(v) as Seen;
+        out.players++;
+        out.nights += s.nights;
+        if (s.days >= 2) out.returning++;
+        if (s.last === today) out.today++;
+        if (today - s.last < 7) out.last7++;
+        const d = new Date(s.first * 86_400_000).toISOString().slice(0, 10);
+        out.byFirstDay[d] = (out.byFirstDay[d] ?? 0) + 1;
+      }
+      cursor = page.list_complete ? undefined : page.cursor;
+    } while (cursor);
+    return json(out);
+  }
   if (url.pathname === "/api/claim" && req.method === "POST") {
     const b = (await req.json().catch(() => null)) as { quest?: number; wallet?: string; post?: string; at?: number; sig?: string } | null;
     if (!b || typeof b.quest !== "number" || !QUESTS.has(b.quest)) return json({ error: "Unknown quest" }, 400);

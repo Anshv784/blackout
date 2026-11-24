@@ -5,7 +5,7 @@ import { TOUCH } from "./device";
 import { ComputeBudgetProgram, PublicKey } from "@solana/web3.js";
 import { client } from "./identity";
 import { ticketPda, TICKET_LEN } from "../chain/client";
-import { SLOT_MS } from "../config";
+import { SLOT_MS, NETWORK } from "../config";
 import { lobbyDeadline } from "../chain/layout";
 import { useStore } from "./store";
 import { getLook, lookBytes, useLook } from "./look";
@@ -391,7 +391,13 @@ export class Session {
         useStore.getState().set({ reveal: null });
         if (r.status === ST_COUNTDOWN) audio.countdown();
       }
-      if (r.status === ST_LIVE) audio.go();
+      if (r.status === ST_LIVE) {
+        audio.go();
+        // anonymous play counter (worker/index.ts /api/seen): this browser's random session key,
+        // hashed by the worker; no wallet, no name. Counts unique and returning players.
+        if (this.mySeat !== null)
+          fetch("/api/seen", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key: client.publicKey.toBase58(), net: NETWORK }), keepalive: true }).catch(() => {});
+      }
       if (r.status === ST_ENDED) audio.end();
       if (r.status === ST_STARTING) this.startingSince = performance.now();
     }
