@@ -15,7 +15,7 @@ const sol = (lamports: bigint) => {
   return n.toFixed(n < 0.1 ? 2 : 1).replace(/\.?0+$/, "");
 };
 
-export function StakeChoice({ rooms, prize, onPick, onClose }: { rooms: Record<number, Room | null>; prize?: Prize | null; onPick: (id: number) => void; onClose: () => void }) {
+export function StakeChoice({ rooms, prize, reserved = {}, onPick, onClose }: { rooms: Record<number, Room | null>; prize?: Prize | null; reserved?: Record<number, boolean>; onPick: (id: number) => void; onClose: () => void }) {
   const wallet = useStore((s) => s.wallet);
   const myGames = (wallet && todaysStandings(prize ?? null).find((e) => e.key.toBase58() === wallet)?.games) || 0;
   const tables = STAKED_ROOMS.map((id) => [id, rooms[id] ?? null] as const)
@@ -25,19 +25,22 @@ export function StakeChoice({ rooms, prize, onPick, onClose }: { rooms: Record<n
     <div className="room-closed sc-overlay" onClick={onClose}>
       <div className="room-closed-card stake-choice" onClick={(e) => e.stopPropagation()}>
         <div className="vc-kicker">STAKED NIGHT</div>
-        <h2>Choose your table</h2>
-        <p>Everyone at a table puts in the same stake. The last one standing takes the pot, less a 10% fee.</p>
+        <h2>Play with your friends</h2>
+        <p>Pick a stake and you get a private code. Only friends with your code can sit at your table. Everyone puts in the same stake; the last one standing takes the pot, less a 10% fee.</p>
         <FeeSplit compact />
         <p className="sc-note">Stakes aren't refunded. Leave before the night starts and your ticket stays good for a later night at the same stake.</p>
         <div className="sc-list">
           {tables.length === 0 && <div className="sc-empty">Reading the tables…</div>}
           {tables.map(([id, r]) => {
             const seated = stakersSeated(r);
-            const open = r.status === ST_LOBBY && seated < r.maxPlayers;
+            const taken = !!reserved[id];
+            const open = r.status === ST_LOBBY && seated < r.maxPlayers && !taken;
             const at = stakedStartAt(r);
             const left = at === null ? null : Math.max(0, Math.ceil(at - Date.now() / 1000));
             const state =
-              r.status !== ST_LOBBY
+              taken
+                ? "in use by a friends game"
+                : r.status !== ST_LOBBY
                 ? `night in progress (${STATUS_NAME[r.status]?.toLowerCase()})`
                 : seated >= r.maxPlayers
                   ? "table full"
@@ -52,7 +55,7 @@ export function StakeChoice({ rooms, prize, onPick, onClose }: { rooms: Record<n
                 <span>
                   {seated}/{r.maxPlayers} seated · {state}
                 </span>
-                <em>{open ? `pot up to ${sol(r.stake * BigInt(r.maxPlayers))} SOL` : "come back after this night"}</em>
+                <em>{open ? `get a code · pot up to ${sol(r.stake * BigInt(r.maxPlayers))} SOL` : taken ? "have a code? join from the home screen" : "come back after this night"}</em>
                 {r.stake === PRIZE_STAKE && (
                   <small className="sc-daily">
                     DAILY CHALLENGE <Dots n={myGames} />

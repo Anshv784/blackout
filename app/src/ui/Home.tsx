@@ -9,7 +9,8 @@ import { useStore } from "../game/store";
 import { audio } from "../game/audio";
 import { TopBar } from "./TopBar";
 import { requireRealWallet, requireWallet } from "../game/wallet";
-import { codeToText, createRoom, findByCode, myRoom, stakeLabel, sweepRooms } from "../game/rooms";
+import { codeToText, createRoom, findByCode, myRoom, stakeLabel, sweepRooms, textToCode } from "../game/rooms";
+import { reserveTable, reservedTables, tableForCode, rememberFriendCode } from "../game/friends";
 import { DailyPrize } from "./DailyPrize";
 import { claimPrize, solText } from "../game/prize";
 import { StakeChoice } from "./StakeChoice";
@@ -154,6 +155,15 @@ export function Home() {
   const [code, setCode] = useState("");
   const [blocked, setBlocked] = useState(false);
   const [stakePick, setStakePick] = useState(false);
+  // friends-only staked tables: which ones a group has right now
+  const [reserved, setReserved] = useState<Record<number, boolean>>({});
+  useEffect(() => {
+    if (!stakePick) return;
+    const load = () => reservedTables(STAKED_ROOMS).then(setReserved);
+    load();
+    const t = setInterval(load, 5000);
+    return () => clearInterval(t);
+  }, [stakePick]);
   /** One room at a time: anything that would put you in a different room asks first. */
   const guard = async (target: number | null, then: () => void) => {
     // the room list may not have loaded yet (devnet can take a few seconds): check fresh, don't guess
@@ -173,7 +183,16 @@ export function Home() {
       setBusy("code");
       try {
         const hit = await findByCode(code);
-        if (!hit) toast("No open room with that code. Check it with the host.");
+        if (!hit) {
+          // not a free private room: maybe a friend's staked table
+          const n = textToCode(code);
+          const table = n ? await tableForCode(n) : null;
+          if (table !== null && n) {
+            rememberFriendCode(table, n);
+            if (mine !== null && mine !== table) setBlocked(true);
+            else go(`/r/${table}?fc=${codeToText(n).replace("-", "")}`);
+          } else toast("No open room with that code. Check it with your friend.");
+        }
         else if (mine !== null && mine !== hit.id) setBlocked(true);
         else go(`/r/${hit.id}?code=${codeToText(hit.code).replace("-", "")}`);
       } finally {
@@ -388,9 +407,18 @@ export function Home() {
           rooms={rooms}
           prize={prize}
           onClose={() => setStakePick(false)}
+          reserved={reserved}
           onPick={(id) => {
             setStakePick(false);
-            guard(id, () => requireRealWallet(() => go(`/r/${id}`)));
+            guard(id, () =>
+              requireRealWallet(async () => {
+                // a friends game: this table is yours and your friends' (they join with the code)
+                const r = await reserveTable(id).catch(() => null);
+                if (r === "busy") toast("Another group is using that table. Try the other one, or in a few minutes.");
+                else if (!r) toast("Couldn't start a friends game. Try again.");
+                else go(`/r/${id}?fc=${codeToText(r.code).replace("-", "")}`);
+              }),
+            );
           }}
         />
       )}

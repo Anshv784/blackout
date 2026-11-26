@@ -97,7 +97,59 @@ async function hashKey(key: string) {
   return Array.from(d.slice(0, 12), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+// ---- friends-only staked tables (a soft lock: the site and app enforce it, the program doesn't).
+// Tapping a staked table reserves it for a fresh code; only people with that code are let in by the
+// site. The reservation lapses after RESV_SECS without a keep-alive, or is released when the night
+// ends, so an unused table is always free again.
+const RESV_SECS = 600;
+type Resv = { room: number; code: number; at: number };
+const netOf = (v: unknown) => (v === "mainnet" ? "mainnet" : "devnet");
+const resvKey = (net: string, room: number) => `resv:${net}:${room}`;
+const codeKey = (net: string, code: number) => `fcode:${net}:${code}`;
+const newCode = () => 1 + (crypto.getRandomValues(new Uint32Array(1))[0] % 0x3ffffffe); // 30 bits, never 0
+
 async function api(req: Request, env: Env, url: URL): Promise<Response> {
+  if (url.pathname.startsWith("/api/friends/")) {
+    const b = req.method === "POST" ? ((await req.json().catch(() => ({}))) as { room?: number; code?: number; net?: string; rooms?: number[] }) : {};
+    const net = netOf(b.net ?? url.searchParams.get("net"));
+    const op = url.pathname.slice("/api/friends/".length);
+    if (op === "status" && req.method === "GET") {
+      // which of these tables are reserved right now (never the codes)
+      const rooms = (url.searchParams.get("rooms") ?? "").split(",").map(Number).filter((n) => Number.isInteger(n) && n > 0 && n < 1000).slice(0, 20);
+      const out: Record<number, boolean> = {};
+      for (const r of rooms) out[r] = !!(await env.CLAIMS.get(resvKey(net, r)));
+      return json({ reserved: out });
+    }
+    const room = Number(b.room);
+    const code = Number(b.code);
+    if (op === "reserve" && req.method === "POST") {
+      if (!Number.isInteger(room) || room <= 0 || room > 1000) return json({ error: "bad room" }, 400);
+      if (await env.CLAIMS.get(resvKey(net, room))) return json({ error: "busy" }, 409);
+      const r: Resv = { room, code: newCode(), at: Date.now() };
+      await env.CLAIMS.put(resvKey(net, room), JSON.stringify(r), { expirationTtl: RESV_SECS });
+      await env.CLAIMS.put(codeKey(net, r.code), String(room), { expirationTtl: RESV_SECS });
+      return json({ room, code: r.code });
+    }
+    if (op === "lookup" && req.method === "POST") {
+      const v = Number.isInteger(code) && code > 0 ? await env.CLAIMS.get(codeKey(net, code)) : null;
+      return v ? json({ room: Number(v) }) : json({ error: "no such code" }, 404);
+    }
+    if ((op === "keep" || op === "release") && req.method === "POST") {
+      const v = await env.CLAIMS.get(resvKey(net, room));
+      if (!v) return json({ ok: false, gone: true });
+      const r = JSON.parse(v) as Resv;
+      if (r.code !== code) return json({ error: "wrong code" }, 403);
+      if (op === "keep") {
+        await env.CLAIMS.put(resvKey(net, room), v, { expirationTtl: RESV_SECS });
+        await env.CLAIMS.put(codeKey(net, code), String(room), { expirationTtl: RESV_SECS });
+      } else {
+        await env.CLAIMS.delete(resvKey(net, room));
+        await env.CLAIMS.delete(codeKey(net, code));
+      }
+      return json({ ok: true });
+    }
+    return json({ error: "not found" }, 404);
+  }
   if (url.pathname === "/api/seen" && req.method === "POST") {
     const b = (await req.json().catch(() => null)) as { key?: string; net?: string } | null;
     const key = String(b?.key ?? "");

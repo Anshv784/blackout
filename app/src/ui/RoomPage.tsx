@@ -22,6 +22,7 @@ import { audio } from "../game/audio";
 import { connectWallet, requireRealWallet, requireWallet } from "../game/wallet";
 import { codeToText, newCode, seatElsewhere, sweepRooms, textToCode } from "../game/rooms";
 import { AlreadyInRoom } from "./AlreadyInRoom";
+import { forgetFriendCode, keepTable, myFriendCode, releaseTable, rememberFriendCode, reserveTable, reservedTables, tableForCode } from "../game/friends";
 import { TopBar } from "./TopBar";
 import type { SeatInfo } from "../scene/LobbyStage";
 
@@ -231,9 +232,65 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
   const isPrivate = room.unlisted && room.privateCode !== 0;
   const codeText = isPrivate ? codeToText(room.privateCode) : "";
   const link = isPrivate ? `${roomLink(room.roomId)}?code=${codeText.replace("-", "")}` : roomLink(room.roomId);
+  const friendsLink = (c: number | null) => (c ? `${roomLink(room.roomId)}?fc=${codeToText(c).replace("-", "")}` : roomLink(room.roomId));
   const [typed, setTyped] = useState("");
   const knownCode = textToCode(typed) ?? urlCode;
   const locked = isPrivate && mySeat === null && knownCode !== room.privateCode;
+  // ---- friends-only staked table (soft lock via the worker: see game/friends.ts)
+  const rid = Number(room.roomId);
+  const [fcode, setFcode] = useState<number | null>(() => {
+    const u = textToCode(flags().get("fc") ?? "");
+    if (u) rememberFriendCode(rid, u);
+    return u ?? myFriendCode(rid);
+  });
+  const [tableTaken, setTableTaken] = useState<boolean | null>(null);
+  const [fTyped, setFTyped] = useState("");
+  const [fErr, setFErr] = useState("");
+  useEffect(() => {
+    if (!staked) return;
+    let dead = false;
+    // a code from an earlier game may have lapsed: check it still opens this table
+    if (fcode) tableForCode(fcode).then((t) => !dead && t !== rid && (forgetFriendCode(rid), setFcode(null)));
+    const load = () => reservedTables([rid]).then((r) => !dead && setTableTaken(!!r[rid]));
+    load();
+    const t = setInterval(load, 8000);
+    return () => {
+      dead = true;
+      clearInterval(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [staked, rid]);
+  // hold the table while your group is here; let it go when the night is over
+  useEffect(() => {
+    if (!staked || !fcode) return;
+    if (room.status === ST_REVEALED) {
+      releaseTable(rid, fcode);
+      forgetFriendCode(rid);
+      return;
+    }
+    if (mySeat === null) return;
+    keepTable(rid, fcode);
+    const t = setInterval(() => keepTable(rid, fcode), 60_000);
+    return () => clearInterval(t);
+  }, [staked, fcode, mySeat, room.status, rid]);
+  const friendsLocked = staked && mySeat === null && !fcode && room.status === ST_LOBBY;
+  const fCodeText = fcode ? codeToText(fcode) : "";
+  const shareLink = staked ? friendsLink(fcode) : link;
+  const tryFriendCode = async (text: string) => {
+    const n = textToCode(text);
+    if (!n) return;
+    const t = await tableForCode(n);
+    if (t === rid) {
+      rememberFriendCode(rid, n);
+      setFcode(n);
+      setFErr("");
+    } else setFErr(t === null ? "That code doesn't open a table. Check it with your friend." : "That code is for the other table.");
+  };
+  const startFriends = async () => {
+    const r = await reserveTable(rid).catch(() => null);
+    if (r === "busy") setTableTaken(true);
+    else if (r) setFcode(r.code);
+  };
   const [askKick, setAskKick] = useState<number | null>(null);
   // one room at a time: are you seated somewhere else?
   const [other, setOther] = useState<{ id: number; room: Room } | null>(null);
@@ -371,7 +428,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
     });
 
   const copy = () => {
-    navigator.clipboard?.writeText(link);
+    navigator.clipboard?.writeText(shareLink);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
@@ -498,6 +555,46 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
           </div>
         </div>
       )}
+      {friendsLocked && !kicked && (
+        <div className="room-closed">
+          <div className="room-closed-card">
+            <div className="vc-kicker">🔒 FRIENDS ONLY · {(Number(room.stake) / 1e9).toFixed(2)} SOL TABLE</div>
+            {tableTaken ? (
+              <>
+                <h2>This table is in a friends game</h2>
+                <p>Ask your friend for the 6-character code.</p>
+                <input
+                  className="code-input"
+                  autoFocus
+                  placeholder="ABC-123"
+                  maxLength={7}
+                  value={fTyped}
+                  onChange={(e) => {
+                    const v = e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, "");
+                    setFTyped(v);
+                    setFErr("");
+                    if (v.replace("-", "").length === 6) tryFriendCode(v);
+                  }}
+                />
+                {fErr && <div className="wgate-err">{fErr}</div>}
+              </>
+            ) : (
+              <>
+                <h2>Start a friends game here</h2>
+                <p>You get a private code. Only friends with your code can sit at this table.</p>
+                <button className="btn primary huge" onClick={startFriends}>
+                  GET A CODE
+                </button>
+              </>
+            )}
+            <div className="row center">
+              <button className="btn" onClick={() => go("/")}>
+                BACK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {locked && !kicked && !closed && (
         <div className="room-closed">
           <div className="room-closed-card">
@@ -539,9 +636,23 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
       <div className="dock">
         <div className="dock-cell invite">
           <label className="dock-head">
-            <span>{isPrivate ? "ROOM CODE" : "INVITE"}</span>
-            <em>{isPrivate ? "share it with friends" : "friends join from this link"}</em>
+            <span>{isPrivate || (staked && fcode) ? "ROOM CODE" : "INVITE"}</span>
+            <em>{isPrivate || (staked && fcode) ? "only friends with this code can sit here" : "friends join from this link"}</em>
           </label>
+          {staked && fcode && (
+            <div className="row code-row">
+              <b className="room-code">{fCodeText}</b>
+              <button
+                className="btn small"
+                onClick={() => {
+                  navigator.clipboard?.writeText(fCodeText);
+                  toast(`Friends code ${fCodeText} copied`);
+                }}
+              >
+                COPY CODE
+              </button>
+            </div>
+          )}
           {isPrivate && mySeat !== null && (
             <div className="row code-row">
               <b className="room-code">{codeText}</b>
@@ -557,7 +668,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
             </div>
           )}
           <div className="row" style={isPrivate && mySeat === null ? { display: "none" } : undefined}>
-            <code>{link.replace(/^https?:\/\//, "")}</code>
+            <code>{shareLink.replace(/^https?:\/\//, "")}</code>
             <button className="btn small" onClick={copy}>
               {copied ? "COPIED" : "COPY"}
             </button>
@@ -565,7 +676,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
               className="btn small x"
               target="_blank"
               rel="noreferrer"
-              href={`https://x.com/intent/post?text=${encodeURIComponent(`Drop into BLACKOUT with me — a battle royale where nobody can see you, not even the chain. 🔦\n\n${link}`)}`}
+              href={`https://x.com/intent/post?text=${encodeURIComponent(`Drop into BLACKOUT with me — a battle royale where nobody can see you, not even the chain. 🔦\n\n${shareLink}`)}`}
             >
               POST
             </a>
