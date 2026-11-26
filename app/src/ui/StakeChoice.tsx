@@ -25,7 +25,7 @@ export function StakeChoice({ rooms, prize, reserved = {}, onPick, onClose }: { 
       <div className="room-closed-card stake-choice" onClick={(e) => e.stopPropagation()}>
         <div className="vc-kicker">STAKED NIGHT</div>
         <h2>Play with your friends</h2>
-        <p>Pick a stake and you get a private code. Only friends with your code can sit at your table. Everyone puts in the same stake; the last one standing takes the pot.</p>
+        <p>Pick a stake and you get a private code. Only friends with your code can sit at your table. Everyone puts in the same stake; the last one standing takes the pot (10% fee).</p>
         <p className="sc-note">Stakes aren't refunded. Leave before the night starts and your ticket stays good for a later night at the same stake.</p>
         <div className="sc-list">
           {tables.length === 0 && <div className="sc-empty">Reading the tables…</div>}

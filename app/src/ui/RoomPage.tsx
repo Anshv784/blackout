@@ -844,7 +844,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
               <label>THE POT</label>
               <b className="pot">{(Number(room.pot) / 1e9).toFixed(2)} SOL</b>
               <small>
-                {humans} staker{humans === 1 ? "" : "s"} · {(Number(room.stake) / 1e9).toFixed(2)} SOL each · no bots · the last one standing takes the pot
+                {humans} staker{humans === 1 ? "" : "s"} · {(Number(room.stake) / 1e9).toFixed(2)} SOL each · no bots · winner gets {(Number(room.pot) * 0.9 / 1e9).toFixed(3)} SOL (10% fee)
               </small>
             </>
           )}
