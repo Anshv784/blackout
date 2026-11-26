@@ -664,21 +664,35 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
       <div className="dock">
         <div className="dock-cell invite">
           <label className="dock-head">
-            <span>{isPrivate || (staked && fcode) ? "ROOM CODE" : "INVITE"}</span>
-            <em>{isPrivate || (staked && fcode) ? "only friends with this code can sit here" : "friends join from this link"}</em>
+            <span>{staked ? "YOUR TABLE CODE" : isPrivate ? "ROOM CODE" : "INVITE"}</span>
+            <em>{staked ? "friends only" : isPrivate ? "only friends with this code can sit here" : "friends join from this link"}</em>
           </label>
           {staked && fcode && (
-            <div className="row code-row">
-              <b className="room-code">{fCodeText}</b>
-              <button
-                className="btn small"
-                onClick={() => {
-                  navigator.clipboard?.writeText(fCodeText);
-                  toast(`Friends code ${fCodeText} copied`);
-                }}
-              >
-                COPY CODE
-              </button>
+            <div className="fc-box">
+              <b className="fc-code">{fCodeText}</b>
+              <p className="fc-hint">Send this code to your friends. They enter it on the home screen to join your table.</p>
+              <div className="fc-actions">
+                <button
+                  className="btn small primary"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(fCodeText);
+                    toast(`Code ${fCodeText} copied`);
+                  }}
+                >
+                  COPY CODE
+                </button>
+                <button className="btn small" onClick={copy}>
+                  {copied ? "COPIED" : "COPY LINK"}
+                </button>
+                <a
+                  className="btn small x"
+                  target="_blank"
+                  rel="noreferrer"
+                  href={`https://x.com/intent/post?text=${encodeURIComponent(`Staked night in BLACKOUT, friends only. Code ${fCodeText} 🔦\n\n${shareLink}`)}`}
+                >
+                  POST
+                </a>
+              </div>
             </div>
           )}
           {isPrivate && mySeat !== null && (
@@ -695,7 +709,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
               </button>
             </div>
           )}
-          <div className="row" style={isPrivate && mySeat === null ? { display: "none" } : undefined}>
+          <div className="row" style={(isPrivate && mySeat === null) || staked ? { display: "none" } : undefined}>
             <code>{shareLink.replace(/^https?:\/\//, "")}</code>
             <button className="btn small" onClick={copy}>
               {copied ? "COPIED" : "COPY"}
@@ -710,17 +724,24 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
             </a>
           </div>
           <div className="dock-facts">
+            {staked ? (
+              <span>
+                <i>STAKE</i>
+                {(Number(room.stake) / 1e9).toFixed(2)} SOL
+              </span>
+            ) : (
+              <span>
+                <i>ROOM</i>
+                {room.roomId.toString()}
+              </span>
+            )}
             <span>
-              <i>ROOM</i>
-              {room.roomId.toString()}
-            </span>
-            <span>
-              <i>TYPE</i>
-              {isPrivate ? "Private" : staked ? "Staked" : "Public"}
+              <i>{staked ? "SEATS" : "TYPE"}</i>
+              {staked ? `${humans} / ${size}` : isPrivate ? "Private" : "Public"}
             </span>
             <span>
               <i>MAP</i>
-              {staked ? "Drawn" : room.map === 1 ? "Meadow" : "Yard"}
+              {staked ? "Drawn at start" : room.map === 1 ? "Meadow" : "Yard"}
             </span>
           </div>
         </div>
@@ -729,7 +750,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
           <label className="dock-head">
             <span>THE NIGHT</span>
             <em>
-              {humans}/{size} seated · {staked ? "map drawn at the start" : room.map === 1 ? "Meadow" : "Yard"}
+              {staked ? `${humans}/${size} staked · humans only` : `${humans}/${size} seated · ${room.map === 1 ? "Meadow" : "Yard"}`}
             </em>
           </label>
           {mySeat === null ? (
@@ -776,7 +797,15 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
               const taken = room.players[i].toBase58() !== EMPTY;
               return <i key={i} className={taken ? (i === mySeat ? "me" : "on") : ""} />;
             })}
-            <span>{size - humans > 0 ? `${size - humans} ${size - humans === 1 ? "bot" : "bots"} fill the empty seats` : "every seat is taken"}</span>
+            <span>
+              {staked
+                ? humans < 2
+                  ? `needs ${2 - humans} more staker${2 - humans === 1 ? "" : "s"} to start`
+                  : "starts 60 s after the last staker sits"
+                : size - humans > 0
+                  ? `${size - humans} ${size - humans === 1 ? "bot" : "bots"} fill the empty seats`
+                  : "every seat is taken"}
+            </span>
           </div>
           <LobbyClock room={room} />
           {mySeat !== null && (
@@ -842,10 +871,20 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
           ) : (
             <>
               <label>THE POT</label>
-              <b className="pot">{(Number(room.pot) / 1e9).toFixed(2)} SOL</b>
-              <small>
-                {humans} staker{humans === 1 ? "" : "s"} · {(Number(room.stake) / 1e9).toFixed(2)} SOL each · no bots · winner gets {(Number(room.pot) * 0.9 / 1e9).toFixed(3)} SOL (10% fee)
-              </small>
+              <b className="pot">{(Number(room.pot) / 1e9).toFixed(3)} SOL</b>
+              <div className="pot-rows">
+                <span>
+                  <i>STAKERS</i>
+                  <b>
+                    {humans} × {(Number(room.stake) / 1e9).toFixed(2)} SOL
+                  </b>
+                </span>
+                <span>
+                  <i>WINNER GETS</i>
+                  <b className="gold">{(Number(room.pot > 0n ? room.pot : room.stake * 2n) * 0.9 / 1e9).toFixed(3)} SOL</b>
+                </span>
+              </div>
+              <small className="pot-note">{room.pot > 0n ? "last one standing · 10% fee" : "with 2 stakers · more players, bigger pot · 10% fee"}</small>
             </>
           )}
         </div>
