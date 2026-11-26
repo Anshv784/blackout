@@ -680,7 +680,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
           </div>
         </div>
       )}
-      <div className="dock">
+      <div className={`dock ${staked ? "staked" : ""}`}>
         <div className="dock-cell invite">
           <label className="dock-head">
             <span>{staked ? "YOUR TABLE CODE" : isPrivate ? "ROOM CODE" : "INVITE"}</span>
@@ -689,7 +689,6 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
           {staked && fcode && (
             <div className="fc-box">
               <b className="fc-code">{fCodeText}</b>
-              <p className="fc-hint">Friends join with it from the home screen.</p>
               <div className="fc-actions">
                 <button
                   className="btn small primary"
@@ -698,10 +697,10 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
                     toast(`Code ${fCodeText} copied`);
                   }}
                 >
-                  COPY CODE
+                  COPY
                 </button>
                 <button className="btn small" onClick={copy}>
-                  {copied ? "COPIED" : "COPY LINK"}
+                  {copied ? "COPIED" : "LINK"}
                 </button>
                 <a
                   className="btn small x"
@@ -889,7 +888,8 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
             </div>
           ) : (
             <>
-              <label>THE POT</label>
+              <label>THE POT · 10% FEE</label>
+              <div className="pot-wrap">
               <b className="pot">{(Number(room.pot) / 1e9).toFixed(3)} SOL</b>
               <div className="pot-rows">
                 <span>
@@ -903,7 +903,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
                   <b className="gold">{(Number(room.pot > 0n ? room.pot : room.stake * 2n) * 0.9 / 1e9).toFixed(3)} SOL</b>
                 </span>
               </div>
-              <small className="pot-note">{room.pot > 0n ? "last one standing · 10% fee" : "with 2 stakers · more players, bigger pot · 10% fee"}</small>
+              </div>
             </>
           )}
         </div>
