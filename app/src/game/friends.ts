@@ -8,6 +8,16 @@ const post = async (op: string, body: object) => {
   return { ok: r.ok, status: r.status, data: (await r.json().catch(() => ({}))) as any };
 };
 
+/** this tab's id, so the worker knows who still has a table open */
+const VIEWER = (() => {
+  try {
+    let v = sessionStorage.getItem("bo-viewer");
+    if (!v) sessionStorage.setItem("bo-viewer", (v = Math.random().toString(36).slice(2, 12)));
+    return v;
+  } catch {
+    return Math.random().toString(36).slice(2, 12);
+  }
+})();
 const KEY = (room: number) => `bo-friends-${NETWORK}-${room}`;
 /** the code you hold for a table (you reserved it, or joined with it) */
 export const myFriendCode = (room: number): number | null => {
@@ -31,7 +41,7 @@ export const forgetFriendCode = (room: number) => {
 
 /** reserve a staked table for you and your friends: a fresh code, or "busy" */
 export async function reserveTable(room: number): Promise<{ code: number } | "busy"> {
-  const r = await post("reserve", { room });
+  const r = await post("reserve", { room, viewer: VIEWER });
   if (r.status === 409) return "busy";
   if (!r.ok) throw new Error("Couldn't start a friends game. Try again.");
   rememberFriendCode(room, r.data.code);
@@ -47,9 +57,10 @@ export async function reservedTables(rooms: number[]): Promise<Record<number, bo
   const r = await fetch(`/api/friends/status?net=${NETWORK}&rooms=${rooms.join(",")}`).catch(() => null);
   return r && r.ok ? ((await r.json()).reserved as Record<number, boolean>) : {};
 }
-export const keepTable = (room: number, code: number) => post("keep", { room, code }).then((r) => !r.data.gone).catch(() => true);
-export const releaseTable = (room: number, code: number) => post("release", { room, code }).catch(() => {});
+export const keepTable = (room: number, code: number) => post("keep", { room, code, viewer: VIEWER }).then((r) => !r.data.gone).catch(() => true);
+/** you leave: the table is freed once nobody else has it open (the night's end frees it for all) */
+export const releaseTable = (room: number, code: number, everyone = false) => post("release", everyone ? { room, code } : { room, code, viewer: VIEWER }).catch(() => {});
 /** let the table go even while the page is closing */
 export const releaseTableOnExit = (room: number, code: number) => {
-  fetch("/api/friends/release", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ room, code, net: NETWORK }), keepalive: true }).catch(() => {});
+  fetch("/api/friends/release", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ room, code, viewer: VIEWER, net: NETWORK }), keepalive: true }).catch(() => {});
 };

@@ -101,9 +101,11 @@ async function hashKey(key: string) {
 // Tapping a staked table reserves it for a fresh code; only people with that code are let in by the
 // site. The reservation lapses after RESV_SECS without a keep-alive, or is released when the night
 // ends, so an unused table is always free again.
-const RESV_SECS = 600; // while the group is seated (kept alive every minute)
-const RESV_IDLE_SECS = 180; // a fresh code nobody has sat down with yet
-type Resv = { room: number; code: number; at: number };
+// Held only while someone with the code has the table open: their page renews it every 30 s.
+// Leaving releases it at once; a page that vanishes (crash, no network) lets it lapse in 75 s.
+const RESV_SECS = 75;
+const RESV_IDLE_SECS = 75;
+type Resv = { room: number; code: number; at: number; here?: Record<string, number> }; // here: page id -> last seen (ms)
 const netOf = (v: unknown) => (v === "mainnet" ? "mainnet" : "devnet");
 const resvKey = (net: string, room: number) => `resv:${net}:${room}`;
 const codeKey = (net: string, code: number) => `fcode:${net}:${code}`;
@@ -123,10 +125,11 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
     }
     const room = Number(b.room);
     const code = Number(b.code);
+    const viewer = String((b as { viewer?: string }).viewer ?? "").slice(0, 40);
     if (op === "reserve" && req.method === "POST") {
       if (!Number.isInteger(room) || room <= 0 || room > 1000) return json({ error: "bad room" }, 400);
       if (await env.CLAIMS.get(resvKey(net, room))) return json({ error: "busy" }, 409);
-      const r: Resv = { room, code: newCode(), at: Date.now() };
+      const r: Resv = { room, code: newCode(), at: Date.now(), here: viewer ? { [viewer]: Date.now() } : {} };
       await env.CLAIMS.put(resvKey(net, room), JSON.stringify(r), { expirationTtl: RESV_IDLE_SECS });
       await env.CLAIMS.put(codeKey(net, r.code), String(room), { expirationTtl: RESV_IDLE_SECS });
       return json({ room, code: r.code });
@@ -140,14 +143,22 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
       if (!v) return json({ ok: false, gone: true });
       const r = JSON.parse(v) as Resv;
       if (r.code !== code) return json({ error: "wrong code" }, 403);
-      if (op === "keep") {
-        await env.CLAIMS.put(resvKey(net, room), v, { expirationTtl: RESV_SECS });
-        await env.CLAIMS.put(codeKey(net, code), String(room), { expirationTtl: RESV_SECS });
-      } else {
+      // who has the table open: each page renews itself; a page gone quiet for RESV_SECS drops off
+      const now = Date.now();
+      const here: Record<string, number> = {};
+      for (const [k, t] of Object.entries(r.here ?? {})) if (now - t < RESV_SECS * 1000) here[k] = t;
+      if (op === "keep" && viewer) here[viewer] = now;
+      if (op === "release" && viewer) delete here[viewer];
+      // the last one out (or a release without a page id) frees the table
+      if (op === "release" && (!viewer || Object.keys(here).length === 0)) {
         await env.CLAIMS.delete(resvKey(net, room));
         await env.CLAIMS.delete(codeKey(net, code));
+        return json({ ok: true, freed: true });
       }
-      return json({ ok: true });
+      r.here = here;
+      await env.CLAIMS.put(resvKey(net, room), JSON.stringify(r), { expirationTtl: RESV_SECS });
+      await env.CLAIMS.put(codeKey(net, code), String(room), { expirationTtl: RESV_SECS });
+      return json({ ok: true, here: Object.keys(here).length });
     }
     return json({ error: "not found" }, 404);
   }

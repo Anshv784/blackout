@@ -8,8 +8,7 @@ import { PRIZE_MIN_GAMES, PRIZE_STAKE, type Prize } from "../chain/layout";
 import { todaysStandings } from "../game/prize";
 import { useStore } from "../game/store";
 import { Dots } from "./DailyPrize";
-import { useState } from "react";
-import { FeeSplit } from "./FeeSplit";
+import { FeeDot } from "./FeeSplit";
 
 const sol = (lamports: bigint) => {
   const n = Number(lamports) / 1e9;
@@ -18,7 +17,6 @@ const sol = (lamports: bigint) => {
 
 export function StakeChoice({ rooms, prize, reserved = {}, onPick, onClose }: { rooms: Record<number, Room | null>; prize?: Prize | null; reserved?: Record<number, boolean>; onPick: (id: number) => void; onClose: () => void }) {
   const wallet = useStore((s) => s.wallet);
-  const [feeOpen, setFeeOpen] = useState(false);
   const myGames = (wallet && todaysStandings(prize ?? null).find((e) => e.key.toBase58() === wallet)?.games) || 0;
   const tables = STAKED_ROOMS.map((id) => [id, rooms[id] ?? null] as const)
     .filter((t): t is readonly [number, Room] => !!t[1])
@@ -26,21 +24,7 @@ export function StakeChoice({ rooms, prize, reserved = {}, onPick, onClose }: { 
   return (
     <div className="room-closed sc-overlay" onClick={onClose}>
       <div className="room-closed-card stake-choice" onClick={(e) => e.stopPropagation()}>
-        <button className={`fee-dot ${feeOpen ? "on" : ""}`} aria-label="Where the 10% fee goes" title="Where the 10% fee goes" onClick={() => setFeeOpen(!feeOpen)}>
-          %
-        </button>
-        {feeOpen && (
-          <div
-            className="sc-feepop"
-            onClick={(e) => {
-              e.stopPropagation();
-              setFeeOpen(false);
-            }}
-          >
-            <FeeSplit compact />
-            <small>10% of every staked pot. Tap to close.</small>
-          </div>
-        )}
+        <FeeDot className="in-card" />
         <div className="vc-kicker">STAKED NIGHT</div>
         <h2>Play with your friends</h2>
         <p>Pick a stake and you get a private code. Only friends with your code can sit at your table. Everyone puts in the same stake; the last one standing takes the pot.</p>

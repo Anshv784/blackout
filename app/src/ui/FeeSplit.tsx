@@ -119,3 +119,44 @@ export function FeeBadge() {
     </div>
   );
 }
+
+/** A small round "%" button: tap it to see where the 10% fee on a staked pot goes. Closes on a
+ *  second tap, a tap on the panel, or anywhere else. Used in the top bar and the stake chooser. */
+export function FeeDot({ className = "" }: { className?: string }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const off = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    window.addEventListener("pointerdown", off);
+    return () => window.removeEventListener("pointerdown", off);
+  }, [open]);
+  return (
+    <span ref={ref} className={`feedot-wrap ${className}`}>
+      <button
+        className={`fee-dot ${open ? "on" : ""}`}
+        aria-label="Where the 10% fee goes"
+        title="Where the 10% fee goes"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen(!open);
+        }}
+      >
+        %
+      </button>
+      {open && (
+        <span
+          className="feedot-pop"
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen(false);
+          }}
+        >
+          <FeeSplit compact />
+        </span>
+      )}
+    </span>
+  );
+}

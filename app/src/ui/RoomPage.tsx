@@ -260,22 +260,29 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [staked, rid]);
-  // hold the table while your group is here; let it go when the night is over
+  // hold the table while anyone with the code has it open (seated or not); let it go when the
+  // night is over. If the table lapsed meanwhile (everyone gone), the code is dropped.
   useEffect(() => {
     if (!staked || !fcode) return;
     if (room.status === ST_REVEALED) {
-      releaseTable(rid, fcode);
+      releaseTable(rid, fcode, true);
       forgetFriendCode(rid);
       return;
     }
-    if (mySeat === null) return;
-    keepTable(rid, fcode);
-    const t = setInterval(() => keepTable(rid, fcode), 60_000);
+    const keep = () =>
+      keepTable(rid, fcode).then((alive) => {
+        if (!alive) {
+          forgetFriendCode(rid);
+          setFcode(null);
+        }
+      });
+    keep();
+    const t = setInterval(keep, 30_000);
     return () => clearInterval(t);
-  }, [staked, fcode, mySeat, room.status, rid]);
+  }, [staked, fcode, room.status, rid]);
   // leaving a table nobody is sitting at frees it at once (exit button, back, closing the tab)
   const emptyRef = useRef(true);
-  emptyRef.current = humans === 0 || (humans === 1 && mySeat !== null);
+  emptyRef.current = humans === 0 || (humans === 1 && mySeat !== null); // nobody sitting but (maybe) you
   const fcodeRef = useRef(fcode);
   fcodeRef.current = fcode;
   const stakedRef = useRef(staked);
@@ -285,7 +292,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
   // leaving a table nobody is sitting at frees it at once: the EXIT button, BACK, closing the tab.
   // (Not on unmount: the page rebuilds itself while the room loads.) Otherwise it lapses on its own.
   const releaseIfEmpty = async () => {
-    if (stakedRef.current && fcodeRef.current && emptyRef.current && lobbyRef.current) {
+    if (stakedRef.current && fcodeRef.current && lobbyRef.current) {
       const c = fcodeRef.current;
       forgetFriendCode(rid);
       await releaseTable(rid, c);
@@ -293,10 +300,22 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
   };
   useEffect(() => {
     const bye = () => {
-      if (stakedRef.current && fcodeRef.current && emptyRef.current && lobbyRef.current) releaseTableOnExit(rid, fcodeRef.current);
+      // tell the worker you've gone; it frees the table once nobody has it open
+      if (stakedRef.current && fcodeRef.current && lobbyRef.current) releaseTableOnExit(rid, fcodeRef.current);
+    };
+    // leaving the room page any other way (top menu, browser back): same as EXIT
+    const away = () => {
+      if (!window.location.hash.startsWith(`#/r/${rid}`)) bye();
     };
     window.addEventListener("pagehide", bye);
-    return () => window.removeEventListener("pagehide", bye);
+    window.addEventListener("hashchange", away);
+    return () => {
+      window.removeEventListener("pagehide", bye);
+      window.removeEventListener("hashchange", away);
+      // the page closing because you went elsewhere (the app swaps pages before "hashchange"
+      // listeners here run); a rebuild while the room loads keeps this room's address, so it's not
+      away();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const friendsLocked = staked && mySeat === null && !fcode && room.status === ST_LOBBY;
@@ -670,7 +689,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
           {staked && fcode && (
             <div className="fc-box">
               <b className="fc-code">{fCodeText}</b>
-              <p className="fc-hint">Send this code to your friends. They enter it on the home screen to join your table.</p>
+              <p className="fc-hint">Friends join with it from the home screen.</p>
               <div className="fc-actions">
                 <button
                   className="btn small primary"

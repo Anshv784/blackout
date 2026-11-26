@@ -7,6 +7,7 @@ import { useStore } from "../game/store";
 import { saveName } from "../game/identity";
 import { disconnectWallet, requireWallet, saveWalletName } from "../game/wallet";
 import { SoundToggle } from "./SoundToggle";
+import { FeeDot } from "./FeeSplit";
 import { go } from "../App";
 
 export function Logo({ onClick }: { onClick?: () => void }) {
@@ -140,6 +141,7 @@ export function TopBar({ active }: { active?: "play" | "board" | "how" | "chars"
       <div className="topbar-right">
         <Callsign />
         <Wallet />
+        <FeeDot className="in-bar" />
         <SoundToggle />
         <SettingsButton />
         <FullscreenButton className="chip-btn fs-btn" />
