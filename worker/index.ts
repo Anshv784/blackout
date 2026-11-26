@@ -101,7 +101,8 @@ async function hashKey(key: string) {
 // Tapping a staked table reserves it for a fresh code; only people with that code are let in by the
 // site. The reservation lapses after RESV_SECS without a keep-alive, or is released when the night
 // ends, so an unused table is always free again.
-const RESV_SECS = 600;
+const RESV_SECS = 600; // while the group is seated (kept alive every minute)
+const RESV_IDLE_SECS = 180; // a fresh code nobody has sat down with yet
 type Resv = { room: number; code: number; at: number };
 const netOf = (v: unknown) => (v === "mainnet" ? "mainnet" : "devnet");
 const resvKey = (net: string, room: number) => `resv:${net}:${room}`;
@@ -126,8 +127,8 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
       if (!Number.isInteger(room) || room <= 0 || room > 1000) return json({ error: "bad room" }, 400);
       if (await env.CLAIMS.get(resvKey(net, room))) return json({ error: "busy" }, 409);
       const r: Resv = { room, code: newCode(), at: Date.now() };
-      await env.CLAIMS.put(resvKey(net, room), JSON.stringify(r), { expirationTtl: RESV_SECS });
-      await env.CLAIMS.put(codeKey(net, r.code), String(room), { expirationTtl: RESV_SECS });
+      await env.CLAIMS.put(resvKey(net, room), JSON.stringify(r), { expirationTtl: RESV_IDLE_SECS });
+      await env.CLAIMS.put(codeKey(net, r.code), String(room), { expirationTtl: RESV_IDLE_SECS });
       return json({ room, code: r.code });
     }
     if (op === "lookup" && req.method === "POST") {

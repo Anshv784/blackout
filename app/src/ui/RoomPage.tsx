@@ -22,7 +22,7 @@ import { audio } from "../game/audio";
 import { connectWallet, requireRealWallet, requireWallet } from "../game/wallet";
 import { codeToText, newCode, seatElsewhere, sweepRooms, textToCode } from "../game/rooms";
 import { AlreadyInRoom } from "./AlreadyInRoom";
-import { forgetFriendCode, keepTable, myFriendCode, releaseTable, rememberFriendCode, reserveTable, reservedTables, tableForCode } from "../game/friends";
+import { forgetFriendCode, keepTable, myFriendCode, releaseTable, releaseTableOnExit, rememberFriendCode, reserveTable, reservedTables, tableForCode } from "../game/friends";
 import { TopBar } from "./TopBar";
 import type { SeatInfo } from "../scene/LobbyStage";
 
@@ -273,6 +273,32 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
     const t = setInterval(() => keepTable(rid, fcode), 60_000);
     return () => clearInterval(t);
   }, [staked, fcode, mySeat, room.status, rid]);
+  // leaving a table nobody is sitting at frees it at once (exit button, back, closing the tab)
+  const emptyRef = useRef(true);
+  emptyRef.current = humans === 0 || (humans === 1 && mySeat !== null);
+  const fcodeRef = useRef(fcode);
+  fcodeRef.current = fcode;
+  const stakedRef = useRef(staked);
+  stakedRef.current = staked;
+  const lobbyRef = useRef(true);
+  lobbyRef.current = room.status === ST_LOBBY;
+  // leaving a table nobody is sitting at frees it at once: the EXIT button, BACK, closing the tab.
+  // (Not on unmount: the page rebuilds itself while the room loads.) Otherwise it lapses on its own.
+  const releaseIfEmpty = async () => {
+    if (stakedRef.current && fcodeRef.current && emptyRef.current && lobbyRef.current) {
+      const c = fcodeRef.current;
+      forgetFriendCode(rid);
+      await releaseTable(rid, c);
+    }
+  };
+  useEffect(() => {
+    const bye = () => {
+      if (stakedRef.current && fcodeRef.current && emptyRef.current && lobbyRef.current) releaseTableOnExit(rid, fcodeRef.current);
+    };
+    window.addEventListener("pagehide", bye);
+    return () => window.removeEventListener("pagehide", bye);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const friendsLocked = staked && mySeat === null && !fcode && room.status === ST_LOBBY;
   const fCodeText = fcode ? codeToText(fcode) : "";
   const shareLink = staked ? friendsLink(fcode) : link;
@@ -418,12 +444,14 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
   }, [mySeat, busy]);
 
   const [askExit, setAskExit] = useState(false);
-  const exit = () => (mySeat !== null ? setAskExit(true) : go("/"));
+  const exit = () => (mySeat !== null ? setAskExit(true) : void releaseIfEmpty().finally(() => go("/")));
   const doExit = () =>
     run("leave", async () => {
       setAskExit(false);
       leaving.current = true;
       if (mySeat !== null) await session.leave().catch(() => {});
+      emptyRef.current = humans <= 1;
+      await releaseIfEmpty();
       go("/");
     });
 
@@ -450,7 +478,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
               ? "Your room. Pick the seats, then start the night."
               : `Waiting for ${room.names[effectiveHost] || "the host"} to start…`}
         </h2>
-        {staked && <p className="sub">Pot {(Number(room.pot) / 1e9).toFixed(2)} SOL · 10% fee (funds the daily prize, keeps tables running, and the rest goes to future tournaments) · humans only, no bots. The winner is paid on Solana by a Magic Action the moment the match commits, and staked wins are what the leaderboard ranks.</p>}
+        {staked && <p className="sub">Pot {(Number(room.pot) / 1e9).toFixed(2)} SOL · humans only, no bots. The winner is paid on Solana by a Magic Action the moment the match commits, and staked wins are what the leaderboard ranks.</p>}
         {quick.current && <p className="sub">Opening the gate for you…</p>}
       </div>
 
@@ -816,7 +844,7 @@ function Lobby({ session, room }: { session: Session; room: Room }) {
               <label>THE POT</label>
               <b className="pot">{(Number(room.pot) / 1e9).toFixed(2)} SOL</b>
               <small>
-                {humans} staker{humans === 1 ? "" : "s"} · {(Number(room.stake) / 1e9).toFixed(2)} SOL each · no bots · winner gets {(Number(room.pot) * 0.9 / 1e9).toFixed(3)} SOL after the 10% fee
+                {humans} staker{humans === 1 ? "" : "s"} · {(Number(room.stake) / 1e9).toFixed(2)} SOL each · no bots · the last one standing takes the pot
               </small>
             </>
           )}

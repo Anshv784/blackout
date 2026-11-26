@@ -49,3 +49,7 @@ export async function reservedTables(rooms: number[]): Promise<Record<number, bo
 }
 export const keepTable = (room: number, code: number) => post("keep", { room, code }).then((r) => !r.data.gone).catch(() => true);
 export const releaseTable = (room: number, code: number) => post("release", { room, code }).catch(() => {});
+/** let the table go even while the page is closing */
+export const releaseTableOnExit = (room: number, code: number) => {
+  fetch("/api/friends/release", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ room, code, net: NETWORK }), keepalive: true }).catch(() => {});
+};

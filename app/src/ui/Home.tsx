@@ -15,7 +15,6 @@ import { DailyPrize } from "./DailyPrize";
 import { claimPrize, solText } from "../game/prize";
 import { StakeChoice } from "./StakeChoice";
 import { AlreadyInRoom } from "./AlreadyInRoom";
-import { FeeBadge } from "./FeeSplit";
 
 const Backdrop = lazy(() => import("../scene/Backdrop").then((m) => ({ default: m.Backdrop })));
 const HeroSoldier = lazy(() => import("../scene/HeroSoldier").then((m) => ({ default: m.HeroSoldier })));
@@ -317,7 +316,6 @@ export function Home() {
               </button>
             </form>
             <div className="home-badges">
-              <FeeBadge />
               <button className="quest-badge" onClick={() => go("/claim")}>
                 <span aria-hidden>✦</span> MagicBlock Quests <b>claim →</b>
               </button>
