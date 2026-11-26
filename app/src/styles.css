@@ -3083,3 +3083,42 @@ button {
 .quest-badge:hover{background:rgba(166,77,255,.16);border-color:#c77dff}
 .quest-badge span{color:#c77dff}
 .quest-badge b{color:#ffd166;font-weight:700}
+
+/* friends-only staked table: the code card and the pot rows */
+.fc-box{display:flex;flex-direction:column;gap:6px;padding:9px 11px;border-radius:12px;background:linear-gradient(180deg,rgba(255,209,102,.08),rgba(255,209,102,.02));border:1px solid rgba(255,209,102,.28);margin-bottom:8px}
+.fc-code{font-family:var(--mono);font-size:22px;letter-spacing:.16em;color:var(--gold);text-shadow:0 0 18px rgba(255,209,102,.45);line-height:1}
+.fc-hint{margin:0;font-size:11px;color:#9aa3b8;line-height:1.4}
+.fc-actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.fc-actions .btn{min-width:0;height:34px;padding:0 6px;display:flex;align-items:center;justify-content:center;white-space:nowrap;font-size:11px}
+.pot-rows{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+.pot-rows span{display:flex;flex-direction:column;gap:1px;padding:5px 8px;border-radius:9px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06)}
+.pot-rows i{font-style:normal;font-size:9px;letter-spacing:.18em;color:#7d859a;font-weight:700}
+.pot-rows b{font-size:12.5px;color:#e2e6f0}
+.pot-rows b.gold{color:var(--gold)}
+.pot-note{display:block;margin-top:6px;font-size:11.5px;color:#7d859a}
+
+/* the round "%" fee button (top bar and stake chooser) and its panel */
+.feedot-wrap{position:relative;display:inline-flex}
+.feedot-wrap.in-card{position:absolute;top:14px;right:14px;z-index:4}
+.stake-choice{position:relative}
+.fee-dot{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font:800 13px var(--mono);color:var(--gold);background:rgba(255,209,102,.08);border:1px solid rgba(255,209,102,.45);cursor:pointer;transition:background .15s,transform .15s;padding:0}
+.feedot-wrap.in-bar .fee-dot{width:34px;height:34px;align-self:center}
+.fee-dot:hover,.fee-dot.on{background:rgba(255,209,102,.2);transform:scale(1.06)}
+.feedot-pop{position:absolute;top:calc(100% + 8px);right:0;width:min(400px,calc(100vw - 24px));z-index:60;cursor:pointer;display:block}
+.feedot-pop .fee-split.compact{margin:0;background:#0d1018;border:1px solid rgba(255,209,102,.4);box-shadow:0 18px 50px rgba(0,0,0,.7)}
+.feedot-pop .fs-cols{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.feedot-pop .fs-col{min-width:0;overflow:hidden}
+.feedot-pop .fs-col b{font-size:13px}
+.feedot-pop .fs-col span{font-size:10.5px;white-space:nowrap}
+.feedot-pop small{display:block;text-align:center;margin-top:6px;font-size:11px;color:#9aa3b8;background:#0d1018;border-radius:8px;padding:4px}
+.fc-box .fc-actions .btn,.fc-box .fc-actions .btn.x{height:28px;font-size:10.5px;margin:0;padding:0 6px;line-height:1;align-self:stretch}
+
+/* a staked table's dock, flatter: code + buttons on one line, no facts row, pot on one line */
+.dock.staked .dock-facts{display:none!important}
+.dock.staked .fc-box{flex-direction:row;align-items:center;gap:10px;padding:8px 10px;margin-bottom:0}
+.dock.staked .fc-code{font-size:20px;white-space:nowrap}
+.dock.staked .fc-actions{display:flex;gap:5px;flex:1}
+.dock.staked .fc-box .fc-actions .btn{flex:1;height:26px;font-size:10px;padding:0 6px}
+.dock.staked .pot-wrap{display:flex;align-items:center;gap:10px}
+.dock.staked .pot-wrap .pot{font-size:22px;white-space:nowrap}
+.dock.staked .pot-rows{flex:1;margin-top:0}
