@@ -11,6 +11,12 @@
 interface Env {
   CLAIMS: KVNamespace;
   ADMIN_TOKEN: string;
+  /** MagicBlock Quests push key (secret) */
+  QUEST_KEY?: string;
+  /** MagicBlock's number for the weekly "Play One Staked Night" quest (var); unset = don't push */
+  STAKED_QUEST?: string;
+  /** mainnet RPC for reading the leaderboard (var); defaults to the public one */
+  MAINNET_RPC?: string;
 }
 // minimal types for the parts of the Workers runtime used here
 interface KVNamespace {
@@ -112,6 +118,19 @@ const codeKey = (net: string, code: number) => `fcode:${net}:${code}`;
 const newCode = () => 1 + (crypto.getRandomValues(new Uint32Array(1))[0] % 0x3ffffffe); // 30 bits, never 0
 
 async function api(req: Request, env: Env, url: URL): Promise<Response> {
+  if (url.pathname === "/api/staked-quest" && req.method === "GET") {
+    if (!isAdmin(req, env)) return json({ error: "unauthorized" }, 401);
+    if (url.searchParams.get("run")) return json(await stakedQuestRun(env));
+    const week = weekOf(Date.now());
+    const done: string[] = [];
+    let cursor: string | undefined;
+    do {
+      const page = await env.CLAIMS.list({ prefix: `sq:done:w${week}:`, cursor });
+      for (const k of page.keys) done.push(k.name.split(":").pop()!);
+      cursor = page.list_complete ? undefined : page.cursor;
+    } while (cursor);
+    return json({ week, hasStart: !!(await env.CLAIMS.get(`sq:base:w${week}`)), on: !!(Number(env.STAKED_QUEST) && env.QUEST_KEY), done });
+  }
   if (url.pathname.startsWith("/api/friends/")) {
     const b = req.method === "POST" ? ((await req.json().catch(() => ({}))) as { room?: number; code?: number; net?: string; rooms?: number[] }) : {};
     const net = netOf(b.net ?? url.searchParams.get("net"));
@@ -263,7 +282,81 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
   return json({ error: "not found" }, 404);
 }
 
+// ---- weekly "Play One Staked Night" quest, approved automatically from the mainnet leaderboard.
+// The leaderboard counts staked nights per payout wallet, all-time. At the start of each quest week
+// (weekOf) we save everyone's count; a wallet whose count rises above that this week has played a
+// staked night this week and is pushed to MagicBlock, once per week. Earlier weeks never count.
+const BOARD = "Htk1QuUSS7idwVF3x4Lnqaut1gogHfzjbont22bpmKW2"; // board3 PDA of program BhGv… (mainnet)
+function b58(bytes: Uint8Array) {
+  let n = 0n;
+  for (const b of bytes) n = n * 256n + BigInt(b);
+  let out = "";
+  while (n > 0n) {
+    out = B58[Number(n % 58n)] + out;
+    n /= 58n;
+  }
+  for (const b of bytes) {
+    if (b !== 0) break;
+    out = "1" + out;
+  }
+  return out;
+}
+/** wallet -> staked nights played, from the on-chain leaderboard (programs/blackout state.rs Board) */
+async function stakedNights(env: Env): Promise<Record<string, number>> {
+  const r = await fetch(env.MAINNET_RPC || "https://solana-rpc.publicnode.com", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getAccountInfo", params: [BOARD, { encoding: "base64", commitment: "confirmed" }] }),
+  });
+  const j = (await r.json()) as { result?: { value?: { data: [string, string] } | null } };
+  const v = j.result?.value;
+  if (!v) throw new Error("leaderboard not readable: " + r.status + " " + JSON.stringify(j).slice(0, 200));
+  const raw = Uint8Array.from(atob(v.data[0]), (c) => c.charCodeAt(0));
+  const dv = new DataView(raw.buffer);
+  const count = Math.min(dv.getUint32(16, true), 60);
+  const out: Record<string, number> = {};
+  for (let i = 0; i < count; i++) {
+    const o = 24 + i * 72; // key 32 · name 16 · wins kills games best 4×4 · earned 8
+    out[b58(raw.slice(o, o + 32))] = dv.getUint32(o + 48 + 8, true);
+  }
+  return out;
+}
+async function stakedQuestRun(env: Env) {
+  const week = weekOf(Date.now());
+  const now = await stakedNights(env);
+  const snapKey = `sq:base:w${week}`;
+  const base = await env.CLAIMS.get(snapKey);
+  if (!base) {
+    // first look this week: everyone's starting point
+    await env.CLAIMS.put(snapKey, JSON.stringify(now));
+    return { week, started: true };
+  }
+  const start = JSON.parse(base) as Record<string, number>;
+  const quest = Number(env.STAKED_QUEST);
+  const done: string[] = [];
+  for (const [wallet, n] of Object.entries(now)) {
+    if (n <= (start[wallet] ?? 0)) continue;
+    const k = `sq:done:w${week}:${wallet}`;
+    if (await env.CLAIMS.get(k)) continue;
+    if (!quest || !env.QUEST_KEY) continue; // not switched on yet
+    const r = await fetch("https://quests.magicblock.app/api/validators/push", {
+      method: "POST",
+      headers: { authorization: `Bearer ${env.QUEST_KEY}`, "content-type": "application/json" },
+      body: JSON.stringify({ payload: { quest, user: wallet, timestamp: Date.now() } }),
+    });
+    // refused (e.g. they haven't pressed Start on the quest yet): try again on the next run
+    if (r.ok) {
+      await env.CLAIMS.put(k, JSON.stringify({ at: Date.now(), nights: n - (start[wallet] ?? 0) }));
+      done.push(wallet);
+    }
+  }
+  return { week, pushed: done.length };
+}
+
 export default {
+  async scheduled(_e: unknown, env: Env) {
+    await stakedQuestRun(env).catch(() => {});
+  },
   async fetch(req: Request, env: Env & { ASSETS: { fetch(r: Request): Promise<Response> } }): Promise<Response> {
     const url = new URL(req.url);
     if (url.pathname.startsWith("/api/")) return api(req, env, url);
