@@ -24,8 +24,8 @@
   // keep the workers.dev address working too
   "workers_dev": true,
   "observability": { "enabled": true },
-  // every 5 minutes: the weekly staked-night quest (worker/index.ts stakedQuestRun)
-  "triggers": { "crons": ["*/5 * * * *"] },
+  // every 5 hours: the weekly staked-night quest (worker/index.ts stakedQuestRun)
+  "triggers": { "crons": ["0 */5 * * *"] },
   // MagicBlock's number for that quest; 0 = only track, don't push. QUEST_KEY is a secret.
   "vars": { "STAKED_QUEST": "209" }
 }
